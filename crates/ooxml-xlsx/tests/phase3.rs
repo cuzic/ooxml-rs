@@ -373,20 +373,16 @@ fn sheet_ids_are_not_reused() {
     assert!(w.contains(r#"name="C" sheetId="3""#), "{w}");
 }
 
-/// The closed-world scan refuses a mention in a place this version does
-/// not rewrite: a data-validation formula, and an unknown XML part.
+/// The closed-world scan refuses a sheet mention in an unknown XML part.
 #[test]
 fn scan_refuses_unknown_places() {
     let base = common::p1::book(&[("A", ""), ("Data", "")], "", "");
-    let dv = sheet_xml_with(r#"<sheetData/><dataValidations count="1"><dataValidation type="list" sqref="A1"><formula1>Data!$A$1:$A$3</formula1></dataValidation></dataValidations>"#);
-    let input = rebuild(&base, &[("xl/worksheets/sheet1.xml", dv)]);
+    let input = rebuild(&base, &[("xl/custom.xml", br#"<x a="Data!A1"/>"#.to_vec())]);
     let mut wb = Workbook::from_bytes(input.clone()).unwrap();
     assert!(matches!(wb.rename_sheet("Data", "D2"), Err(Error::UnrewritableReference { .. })));
-    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
-    let input = rebuild(&base, &[("xl/custom.xml", br#"<x a="Data!A1"/>"#.to_vec())]);
-    let mut wb = Workbook::from_bytes(input).unwrap();
-    assert!(matches!(wb.rename_sheet("Data", "D2"), Err(Error::UnrewritableReference { .. })));
+    assert!(wb.to_bytes().unwrap() == input);
     assert!(matches!(wb.delete_sheet("Data"), Err(Error::UnrewritableReference { .. })));
+    assert!(wb.to_bytes().unwrap() == input);
 }
 
 /// Deleting the active, selected sheet selects the next visible one, and

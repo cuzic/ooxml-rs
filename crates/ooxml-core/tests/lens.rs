@@ -509,3 +509,16 @@ fn insert_at_exhaustive_agreement_and_validity() {
     }
     assert!(oks > 100, "{oks}");
 }
+
+#[test]
+fn bulk_removal_preserves_surrounding_spans() {
+    let input = b"<p xmlns='urn:t'><head/> <!-- remove --> <a/><b/><!-- keep --><item k='7'/></p>";
+    let mut doc = XmlDocument::parse(input).unwrap();
+    let mut lens = doc.lens_mut::<P>().unwrap();
+    assert!(!lens.remove_range(1..99));
+    assert!(lens.remove_range(1..1));
+    assert_eq!(doc.serialize().as_bytes(), input);
+
+    assert!(doc.lens_mut::<P>().unwrap().remove_range(1..6));
+    assert_eq!(doc.serialize().as_bytes(), b"<p xmlns='urn:t'><head/><!-- keep --><item k='7'/></p>");
+}

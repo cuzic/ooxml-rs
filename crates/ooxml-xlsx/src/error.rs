@@ -19,6 +19,14 @@ pub enum Error {
         /// Why it cannot be edited.
         reason: String,
     },
+    /// Workbook or worksheet protection forbids this operation.
+    #[error("{scope} protection forbids {operation}")]
+    Protected {
+        /// The protected scope.
+        scope: &'static str,
+        /// The requested operation.
+        operation: &'static str,
+    },
     /// The cell already has a legacy note.
     #[error("the cell already has a note")]
     NoteExists,

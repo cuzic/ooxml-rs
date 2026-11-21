@@ -359,6 +359,7 @@ name = "ooxml-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "ooxml-core",
  "ooxml-robustness",
 ]
 

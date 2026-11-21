@@ -60,6 +60,10 @@ pub(crate) struct StringPlan {
 }
 
 impl StringPlan {
+    pub(crate) fn reservation(&self) -> Option<(String, u32)> {
+        self.append.as_ref().map(|key| (key.clone(), self.index))
+    }
+
     pub(crate) fn will_append(&self) -> bool {
         self.append.is_some()
     }

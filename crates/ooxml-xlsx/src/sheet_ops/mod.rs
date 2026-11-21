@@ -34,7 +34,8 @@ use crate::reference::{MAX_COLS, MAX_ROWS};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, REL_WORKSHEET, Workbook};
 use app_xml::Listed;
 use names::{PrefixEdit, Unrewritable, rewrite_formula, rewrite_location, validate_sheet_name};
-use scan::{C15_NS, CHART_NS, PartKind, scan_part};
+use crate::locations::{self, PartKind, Rule, Syntax};
+use scan::scan_part;
 
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 const REL_REVISIONS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/revisionHeaders";
@@ -209,6 +210,18 @@ impl Workbook {
         let rels = self.pkg.relationships(&self.workbook_part)?;
         if rels.by_type(REL_REVISIONS).next().is_some() {
             return Err(Error::SharedWorkbook);
+        }
+        Ok(())
+    }
+
+    fn sheet_structure_guard(&mut self, operation: &'static str) -> Result<()> {
+        self.structural_guard()?;
+        let workbook = self.pkg.xml_part(&self.workbook_part)?;
+        if workbook.root().elements().any(|node| {
+            node.is(sml::WorkbookProtection::QNAME)
+                && node.attr(ooxml_core::QName::new("", "lockStructure")).is_some_and(|value| matches!(value.trim(), "1" | "true"))
+        }) {
+            return Err(Error::Protected { scope: "workbook", operation });
         }
         Ok(())
     }
@@ -514,7 +527,7 @@ impl Workbook {
     /// `docProps/app.xml` is kept consistent when its shape is recognized
     /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn add_sheet(&mut self, name: &str, position: usize) -> Result<()> {
-        self.structural_guard()?;
+        self.sheet_structure_guard("add_sheet")?;
         self.check_new_name(name, None)?;
         if position > self.sheets.len() {
             return Err(Error::NoSuchSheet(format!("#{position}")));
@@ -645,7 +658,7 @@ impl Workbook {
     /// `docProps/app.xml` is kept consistent when its shape is recognized
     /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn move_sheet(&mut self, from: usize, to: usize) -> Result<()> {
-        self.structural_guard()?;
+        self.sheet_structure_guard("move_sheet")?;
         let n = self.sheets.len();
         if from >= n || to >= n {
             return Err(Error::NoSuchSheet(format!("#{}", from.max(to))));
@@ -810,7 +823,7 @@ impl Workbook {
     /// `docProps/app.xml` is kept consistent when its shape is recognized
     /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn rename_sheet(&mut self, sheet: &str, new_name: &str) -> Result<Vec<RewrittenLocation>> {
-        self.structural_guard()?;
+        self.sheet_structure_guard("rename_sheet")?;
         let i = self.sheet_pos(sheet)?;
         let old = self.sheets[i].name.clone();
         if old == new_name {
@@ -820,11 +833,12 @@ impl Workbook {
         if self.pkg.part_names().any(|p| self.pkg.content_type(p).is_some_and(|ct| ct.starts_with(CT_ACTIVEX))) {
             return Err(Error::BinaryReferencesPossible);
         }
-        self.closed_world_scan(&old, &[])?;
         let edit = PrefixEdit::Rename { old: fold(&old), new: new_name };
+        self.closed_world_scan(&old, &[], &edit)?;
         let mut change = Change::default();
         let mentions = |t: &str| names::mentions_prefix(t, &old);
         self.rewrite_everywhere(&mut change, &edit, &mentions, &[], &[])?;
+        self.rewrite_registered_formulas(&mut change, &edit, &mentions, &[])?;
         self.rewrite_raw_sheet_names(&mut change, &old, new_name)?;
         // Phase1: CELL/INFO callers and Everything (ADR-0009 §6)
         let seeds = self.formulas_where(&|t| {
@@ -853,7 +867,9 @@ impl Workbook {
         let listed_before = self.listed()?;
         let mut listed_after = listed_before.clone();
         listed_after[i].name = new_name.to_owned();
-        self.stage_app_xml(&mut change, &listed_before, &listed_after, Some(&edit), None)?;
+        if locations::sheet_rewrites(73, false).next().is_some() {
+            self.stage_app_xml(&mut change, &listed_before, &listed_after, Some(&edit), None)?;
+        }
         for (src, id, before, after) in &targets {
             change.rewritten.push(RewrittenLocation {
                 part: ooxml_core::opc::rels_part_name(src.as_deref()),
@@ -874,6 +890,9 @@ impl Workbook {
     /// relationship target to rewrite.
     fn hyperlink_targets(&self, edit: &PrefixEdit<'_>) -> Vec<(Option<String>, String, String, String)> {
         let mut out = Vec::new();
+        if locations::sheet_rewrites(71, matches!(edit, PrefixEdit::Delete { .. })).next().is_none() {
+            return out;
+        }
         let mut sources: Vec<Option<String>> = vec![None];
         sources.extend(self.pkg.part_names().filter(|p| !p.ends_with(".rels")).map(|p| Some(p.to_owned())));
         for src in sources {
@@ -904,9 +923,11 @@ impl Workbook {
             move |Unrewritable(why)| Error::UnrewritableReference { part, location: format!("{location} ({why})") }
         }
         let mut done = Vec::new();
+        let deleting = matches!(edit, PrefixEdit::Delete { .. });
+        let rewrites = |id| locations::sheet_rewrites(id, deleting).next().is_some();
         // defined names
         let wb_part = self.workbook_part.clone();
-        let dn = defined_names(self.pkg.xml_part(&wb_part)?);
+        let dn = if rewrites(32) { defined_names(self.pkg.xml_part(&wb_part)?) } else { Vec::new() };
         let mut name_edits = Vec::new();
         for (ci, name, local, text) in &dn {
             // a name local to a deleted sheet goes with it: not a rewrite
@@ -937,8 +958,7 @@ impl Workbook {
                 let doc = self.pkg.xml_part(part)?;
                 let root = doc.root();
                 let mut cells = Vec::new();
-                if let Some((sdi, sd)) = root.indexed_elements().find(|(_, e)| e.is(sml::SheetData::QNAME)) {
-                    let _ = sdi;
+                if rewrites(4) && let Some(sd) = root.elements().find(|e| e.is(sml::SheetData::QNAME)) {
                     for (ri, row) in sd.indexed_elements().filter(|(_, e)| e.is(sml::Row::QNAME)) {
                         for (ci, c) in row.indexed_elements().filter(|(_, e)| e.is(sml::Cell::QNAME)) {
                             if let Some(f) = c.elements().find(|e| e.is(sml::CellFormula::QNAME)) {
@@ -952,7 +972,7 @@ impl Workbook {
                     }
                 }
                 let mut links = Vec::new();
-                if let Some(hl) = root.elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
+                if rewrites(14) && let Some(hl) = root.elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
                     for (hi, h) in hl.indexed_elements().filter(|(_, e)| e.is(sml::Hyperlink::QNAME)) {
                         if let Some(loc) = h.attr(ooxml_core::QName::new("", "location"))
                             && let Some(new) = rewrite_location(loc, edit)
@@ -1007,7 +1027,7 @@ impl Workbook {
             let mut stack = vec![doc.root()];
             while let Some(n) = stack.pop() {
                 stack.extend(n.elements());
-                if !(n.name().local() == "f" && (n.name().ns() == CHART_NS || n.name().ns() == C15_NS)) {
+                if !locations::sheet_rewrites(47, deleting).any(|row| row.matches_chart_element(n.name())) {
                     continue;
                 }
                 let text = n.text().into_owned();
@@ -1073,13 +1093,10 @@ impl Workbook {
                 continue;
             };
             let mut rewrite = None;
-            let mut stack = vec![(d.root(), Vec::<usize>::new())];
-            while let Some((n, path)) = stack.pop() {
-                for (i, c) in n.indexed_elements() {
-                    let mut pp = path.clone();
-                    pp.push(i);
-                    stack.push((c, pp));
-                }
+            let mut stack = vec![(d.root(), Vec::<(String, String)>::new())];
+            while let Some((n, mut path)) = stack.pop() {
+                path.push((n.name().ns().to_owned(), n.name().local().to_owned()));
+                stack.extend(n.elements().map(|child| (child, path.clone())));
                 let local = n.name().local();
                 if !matches!(local, "worksheetSource" | "rangeSet" | "dataRef") || n.name().ns() != crate::SML_NS {
                     continue;
@@ -1088,7 +1105,8 @@ impl Workbook {
                 if fold(&crate::escape::decode(sheet)) != of || n.attrs().iter().any(|a| a.name().local() == "id" && a.name().ns() == R_NS) {
                     continue;
                 }
-                let at_source = local == "worksheetSource" && pivot && path.len() == 2;
+                let at_source = pivot && locations::find(PartKind::PivotCache, &path, Some("sheet"), None)
+                    .is_some_and(|row| row.id == 72 && row.rename == Rule::Rewrite);
                 if !at_source {
                     return Err(Error::UnrewritableReference { part: p, location: format!("<{local}> attribute sheet") });
                 }
@@ -1107,10 +1125,78 @@ impl Workbook {
         Ok(())
     }
 
+    /// Stages formulas in the additional ADR-0018 locations. Legacy writers
+    /// retain their existing report labels and serialization order.
+    fn rewrite_registered_formulas(
+        &self, change: &mut Change, edit: &PrefixEdit<'_>, mentions: &dyn Fn(&str) -> bool, skip: &[String],
+    ) -> Result<()> {
+        for part in self.pkg.part_names().filter(|part| !skip.iter().any(|p| p == part)) {
+            let ct = self.pkg.content_type(part).unwrap_or_default();
+            let ct = ct.split(';').next().unwrap_or_default().trim().to_ascii_lowercase();
+            let kind = if ct == CT_WORKSHEET && self.sheets.iter().any(|sheet| sheet.part.as_deref() == Some(part)) {
+                PartKind::Worksheet
+            } else if ct == CT_CHART {
+                PartKind::Chart
+            } else {
+                locations::additional_part(&ct)
+            };
+            if matches!(kind, PartKind::Other | PartKind::ChartEx) {
+                continue;
+            }
+            let bytes = if let Some(doc) = change.docs.get(part) {
+                doc.serialize().into_bytes()
+            } else if let Some(bytes) = change.bytes.get(part) {
+                bytes.clone()
+            } else {
+                self.pkg.read_part(part)?
+            };
+            if kind == PartKind::Chart && !bytes.windows(b"pivotSource".len()).any(|window| window == b"pivotSource") {
+                continue;
+            }
+            if kind == PartKind::Worksheet && ![b"conditionalFormatting".as_slice(), b"dataValidations", b"controls", b"extLst"].iter().any(|tag| bytes.windows(tag.len()).any(|window| window == *tag)) {
+                continue;
+            }
+            let doc = match XmlDocument::parse(&bytes) {
+                Ok(doc) => doc,
+                Err(_) if mentions(&String::from_utf8_lossy(&bytes)) => {
+                    return Err(Error::UnrewritableReference { part: part.to_owned(), location: "a part this version cannot parse".into() });
+                }
+                Err(_) => continue,
+            };
+            let mut ranges = Vec::new();
+            collect_registered_formulas(doc.source(), doc.root(), &mut Vec::new(), None, kind, part, edit, mentions, &mut ranges)?;
+            if ranges.is_empty() {
+                continue;
+            }
+            let source = doc.source();
+            let mut xml = String::with_capacity(source.len());
+            let mut cursor = 0;
+            ranges.sort_by_key(|(range, _, _)| range.start);
+            for (range, rewrite, attribute) in ranges {
+                xml.push_str(&source[cursor..range.start]);
+                let escaped = quick_xml::escape::partial_escape(rewrite.after.as_str());
+                match attribute.then(|| source.as_bytes()[range.start - 1]) {
+                    Some(b'\'') => xml.push_str(&escaped.replace('\'', "&apos;")),
+                    Some(b'"') => xml.push_str(&escaped.replace('"', "&quot;")),
+                    _ => xml.push_str(&escaped),
+                }
+                cursor = range.end;
+                change.rewritten.push(rewrite);
+            }
+            xml.push_str(&source[cursor..]);
+            if kind == PartKind::Chart {
+                change.bytes.insert(part.to_owned(), xml.into_bytes());
+            } else {
+                change.docs.insert(part.to_owned(), XmlDocument::parse(xml.as_bytes())?);
+            }
+        }
+        Ok(())
+    }
+
     /// The closed-world scan over every XML part except `skip` (ADR-0009
     /// §6): a mention of `name` in sheet-prefix form outside the places
     /// this version rewrites (or leaves on purpose) refuses.
-    fn closed_world_scan(&self, name: &str, skip: &[String]) -> Result<()> {
+    fn closed_world_scan(&self, name: &str, skip: &[String], edit: &PrefixEdit<'_>) -> Result<()> {
         let worksheets: HashSet<&str> = self.sheets.iter().filter(|s| s.kind == SheetKind::Worksheet).filter_map(|s| s.part.as_deref()).collect();
         for p in self.pkg.part_names() {
             if skip.iter().any(|s| s == p) || Some(p) == self.calc_chain.as_deref() {
@@ -1141,9 +1227,9 @@ impl Workbook {
             {
                 PartKind::NonReference
             } else {
-                PartKind::Other
+                locations::additional_part(&essence)
             };
-            scan_part(p, &self.pkg.read_part(p)?, kind, name)?;
+            scan_part(p, &self.pkg.read_part(p)?, kind, name, Some(edit))?;
         }
         Ok(())
     }
@@ -1175,7 +1261,7 @@ impl Workbook {
     }
 
     fn delete(&mut self, sheet: &str, strict: bool) -> Result<Vec<RewrittenLocation>> {
-        self.structural_guard()?;
+        self.sheet_structure_guard("delete_sheet")?;
         let d = self.sheet_pos(sheet)?;
         let entry = self.sheets[d].clone();
         match entry.kind {
@@ -1205,12 +1291,12 @@ impl Workbook {
         self.check_tables_and_pivots(&entry.name, &set)?;
         let mut skip = set.clone();
         skip.extend(self.calc_chain.clone());
-        self.closed_world_scan(&entry.name, &skip)?;
         // rewrites
         let order: Vec<String> = self.sheets.iter().map(|s| fold(&s.name)).collect();
         let names: Vec<String> = self.sheets.iter().map(|s| s.name.clone()).collect();
         let worksheet: Vec<bool> = self.sheets.iter().map(|s| s.kind == SheetKind::Worksheet).collect();
         let edit = PrefixEdit::Delete { deleted: d, order, names, worksheet };
+        self.closed_world_scan(&entry.name, &skip, &edit)?;
         let mut change = Change::default();
         if set.iter().any(|p| same_name(p, &part)) {
             change.removed_shared_refs = crate::registry::scan_sheet(&self.pkg.read_part(&part)?)?.shared as i64;
@@ -1218,6 +1304,7 @@ impl Workbook {
         let ename = entry.name.clone();
         let mentions = move |t: &str| names::mentions_prefix(t, &ename);
         self.rewrite_everywhere(&mut change, &edit, &mentions, &[d], &skip)?;
+        self.rewrite_registered_formulas(&mut change, &edit, &mentions, &skip)?;
         if strict {
             // everything that refers to the sheet counts, including what
             // the lenient delete leaves alone: 3-D spans through it,
@@ -1252,7 +1339,9 @@ impl Workbook {
         let before = self.listed()?;
         let mut after = before.clone();
         after.remove(d);
-        self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
+        if locations::sheet_rewrites(73, true).next().is_some() {
+            self.stage_app_xml(&mut change, &before, &after, None, Some(&entry.name))?;
+        }
         let calc_chain = self.calc_chain.clone();
         let set_refs: Vec<String> = set.clone();
         let removed_table_max = self.removed_table_max(&set);
@@ -1468,4 +1557,89 @@ impl Workbook {
         }
         Ok(())
     }
+}
+
+type FormulaRewrite = (std::ops::Range<usize>, RewrittenLocation, bool);
+
+#[expect(clippy::too_many_arguments, reason = "the traversal carries the same dispatch context at each node")]
+fn collect_registered_formulas(
+    source: &str, node: &ooxml_core::RawNode, path: &mut Vec<(String, String)>, extension: Option<&str>, kind: PartKind,
+    part: &str, edit: &PrefixEdit<'_>, mentions: &dyn Fn(&str) -> bool, ranges: &mut Vec<FormulaRewrite>,
+) -> Result<()> {
+    path.push((node.name().ns().to_owned(), node.name().local().to_owned()));
+    let extension = if node.is(ooxml_core::QName::new(crate::SML_NS, "ext")) {
+        Some(node.attr(ooxml_core::QName::new("", "uri")).unwrap_or_default())
+    } else {
+        extension
+    };
+    let mut rewrite = |attr: Option<&str>, before: &str| -> Result<()> {
+        let Some(row) = locations::find(kind, path, attr, extension) else { return Ok(()) };
+        if !mentions(before) {
+            return Ok(());
+        }
+        if matches!(row.id, 4 | 32 | 47) || row.syntax != Syntax::PivotSource
+            && match edit { PrefixEdit::Rename { .. } => row.rename, PrefixEdit::Delete { .. } => row.delete } != Rule::Rewrite
+        {
+            return Ok(());
+        }
+        if attr == Some("val") && node.attr(ooxml_core::QName::new("", "type")) != Some("formula") {
+            return Err(Error::UnrewritableReference { part: part.to_owned(), location: "<cfvo> attribute val".into() });
+        }
+        let mut location = path.iter().map(|(_, name)| name.as_str()).collect::<Vec<_>>().join("/");
+        if let Some(attr) = attr {
+            location.push('@');
+            location.push_str(attr);
+        }
+        let refuse = || Error::UnrewritableReference { part: part.to_owned(), location: location.clone() };
+        let after = match row.syntax {
+            Syntax::PivotSource => {
+                let PrefixEdit::Rename { new, .. } = edit else { return Err(refuse()) };
+                let (book, source) = before.rsplit_once(']').ok_or_else(refuse)?;
+                let (sheet, pivot) = source.rsplit_once('!').ok_or_else(refuse)?;
+                if !mentions(&format!("{sheet}!")) || names::needs_quotes(new) {
+                    return Err(refuse());
+                }
+                format!("{book}]{new}!{pivot}")
+            }
+            _ => {
+                let Some(after) = rewrite_formula(before, edit, mentions).map_err(|_| refuse())? else { return Ok(()) };
+                after
+            }
+        };
+        let span = node.span().ok_or_else(refuse)?;
+        let range = if let Some(attr) = attr {
+            let mut reader = quick_xml::Reader::from_str(&source[span.start..span.open_end]);
+            let start = match reader.read_event().map_err(|_| refuse())? {
+                quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e) => e,
+                _ => return Err(refuse()),
+            };
+            start.attributes().flatten().find(|a| a.key.0 == attr)
+                .and_then(|a| match a.value {
+                    std::borrow::Cow::Borrowed(s) => source.substr_range(s).map(Into::into),
+                    std::borrow::Cow::Owned(_) => None,
+                }).ok_or_else(refuse)?
+        } else {
+            let (close, _) = span.close.ok_or_else(refuse)?;
+            if node.children().iter().any(|item| !matches!(item, ooxml_core::xml::RawItem::Text(_))) {
+                return Err(refuse());
+            }
+            span.open_end..close
+        };
+        ranges.push((range, RewrittenLocation { part: part.to_owned(), location, before: before.to_owned(), after }, attr.is_some()));
+        Ok(())
+    };
+    for attr in node.attrs().iter().filter(|attr| attr.name().ns().is_empty()) {
+        rewrite(Some(attr.name().local()), attr.value())?;
+    }
+    if locations::find(kind, path, None, extension).is_some_and(|row| !matches!(row.id, 4 | 32 | 47)) {
+        rewrite(None, &node.text())?;
+    }
+    for child in node.elements() {
+        if path.len() == 1 && kind == PartKind::Worksheet && child.is(sml::SheetData::QNAME) {
+            continue;
+        }
+        collect_registered_formulas(source, child, path, extension, kind, part, edit, mentions, ranges)?;
+    }
+    path.pop();
+    Ok(())
 }
