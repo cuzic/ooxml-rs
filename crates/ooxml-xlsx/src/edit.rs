@@ -992,9 +992,9 @@ mod tests {
         let mut book = Workbook::from_bytes(input).unwrap();
         let plan = book.plan_writes(writes(&book)).unwrap();
         let mut workbook = book.pkg.xml_part(&book.workbook_part).unwrap().clone();
-        let mut properties = workbook.lens_mut::<sml::Workbook>().unwrap()
-            .get_or_insert::<sml::WorkbookProperties>().unwrap();
-        properties.set_attr(QName::new("", "date1904"), "1").unwrap();
+        let mut lens = workbook.lens_mut::<sml::Workbook>().unwrap();
+        let mut properties = lens.get_or_insert::<sml::WorkbookProperties>().unwrap();
+        properties.set_attr(sml::WorkbookProperties::ATTR_DATE1904, "1").unwrap();
         let registry = ooxml_core::RegistryPlan::new(&book.pkg);
         book.apply_writes_with_insertion(plan, registry, Some(workbook), |_| Ok(())).unwrap();
         let xml = book.pkg.xml_part(&book.workbook_part).unwrap().serialize();
