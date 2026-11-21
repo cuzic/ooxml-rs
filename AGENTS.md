@@ -49,7 +49,7 @@ cargo xtask codegen --check
   検証用の残骸を残さない。
 - 作業が終わり、PR を作るか更新して報告を書いたら、**その作業のために自分で作った**一時クローン、`/tmp` の作業ディレクトリ、
   build target（`CARGO_TARGET_DIR`）を消す。1 つの作業で数十 GB になることがある。消す前に、すべて push 済みであること
-  （`git status` が空で、`git log --branches --not --remotes` も空）を確かめる。
+  （`git status` が空で、`git log --all --not --remotes` も空）を確かめる。
   ほかのエージェントと共有している target や、タスク用の `git worktree` は消さない（worktree はマージ後に Claude が片付ける）。
   PR 本文で参照する成果物は残してよい。
 - 生成物（`crates/ooxml-schema/src/generated/`、`crates/ooxml-core/src/generated/parts.rs`、

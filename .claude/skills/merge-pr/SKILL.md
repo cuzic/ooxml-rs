@@ -74,13 +74,15 @@ Claude（または owner）が行う。main の取り込みや衝突解消は自
 6. CI が落ちた原因が PR と無関係（flaky など）なら、マージせずに原因を直す PR を別に作る。
 7. **マージ後の片付け**（手順 5 でブランチを消した後に行う。ストレージが逼迫するので必ずやる）。
    作業中のものを消さないよう、次の条件を**すべて**満たすものだけを消す:
-   - **worktree**: マージしたブランチが checkout されていて、リモートのブランチは消えており、HEAD が `origin/main` に含まれ、
-     未コミットの変更も untracked のファイルもないもの。`git worktree remove <path>` のあと `git branch -d <branch>` を実行する。
+   - **worktree**: マージしたブランチが checkout されていて、そのブランチの上流が**同じ名前の**リモートブランチ
+     （`branch.<name>.merge` が `refs/heads/<name>`。`git worktree add -b X origin/main` で作っただけなら上流は main なので該当しない）で、
+     そのリモートブランチは消えており、HEAD が `origin/main` に含まれ、未コミットの変更も untracked のファイルもないもの。`git worktree remove <path>` のあと `git branch -d <branch>` を実行する。
      `-d` が拒否したら `-D` は使わず、残したものとして報告する。
      作ったばかりの worktree（HEAD が main のまま）や、一度も push していないブランチは消さない。
-   - **クローンと一時ディレクトリ**（レビュー用・Codex 用のクローン、`/tmp/ooxml-*`）: どのローカルブランチにも未 push のコミットがない
-     （`git log --branches --not --remotes` が空）、未コミットの変更も untracked のファイルもない、
-     24 時間以上どのファイルも変わっていない、どのプロセスも使っていない。git でないもの（build target やログ）は、最後の 2 つだけで判断する。
+   - **クローンと一時ディレクトリ**（レビュー用・Codex 用のクローン、`/tmp/ooxml-*`）: どの ref（ブランチ、detached HEAD、stash）にも未 push のコミットがない
+     （`git log --all --not --remotes` が空）、未コミットの変更も untracked のファイルもない、
+     24 時間以上どのファイルも変わっていない、どのプロセスも使っていない。中に複数のクローンがあるディレクトリは、すべてのクローンが条件を満たし、ディレクトリ全体も 24 時間変わっていないときだけ消す。
+     git でないもの（build target やログ）は、最後の 2 つだけで判断する。
      エージェントのコマンドは呼び出しの合間に動いていないので、「プロセスが使っていない」だけでは作業中でないとは言えない。
      そのため、更新されていない期間を条件にしている。
 
