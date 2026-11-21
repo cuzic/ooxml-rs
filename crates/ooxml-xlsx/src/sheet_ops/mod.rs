@@ -34,7 +34,7 @@ use crate::reference::{MAX_COLS, MAX_ROWS};
 use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, REL_WORKSHEET, Workbook};
 use app_xml::Listed;
 use names::{PrefixEdit, Unrewritable, rewrite_formula, rewrite_location, validate_sheet_name};
-use crate::locations::{self, C15_NS, CHART_NS, PartKind, Rule, Syntax};
+use crate::locations::{self, PartKind, Rule, Syntax};
 use scan::scan_part;
 
 const CT_WORKSHEET: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
@@ -903,6 +903,9 @@ impl Workbook {
     /// relationship target to rewrite.
     fn hyperlink_targets(&self, edit: &PrefixEdit<'_>) -> Vec<(Option<String>, String, String, String)> {
         let mut out = Vec::new();
+        if locations::sheet_rewrites(71, matches!(edit, PrefixEdit::Delete { .. })).next().is_none() {
+            return out;
+        }
         let mut sources: Vec<Option<String>> = vec![None];
         sources.extend(self.pkg.part_names().filter(|p| !p.ends_with(".rels")).map(|p| Some(p.to_owned())));
         for src in sources {
@@ -933,9 +936,11 @@ impl Workbook {
             move |Unrewritable(why)| Error::UnrewritableReference { part, location: format!("{location} ({why})") }
         }
         let mut done = Vec::new();
+        let deleting = matches!(edit, PrefixEdit::Delete { .. });
+        let rewrites = |id| locations::sheet_rewrites(id, deleting).next().is_some();
         // defined names
         let wb_part = self.workbook_part.clone();
-        let dn = defined_names(self.pkg.xml_part(&wb_part)?);
+        let dn = if rewrites(32) { defined_names(self.pkg.xml_part(&wb_part)?) } else { Vec::new() };
         let mut name_edits = Vec::new();
         for (ci, name, local, text) in &dn {
             // a name local to a deleted sheet goes with it: not a rewrite
@@ -966,8 +971,7 @@ impl Workbook {
                 let doc = self.pkg.xml_part(part)?;
                 let root = doc.root();
                 let mut cells = Vec::new();
-                if let Some((sdi, sd)) = root.indexed_elements().find(|(_, e)| e.is(sml::SheetData::QNAME)) {
-                    let _ = sdi;
+                if rewrites(4) && let Some(sd) = root.elements().find(|e| e.is(sml::SheetData::QNAME)) {
                     for (ri, row) in sd.indexed_elements().filter(|(_, e)| e.is(sml::Row::QNAME)) {
                         for (ci, c) in row.indexed_elements().filter(|(_, e)| e.is(sml::Cell::QNAME)) {
                             if let Some(f) = c.elements().find(|e| e.is(sml::CellFormula::QNAME)) {
@@ -981,7 +985,7 @@ impl Workbook {
                     }
                 }
                 let mut links = Vec::new();
-                if let Some(hl) = root.elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
+                if rewrites(14) && let Some(hl) = root.elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
                     for (hi, h) in hl.indexed_elements().filter(|(_, e)| e.is(sml::Hyperlink::QNAME)) {
                         if let Some(loc) = h.attr(ooxml_core::QName::new("", "location"))
                             && let Some(new) = rewrite_location(loc, edit)
@@ -1036,7 +1040,7 @@ impl Workbook {
             let mut stack = vec![doc.root()];
             while let Some(n) = stack.pop() {
                 stack.extend(n.elements());
-                if !(n.name().local() == "f" && (n.name().ns() == CHART_NS || n.name().ns() == C15_NS)) {
+                if !locations::sheet_rewrites(47, deleting).any(|row| row.matches_chart_element(n.name())) {
                     continue;
                 }
                 let text = n.text().into_owned();

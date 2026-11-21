@@ -70,6 +70,18 @@ pub(crate) struct Location {
 }
 
 impl Location {
+    pub(crate) fn sheet_rule(&self, deleting: bool) -> Rule {
+        if deleting { self.delete } else { self.rename }
+    }
+
+    pub(crate) fn matches_chart_element(&self, name: &ooxml_core::XName) -> bool {
+        matches!(self.path, [(ns, local)] if *ns == name.ns() && *local == name.local())
+    }
+
+    pub(crate) fn accepts_sheet_prefix(&self) -> bool {
+        matches!(self.scope, Scope::Any) && self.rename != Rule::Unaffected
+    }
+
     pub(crate) fn matches(
         &self,
         kind: PartKind,
@@ -247,6 +259,12 @@ const _: () = {
         index += 1;
     }
 };
+
+pub(crate) fn sheet_rewrites(id: u8, deleting: bool) -> impl Iterator<Item = &'static Location> {
+    LOCATIONS
+        .iter()
+        .filter(move |row| row.id == id && row.sheet_rule(deleting) == Rule::Rewrite)
+}
 
 pub(crate) fn find(
     kind: PartKind,

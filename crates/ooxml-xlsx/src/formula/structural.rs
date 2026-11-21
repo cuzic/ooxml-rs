@@ -280,6 +280,83 @@ pub(crate) fn rewrite_sqref(text: &str, axis: Axis, edit: Shift) -> Result<Rewri
     })
 }
 
+/// Renames table and column tokens whose binding is established by the caller.
+pub(crate) fn rewrite_structured<'a>(
+    text: &str,
+    table: impl Fn(&str) -> bool,
+    new_table: Option<&str>,
+    column: impl Fn(&str) -> Option<&'a str>,
+) -> Result<Rewrite, RewriteError> {
+    use super::structured::{parse, specifier};
+
+    let mut edits = Vec::new();
+    for token in lex(text).map_err(RewriteError::Lex)? {
+        if !matches!(token.kind, TokKind::Opaque) {
+            continue;
+        }
+        let raw = &text[token.start..token.end];
+        let Some(open) = raw.find('[') else { continue };
+        if !table(&raw[..open]) {
+            continue;
+        }
+        let items = parse(raw).ok_or(RewriteError::InvalidReference)?;
+        if let Some(new) =
+            new_table.filter(|new| !items.table_span.is_empty() && *new != &raw[..open])
+        {
+            edits.push((token.start..token.start + open, new.to_owned()));
+        }
+        let flat_start = open + 1 + usize::from(raw[open + 1..].starts_with('@'));
+        for (span, old) in items.column_spans.into_iter().zip(&items.columns) {
+            if let Some(new) = column(old).filter(|new| *new != old) {
+                let spelling = specifier(new, span.start != flat_start);
+                edits.push((
+                    token.start + span.start..token.start + span.end,
+                    spelling[1..spelling.len() - 1].to_owned(),
+                ));
+            }
+        }
+    }
+    if edits.is_empty() {
+        return Ok(Rewrite::Keep);
+    }
+    let mut rewritten = String::with_capacity(text.len());
+    let mut last = 0;
+    for (span, replacement) in edits {
+        rewritten.push_str(&text[last..span.start]);
+        rewritten.push_str(&replacement);
+        last = span.end;
+    }
+    rewritten.push_str(&text[last..]);
+    lex(&rewritten).map_err(RewriteError::Lex)?;
+    Ok(Rewrite::New(rewritten))
+}
+
+pub(crate) fn rewrite_index(index: u32, axis: Axis, edit: Shift) -> Result<Rewrite, RewriteError> {
+    let limit = match axis {
+        Axis::Row => MAX_ROWS,
+        Axis::Column => MAX_COLS,
+    };
+    Ok(match edit.after(index, limit)? {
+        Some(next) if next == index => Rewrite::Keep,
+        Some(next) => Rewrite::New(next.to_string()),
+        None => Rewrite::Remove,
+    })
+}
+
+/// Shift one coordinate of an anchor and preserve its original offset.
+pub(crate) fn rewrite_marker(
+    index: u32,
+    offset: i64,
+    axis: Axis,
+    edit: Shift,
+) -> Result<Option<(u32, i64)>, ShiftOffSheet> {
+    let limit = match axis {
+        Axis::Row => MAX_ROWS,
+        Axis::Column => MAX_COLS,
+    };
+    Ok(edit.after(index, limit)?.map(|next| (next, offset)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,6 +399,25 @@ mod tests {
     }
 
     #[test]
+    fn structured_rewrites_preserve_selectors_and_unrelated_tokens() {
+        let text = "SUM(Sales[[#Headers],[Old]:[Keep]],Sales[Old],Other[Old])";
+        let adjusted = rewrite_structured(
+            text,
+            |table| table == "Sales",
+            Some("NewSales"),
+            |col| (col == "Old").then_some("Net, USD"),
+        )
+        .unwrap();
+        assert_eq!(
+            adjusted,
+            Rewrite::New(
+                "SUM(NewSales[[#Headers],[Net, USD]:[Keep]],NewSales[[Net, USD]],Other[Old])"
+                    .into()
+            )
+        );
+    }
+
+    #[test]
     fn inserted_and_deleted_positions_have_no_counterpart() {
         let insert = Shift::Insert { at: 3, count: 2 };
         assert_eq!(insert.before(2), Some(2));
@@ -334,6 +430,15 @@ mod tests {
         assert_eq!(delete.after(3, 10), Ok(None));
         assert_eq!(delete.after(4, 10), Ok(None));
         assert_eq!(delete.after(5, 10), Ok(Some(3)));
+        assert_eq!(
+            rewrite_marker(3, 77, Axis::Column, insert),
+            Ok(Some((5, 77)))
+        );
+        assert_eq!(rewrite_marker(3, 77, Axis::Column, delete), Ok(None));
+        assert_eq!(
+            rewrite_index(5, Axis::Column, delete),
+            Ok(Rewrite::New("3".into()))
+        );
         assert_eq!(delete.before(3), Some(5));
     }
 

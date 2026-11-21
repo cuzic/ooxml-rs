@@ -25,7 +25,7 @@ fn is(e: Option<&El>, ns: &str, local: &str) -> bool {
 /// attribute `attribute`) at a place this version rewrites or ignores?
 fn allowed(kind: PartKind, stack: &[El], attribute: Option<&str>, uri: Option<&str>) -> bool {
     let at = |k: usize| stack.len().checked_sub(k + 1).and_then(|i| stack.get(i));
-    if locations::find(kind, stack, attribute, uri).is_some_and(|row| row.rename != locations::Rule::Unaffected) {
+    if locations::find(kind, stack, attribute, uri).is_some_and(locations::Location::accepts_sheet_prefix) {
         return true;
     }
     match (kind, attribute) {
@@ -63,7 +63,10 @@ pub(crate) fn scan_part(part: &str, bytes: &[u8], kind: PartKind, name: &str, ch
             && lex(value).is_ok_and(|tokens| tokens.iter().any(|token| {
                 matches!(&token.kind, TokKind::Ref(reference) if reference.prefix == Prefix::None)
             }));
-        if (position || (!name.is_empty() && mentions_prefix(value, name))) && !(supported_target && allowed(kind, stack, attribute, uri)) {
+        let unknown_position = position && !(supported_target && locations::find(kind, stack, attribute, uri).is_some());
+        let unknown_prefix = !name.is_empty() && mentions_prefix(value, name)
+            && !(supported_target && allowed(kind, stack, attribute, uri));
+        if unknown_position || unknown_prefix {
             let location = describe(stack, attribute);
             return refuse(uri.map_or_else(|| location.clone(), |uri| format!("{uri} {location}")));
         }
