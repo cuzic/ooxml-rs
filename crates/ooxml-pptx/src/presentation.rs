@@ -187,18 +187,17 @@ impl Presentation {
     /// `a:tblStyle@styleId`s defined in the presentation's `tableStyles`
     /// part (found by relationship); empty when absent or unreadable.
     fn table_style_ids(&self) -> Vec<String> {
-        const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
-        let Some(main) = self.pkg.main_document_part() else { return Vec::new() };
-        let Ok(rels) = self.pkg.relationships(&main) else { return Vec::new() };
-        let Some(part) = rels.by_type(REL).filter_map(|r| rels.resolve(r)).find(|p| self.pkg.contains(p)) else {
+        use crate::write::table_style::{existing_part, style_ids};
+        let Some(part) = existing_part(&self.pkg, &self.main).ok().flatten() else {
             return Vec::new();
         };
-        let Some(doc) = self.pkg.read_part(&part).ok().and_then(|b| XmlDocument::parse(&b).ok()) else { return Vec::new() };
-        doc.root()
-            .elements()
-            .filter(|e| e.is(QName::new(crate::names::A_NS, "tblStyle")))
-            .filter_map(|e| e.attr(QName::new("", "styleId")).map(str::to_owned))
-            .collect()
+        let Ok(bytes) = self.pkg.read_part(&part) else {
+            return Vec::new();
+        };
+        XmlDocument::parse_with(&bytes, &self.pkg.parse_options())
+            .ok()
+            .and_then(|doc| style_ids(&doc).ok())
+            .unwrap_or_default()
     }
 
     /// Parses the whole deck once — every slide's layout, master and theme,

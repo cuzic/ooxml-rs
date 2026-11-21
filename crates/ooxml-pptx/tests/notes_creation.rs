@@ -324,3 +324,59 @@ fn refuses_allocator_exhaustion_after_staging_without_changes() {
     assert_matches!(p.ensure_notes_slide(0), Err(Error::Core(_)));
     assert_eq!(p.to_bytes().unwrap(), bytes);
 }
+
+#[test]
+fn dangling_notes_relationship_is_refused_without_changes() {
+    let mut pkg = fixture(FRESH);
+    replace(
+        &mut pkg,
+        SLIDE_RELS,
+        "</Relationships>",
+        r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide7.xml"/></Relationships>"#,
+    );
+    let before = pkg.to_bytes().unwrap();
+    let mut p = Presentation::from_bytes(before.clone()).unwrap();
+    assert_matches!(p.ensure_notes_slide(0), Err(Error::UnsupportedContent(ref message)) if message.contains("notesSlide relationship rId99"));
+    assert_matches!(p.notes_mut_or_create(0), Err(Error::UnsupportedContent(ref message)) if message.contains("notesSlide relationship rId99"));
+    assert_eq!(p.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn master_without_body_still_provides_editable_notes() {
+    let mut pkg = fixture(EXISTING);
+    replace(&mut pkg, MASTER, "type=\"body\"", "type=\"ftr\"");
+    let mut p = deck(&pkg);
+    p.notes_mut_or_create(1)
+        .unwrap()
+        .body_mut()
+        .unwrap()
+        .set_text("Editable body")
+        .unwrap();
+    let mut saved = Presentation::from_bytes(p.to_bytes().unwrap()).unwrap();
+    let notes = saved.notes(1).unwrap().unwrap();
+    assert_eq!(notes.text(), "Editable body");
+    let sp = notes.body_shape().unwrap();
+    let shape_properties = sp
+        .raw()
+        .elements()
+        .find(|node| node.name().local() == "spPr")
+        .unwrap();
+    assert_eq!(shape_properties.elements().count(), 0);
+    assert_eq!(
+        saved.package().read_part(MASTER).unwrap(),
+        pkg.read_part(MASTER).unwrap()
+    );
+}
+
+#[test]
+fn wrapped_master_list_is_refused_with_context_and_without_changes() {
+    let mut pkg = fixture(EXISTING);
+    let wrapped = format!(
+        r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="p">{LIST}</mc:Choice><mc:Fallback/></mc:AlternateContent>"#
+    );
+    replace(&mut pkg, MAIN, LIST, &wrapped);
+    let before = pkg.to_bytes().unwrap();
+    let mut p = Presentation::from_bytes(before.clone()).unwrap();
+    assert_matches!(p.ensure_notes_slide(1), Err(Error::UnsupportedContent(ref message)) if message.contains("notesMasterIdLst inside mc:AlternateContent"));
+    assert_eq!(p.to_bytes().unwrap(), before);
+}

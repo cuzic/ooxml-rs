@@ -274,6 +274,15 @@ pub enum Error {
     /// Deleting the only column.
     #[error("cannot delete the only column")]
     LastColumn,
+    /// The master index does not identify an entry in the presentation.
+    #[error("slide master index {index} is out of range")]
+    MasterIndexOutOfRange {
+        /// Zero-based index in the master list.
+        index: usize,
+    },
+    /// Another slide master or notes master uses the same theme.
+    #[error("theme is shared by multiple masters")]
+    SharedTheme,
     /// A table style id neither defined in `ppt/tableStyles.xml` nor
     /// built in.
     #[error("table style {0:?} is not defined")]
