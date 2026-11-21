@@ -122,6 +122,9 @@ about 4 s.
 - **Creation ids**: 820 of 1,580 slides have `p14:creationId`. 1,217 of
   7,629 drawing elements have `a16:creationId`. 2,738 of 7,629 drawing
   elements are nested in groups.
+  Shapes inside `mc:AlternateContent` are counted in **both** the Choice
+  and the Fallback branch, so the shape totals are slightly high (ADR-0019
+  review n2). The proportions quoted in the ADR are not affected materially.
 
 ## Reference writers read for the ADR (not vendored)
 

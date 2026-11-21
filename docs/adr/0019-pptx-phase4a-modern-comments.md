@@ -1,6 +1,6 @@
 # ADR-0019: PowerPoint Phase 4a — writing modern comments
 
-- Status: **Draft** (revision 1)
+- Status: **Draft** (revision 2)
 - Date: 2026-11-21
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): T2 locality,
@@ -33,11 +33,31 @@
     (issue #114, PR #123).
   - LibreOffice `2e885d0b` export source (§11).
   - Open XML SDK schema data in `reference/openxml-sdk-data/`.
-- Review: none yet.
+- Review: [round 1](0019-opus-review-round1.md) (not converged: M1;
+  m1–m10, n1–n3)
 
 ## Revision history
 
 - **Revision 1:** initial draft.
+- **Revision 2** (after `0019-opus-review-round1.md`, not converged: one
+  Major, M1; m1–m10, n1–n3; coordinator decisions recorded):
+
+  | Finding | Change | Where |
+  |---|---|---|
+  | M1 deleting the last thread removed every `p188:commentRel` (`drop_comment_rel` ignores `r:id`) | a targeted `drop_comment_rel_for(rid)`: only the `p:ext` whose `commentRel@r:id` equals the removed relationship's `Id`; the add-time refusal for two modern relationships stays; a two-relationship test and a mutation | §6, §11.1, §11.2, §11.7 |
+  | m1 the `Local` form comes from a hand-edited fixture | stated as "accepted by PowerPoint", not "written by"; P4a-0 F8 (signed out, author kept as written) decides the default form | Context, §4, Delivery |
+  | m2 `Exact` reuses a name removed in the session | §3.1 corrected; add → delete-last → add test | §3.1, §11.2 |
+  | m3 adding `p14:creationId` underspecified | `insert_creation_id`: position of a new `p:cSld/p:extLst`, local `p14` declaration, refusal of a `creationId` elsewhere or not a u32; locality row | §3.2, §9, §11.1 |
+  | m4 invariants fail on tolerated input problems | I3/I4/I6/I12 compare input and output and fail only on new violations | §11.3 |
+  | m5 no LibreOffice tooling for pptx | new `odp_annotations` key in `tools/lo-check` (P4a-1); P4a-0 baseline run; fallback oracle if 25.2 does not import p188 | §11.5, Delivery |
+  | m6 input validation and existing threads | `lang`, `initials`, `created` range, `\r` normalised; existing unsupported anchors allowed when untouched; `closed` threads | §4, §5, §9 |
+  | m7 `authorLst` has no `extLst` | unknown children (including `p188:extLst`) refused; URI-based namespace rule for the authors part | §4, §9 |
+  | m8 `delete_slide` and unreadable parts | `delete_slide` reserves what it can read and skips the rest (no new `Err`); the add-time scan refuses on an unreadable part | §5, §8, §9 |
+  | m9 sweep expectations | per-variant allowlist; any other refusal fails the sweep | §11.6 |
+  | m10 missing fixture and check | F9 (two threads on one slide), M10 (the `Account` author opens the file) | Delivery, §11.8, Q1, Q5 |
+  | n1 provenance of the 4 v4 ids | 1 from the PowerPoint fixture, 3 from `modern-comments.pptx` | Context |
+  | n2 spike counts both AC branches | README note | spike README |
+  | n3 initials for Japanese names | *(u)*, checked by F2 and M4 | §4 |
 
 ## Context
 
@@ -78,9 +98,9 @@ skipped):
 | `mc:AlternateContent` | **0** in comment parts, in author parts and on slides with comments; no presentation `p:extLst` URI relates to comments (the corpus has `{EFAFB233-…}` 291, `{2D200454-…}` 56, `{521415D9-…}` 21) | nothing is written to `presentation.xml`; AC in a comment or author part is refused (§9) |
 | anchors | 2/2 `ac:deMkLst[pc:docMk, pc:sldMk, ac:spMk]` on a top-level `p:sp`; `sldMk@sldId`/`@cId` match the slide; `spMk@creationId` = the shape's `a16:creationId` (PowerPoint file) or all-zero (LibreOffice-touched file); no `p188:pos`, no text offsets, no `ac:context` | §2 |
 | `p188:cm` | children `ANCHOR, [replyLst,] txBody`; no `status`, no `p188:extLst`, no other attribute; `txBody` = `a:bodyPr, a:lstStyle, a:p+`, each `a:p` = `a:r(a:rPr lang, a:t)` (4/4 bodies) | §3.3, §5 |
-| ids | 4/4 comment and reply ids are braced, upper-case RFC 4122 **v4** GUIDs; 3/3 author ids are braced and upper-case but **not** v4 (version nibbles `A`, `3`, `F`; 2/3 have a non-RFC variant) | random v4 for comments and replies. PowerPoint's author-id derivation is unknown *(u)*, so authors get v4 too (§4) |
+| ids | 4/4 comment and reply ids are braced, upper-case RFC 4122 **v4** GUIDs (1 from the PowerPoint fixture, 3 from `modern-comments.pptx`, whose producer is PowerPoint 16 but whose authors lack required attributes); 3/3 author ids are braced and upper-case but **not** v4 (version nibbles `A`, `3`, `F`; 2/3 have a non-RFC variant) | random v4 for comments and replies. PowerPoint's author-id derivation is unknown *(u)*, so authors get v4 too (§4) |
 | timestamps | `created` 4/4 and legacy `dt` 8/11 are `YYYY-MM-DDTHH:MM:SS.mmm` with no zone; the other 3 come from LibreOffice (9 digits) | millisecond precision, no zone (§5) |
-| authors | PowerPoint files: all five attributes; `providerId` `None` (with `userId` = name) or `AD` (`userId` `S::<upn>::<guid>`); legacy `p15:presenceInfo`: `AD` 13, `None` 4 (`userId` = name, all from PowerPoint), `Windows Live` 3; `libreoffice/modern-comments.pptx` lacks `userId`/`providerId` (required by the SDK schema) and does not open in PowerPoint 365 (#114; the causal link is *(u)*) | `userId`/`providerId` are always written; the local form is `userId` = name, `providerId="None"` (§4) |
+| authors | PowerPoint files: all five attributes; `providerId` `AD` (`userId` `S::<upn>::<guid>`, `tdf147586`), or `None` with `userId` = name in the project fixture, whose identity was **edited by hand** (so this form is *accepted* by PowerPoint, not shown to be *written* by it); legacy `p15:presenceInfo`: `AD` 13, `None` 4 (`userId` = name, all from PowerPoint), `Windows Live` 3; `libreoffice/modern-comments.pptx` lacks `userId`/`providerId` (required by the SDK schema) and does not open in PowerPoint 365 (#114; the causal link is *(u)*) | `userId`/`providerId` are always written; the local form is decided by P4a-0 F8 (§4) |
 | legacy colour | `clrIdx` ≠ `id` in 37 of 63 legacy authors | a legacy writer could not derive `clrIdx`; modern authors have no colour index |
 | creation ids | slides: 820/1,580 have `p14:creationId`; drawing elements: 1,217/7,629 have `a16:creationId`, 2,738/7,629 are nested in groups | §2, §3.2: both cases are common and must be decided |
 
@@ -206,12 +226,14 @@ pub enum CommentAnchor {
   relationship, new threads are appended to that part. When it has none, a
   part is created.
 - **Name:** `PartNameRequest::Exact("ppt/comments/modernComment_{sldId:X}_{cId:X}.xml")`,
-  in upper-case hex without padding (2/2). If the core refuses the name (in
-  use, including dangling references and names removed in this session),
-  the operation is refused (`Core(RegistryRefused { NameInUse })`) and
-  nothing is renamed. This needs a stale part or relationship with exactly
-  that `sldId`/`cId` pair: `sldId` is never reused in a session (ADR-0012 §3),
-  and a reused `sldId` comes with a new `cId`.
+  in upper-case hex without padding (2/2). `Exact` allows a name removed earlier in the same plan or session
+  (`add.rs`: "A name removed earlier in the plan or session may be
+  reused"). So after §6 removes a slide's last thread, the next comment on
+  the same slide asks for, and gets, the **same** name: `sldId` and `cId`
+  are unchanged. Every other conflict (an existing part, or a dangling
+  relationship target from an earlier session) is refused
+  (`Core(RegistryRefused { NameInUse })`) and nothing is renamed. Such a
+  conflict needs a stale part with exactly that `sldId`/`cId` pair.
 - **Content type:** `Override` `application/vnd.ms-powerpoint.comments+xml`.
 - **Relationship:** slide → part, type
   `http://schemas.microsoft.com/office/2018/10/relationships/comments`,
@@ -247,13 +269,28 @@ clone:
      (`Core(UnresolvedSibling)`).
 2. **`p14:creationId`.** A slide without one gets one: 760 of 1,580 corpus
    slides lack it, and so does every slide made by `add_slide`
-   (`new_slide_xml`).
-   - It goes at `p:cSld/p:extLst/p:ext{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}/p14:creationId val`,
+   (`new_slide_xml`). The part name and `pc:sldMk@cId` need it (Q4). A new
+   function `insert_creation_id` does it, because the existing
+   `set_creation_id` only rewrites an existing value and refuses a slide
+   without `p:cSld/p:extLst`:
+   - **Where.** At `p:cSld/p:extLst/p:ext{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}/p14:creationId val`,
      where PowerPoint writes it (ADR-0012 post-acceptance note).
-   - The value follows ADR-0012 §3: the maximum over all slides and notes
-     slides + 1. Overflow is `CreationIdsExhausted`.
-   - It is needed because the part name and `pc:sldMk@cId` use it.
-   - Q4 covers the alternative: no `cId`, and a name ending `_0`.
+     - A missing `p:cSld/p:extLst` is inserted through the lens, which puts it
+       after `bg?, spTree, custDataLst?, controls?` (schema order: it is
+       `p:cSld`'s last child).
+     - The new `p:ext` is appended at the end of an existing `p:cSld/p:extLst`.
+   - **Namespace.** `p14` is declared on the `p14:creationId` element
+     itself, as PowerPoint writes it (2/2 fixtures). This is
+     `<p14:creationId xmlns:p14="…/powerpoint/2010/main" val="…"/>`.
+   - **Value.** ADR-0012 §3: the maximum over all slides and notes slides,
+     plus 1. Overflow is `CreationIdsExhausted`.
+   - **Refused (fail closed, `UnsupportedContent`, as ADR-0012):**
+     - a `p14:creationId` anywhere else in the slide;
+     - a `p:ext{BB962C8B-…}` without `p14:creationId`;
+     - an existing value that is not a decimal u32. Its `cId` cannot be
+       written, and replacing it would change an id other tools may hold.
+       The same refusal applies when an existing, well-placed value is
+       read for the part name and `sldMk@cId`.
 
 Appending to an existing part does **not** touch the slide.
 
@@ -266,7 +303,7 @@ pub struct CommentAuthor {
     pub initials: Option<String>,
 }
 pub enum AuthorIdentity {
-    /// userId = name, providerId = "None" (PowerPoint's offline form)
+    /// default: userId = name, providerId = "None"; final form from P4a-0 F8
     Local,
     /// e.g. "AD" and "S::<upn>::<guid>"
     Account { user_id: String, provider_id: String },
@@ -282,6 +319,16 @@ pub enum AuthorIdentity {
     `p188:authorLst` declaring `a`, `r`, `p188` (PowerPoint's form).
   - More than one such relationship, or a target that is not
     `p188:authorLst`, is refused (`AuthorsPartNotEditable`).
+  - `p188:CT_AuthorList` is `author*` only (SDK data). Any other child of
+    `authorLst`, including a `p188:extLst`, or `mc:AlternateContent`
+    anywhere in the part, is refused (`AuthorsPartNotEditable`). This is
+    the same rule as `cmLst` (§3.1).
+- **The `Local` form.** `userId` = name and `providerId="None"` is accepted
+  by PowerPoint: the hand-edited project fixture opens and keeps its
+  comment, and the legacy `p15:presenceInfo` has this form 4 times in
+  PowerPoint files. Whether PowerPoint **writes** it for a signed-out user
+  is *(u)*. P4a-0 F8 records it, and its form replaces this default by a
+  post-acceptance note before P4a-1 merges.
 - **Matching** (Q5). An existing `p188:author` is reused when `name`,
   `userId` and `providerId` are all equal (case-sensitive, ADR-0017 §5).
   - `initials` is not part of the key, and a reused author's initials are
@@ -295,10 +342,19 @@ pub enum AuthorIdentity {
     the first and of the last whitespace-separated word of `name`. This
     gives `AL`, `JM`, `CA` for the corpus names. A one-word name gives one
     letter, and an empty result omits the attribute.
-  - Appended at the end of `authorLst`. If the list ends with
-    `p188:extLst`, the author is inserted before it.
-- **Validation:** `name`, `userId` and `providerId` must be non-empty and
-  free of characters invalid in XML (`InvalidCommentAuthor`).
+  - Appended at the end of `authorLst`.
+  - **Namespaces, by URI (§3.1, ADR-0017 M3):** the new element declares
+    `p188` locally unless the root binds that prefix to the same URI. If
+    the prefix is bound to another URI in scope, the operation is refused
+    (`AuthorsPartNotEditable`).
+  - Initials for non-Latin names (`山田 太郎` gives `山太`) may not match
+    PowerPoint's rule *(u)*. P4a-0 F2 uses a Japanese second author, and M4
+    records PowerPoint's initials.
+- **Validation** (`InvalidCommentAuthor { reason }`):
+  - `name`, `userId` and `providerId` must be non-empty and free of
+    characters invalid in XML;
+  - a caller's `initials` must also be non-empty and free of such
+    characters, and must not contain whitespace.
 - **No colour index.** Modern authors have none. Legacy `clrIdx` (≠ `id`
   in 37 of 63) is irrelevant because legacy authors are never written.
 - **Append-only.** Authors are never removed or edited, even when their
@@ -320,7 +376,10 @@ GUIDs, braced and upper-case. This is PowerPoint's form for comments
 - **Uniqueness:** each candidate is checked, case-insensitively, against
   every `p188:cm@id`, `p188:reply@id` and `p188:author@id` in **every**
   part with the comments or authors content type. Every part is scanned,
-  not just the related ones (ADR-0017 review m10). The check also covers
+  not just the related ones (ADR-0017 review m10). A part in that scan
+  that cannot be read refuses the write (`CommentPartNotEditable` /
+  `AuthorsPartNotEditable`), even on another slide: its ids are unknown.
+  This is fail closed, and acceptable because the API is new. The check also covers
   every id given out or removed in this session (a session set, seeded on
   first use like P5c). Up to 32 draws are made, then `Error::Random`.
 - A `#[cfg(test)]` hook injects a deterministic byte source, as in xlsx.
@@ -340,17 +399,27 @@ formatted in **UTC at millisecond precision without a zone**:
 8/11 legacy timestamps. It differs from xlsx P5c (seconds) because
 PowerPoint writes milliseconds. Whether PowerPoint means UTC or local time
 is *(u)*. P4a-0 F7 records it from a VM set to UTC+9, and §5 changes by a
-post-acceptance note if PowerPoint writes local time. A reply's `created`
+post-acceptance note if PowerPoint writes local time. A `created` outside
+years 1970–9999 UTC (before the Unix epoch, or with more than four year
+digits) is refused (`InvalidCommentTime`). A reply's `created`
 is not required to follow its parent's (0 corpus violations; not enforced).
 
 **Text.** A comment's text is a `&str`.
 
 - `\n` separates paragraphs, as PowerPoint and LibreOffice write one
   `a:p` per line.
+- `\r\n` and a lone `\r` are normalised to `\n` before splitting. A
+  literal `\r` in `a:t` would come back as `\n` from any XML parser
+  (end-of-line normalisation), so writing it raw could not round-trip, and
+  refusing it would make text pasted from Windows fail. Normalising keeps
+  the text the caller sees on read-back equal to what it wrote, up to line
+  endings.
 - A new body is
   `<p188:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="…"/><a:t>…</a:t></a:r></a:p>…</p188:txBody>`.
   - `lang` is the caller's `NewComment::lang`, else `en-US`. PowerPoint
-    always writes `lang` (4/4).
+    always writes `lang` (4/4). A caller's `lang` must match BCP 47's
+    shape `[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*`; anything else is
+    `InvalidCommentLang`.
   - An empty line is `<a:p><a:endParaRPr lang="…"/></a:p>`.
 - Empty text is refused (`EmptyCommentText`; PowerPoint cannot post one).
 - `\v`, `\t` and characters invalid in XML are `InvalidXmlChar`.
@@ -377,8 +446,18 @@ Other attributes (`likes`, `tags`, task attributes) are kept.
   `active` is a no-op that leaves the bytes unchanged.
 - P4a-0 F3 records what PowerPoint writes on reopen. If PowerPoint writes
   `active`, a post-acceptance note switches to it.
-- `closed` (meaning undocumented) is refused (`CommentClosed`).
+- `closed` (meaning undocumented) is refused (`CommentClosed`) by **every**
+  operation on that thread or its replies: reply, edit, resolve and
+  unresolve, delete. A closed thread may belong to a workflow (tasks) this
+  ADR does not model.
 - Reply `status` is never written.
+
+**Existing threads with anchors §1 cannot write** (`ac:txMkLst`, table,
+layout or master anchors, `p188:unknownAnchor`, a nested shape): reply,
+edit, resolve and delete are **allowed**. These operations never read or
+write the anchor element: the anchor's bytes stay identical (a locality
+check), and ADR-0005's text locks keep using it. A `p188:cm` with **no**
+anchor (LibreOffice's form) is allowed on the same terms.
 
 ### 6. Delete
 
@@ -390,8 +469,17 @@ Other attributes (`likes`, `tags`, task attributes) are kept.
   1. `remove_parts([part], [MODERN_COMMENTS_REL])` removes the part and
      its `Override`;
   2. the slide relationship is removed;
-  3. the slide's `p:ext{6950BFC3-…}` is removed, and `p:extLst` too when
-     empty (the existing `drop_comment_rel`).
+  3. only the `p:ext{6950BFC3-…}` whose `p188:commentRel@r:id` equals the
+     removed relationship's `Id` is removed, and `p:extLst` too when it
+     becomes empty. This uses a new targeted function
+     `drop_comment_rel_for(doc, rid)`. The existing `drop_comment_rel`
+     removes **every** `commentRel`, which is right for a duplicate (all
+     comment relationships are dropped there) but would cut another part's
+     reference on a slide with two modern relationships (review M1). A
+     `p:ext` holding other children besides that `commentRel` is refused
+     (`CommentPartNotEditable`, 0 in the corpus).
+     If no `commentRel` names the `Id` (LibreOffice's form), the slide
+     is not edited.
   The slide's `p14:creationId` stays. What PowerPoint does is checked by
   manual check M6.
 - **Ids of deleted comments** stay in the session set and are never reused
@@ -433,6 +521,11 @@ Corpus: legacy comments in 5 decks. There are 0 decks with both kinds, and
   `delete_slide` that removes a modern comment part. So the ids of a
   deleted slide's comments stay reserved for the session, as removed thread
   GUIDs do in xlsx P5c.
+  - **No new `Err` in `delete_slide`.** When it seeds the set, it reserves
+    the ids of every comment and authors part it can read and **skips** the
+    rest. An unreadable part is not a refusal there.
+  - The reservation is insurance for the deterministic test source: two
+    random v4 ids collide with probability about 2^-122.
 - **`duplicate_slide`.** It already drops comments and gives the copy a new
   `p14:creationId`, so a comment added to the copy gets a different part name.
 - **`move_slide`.** Monikers name `sldId`/`cId`, not positions, so nothing
@@ -456,15 +549,17 @@ New variants. Every one of them is raised before `apply`, so each has an
 | `CommentNotFound { id }` | no `p188:cm`/`p188:reply` with that id (case-insensitive) in the slide's modern comment parts; a thread operation (reply, resolve) given a reply id |
 | `UnsupportedCommentAnchor(String)` | text-range anchor requested; a nested shape; a moniker kind not yet confirmed (§2); `p:contentPart`; the target inside AC (also `InsideAlternateContent`, Phase 0's error, which takes precedence) |
 | `LegacyCommentsOnSlide { slide }` | §7 |
-| `CommentPartNotEditable { part, reason }` | the part is missing, unreadable, beyond the depth limit, or its root is not `p188:cmLst`; an unknown child of `cmLst`; `mc:AlternateContent` anywhere in it; the part is the target of more than one relationship, or of a relationship from another slide (ownership ambiguous, ADR-0017 P5c note); the slide has two or more modern relationships (add only); `p:ext{6950BFC3-…}` without a relationship; a prefix bound to another URI (§3.1); the edited `p188:cm`/`p188:reply` has children out of schema order |
-| `AuthorsPartNotEditable { part, reason }` | the same structural reasons for the authors part; two authors relationships; a duplicate author `id` |
+| `CommentPartNotEditable { part, reason }` | the part is missing, unreadable, beyond the depth limit, or its root is not `p188:cmLst`; an unknown child of `cmLst`; `mc:AlternateContent` anywhere in it; the part is the target of more than one relationship, or of a relationship from another slide (ownership ambiguous, ADR-0017 P5c note); the slide has two or more modern relationships (add only); `p:ext{6950BFC3-…}` without a relationship; a prefix bound to another URI (§3.1); the edited `p188:cm`/`p188:reply` has children out of schema order; any unreadable comment part in the package-wide id scan (§5); deleting the last thread when the `p:ext` holding its `commentRel` has other children (§6) |
+| `AuthorsPartNotEditable { part, reason }` | the same structural reasons for the authors part, including any child of `authorLst` other than `p188:author` (§4); two authors relationships; a duplicate author `id`; an unreadable authors part during the id scan (§5) |
 | `InvalidCommentAuthor { reason }` | §4 validation |
 | `EmptyCommentText` | §5 |
 | `CommentBodyNotPlain { id }` | §5 |
-| `CommentClosed { id }` | §5 |
+| `CommentClosed { id }` | any operation on a `closed` thread or its replies (§5) |
+| `InvalidCommentLang`, `InvalidCommentTime` | §5 |
 | `Random(String)` | `getrandom` failure, or 32 colliding draws (§5) |
 
-Reused: `SlideIndexOutOfRange`, `ShapeNotFound`, `AmbiguousShapeId`,
+Reused: `UnsupportedContent` (§3.2: a `p14:creationId` outside its place,
+or not a u32), `SlideIndexOutOfRange`, `ShapeNotFound`, `AmbiguousShapeId`,
 `InvalidShapeId`, `InsideAlternateContent`, `InvalidXmlChar`,
 `CreationIdsExhausted`, `StrictConformance`, and `Core(…)`
 (`RegistryRefused`, `UnresolvedSibling`, `TooDeep`, `NamespaceNotInScope`).
@@ -525,12 +620,12 @@ impl Presentation {
 
    | Operation | Allowed changes |
    |---|---|
-   | add, new part | slide: one `p:ext` (+ `p:extLst`), maybe one `p14:creationId` ext; slide `.rels` +1; new comment part; CT +1 `Override` (+1 for a new authors part); authors: +1 `p188:author` or a new part with presentation `.rels` +1 |
+   | add, new part | slide: one `p:ext` (+ `p:extLst`); when the slide had no `p14:creationId`, one `p:ext{BB962C8B-…}` in `p:cSld/p:extLst`, and that `p:extLst` itself when the slide had none; slide `.rels` +1; new comment part; CT +1 `Override` (+1 for a new authors part); authors: +1 `p188:author` or a new part with presentation `.rels` +1 |
    | add, existing part | comment part: +1 `p188:cm`; authors as above |
    | reply | comment part: +1 `p188:reply` (+ `p188:replyLst`); authors as above |
    | edit text | the target's `p188:txBody` `a:p` children |
    | resolve / unresolve | one `status` attribute |
-   | delete | comment part: the removed element(s); for the last thread, part and `Override` gone, slide `.rels` −1, slide `p:ext` (and empty `p:extLst`) gone |
+   | delete | comment part: the removed element(s); for the last thread, part and `Override` gone, slide `.rels` −1, the **one** `p:ext` naming that relationship (and an emptied `p:extLst`) gone; every other `commentRel` byte-identical |
 
    `presentation.xml`, `commentAuthors.xml`, legacy comment parts and
    `docProps/*` never change.
@@ -544,7 +639,23 @@ impl Presentation {
    - a shared comment part;
    - `closed`;
    - a mention-like body;
-   - a forced `Random` failure.
+   - a forced `Random` failure;
+   - an unreadable comment part on another slide, for add (refused) and
+     for `delete_slide` (still `Ok`, §8);
+   - `\r\n` text read back as `\n`; out-of-range `created`; bad `lang`
+     and `initials`;
+   - a `p14:creationId` outside `p:cSld/p:extLst`, and one that is not a
+     u32.
+
+   Two `Ok` tests are named here because they guard M1 and m2:
+   - **two modern relationships on one slide** (`SYNTHETIC:` from the
+     project fixture: a second part and `commentRel`). Deleting the last
+     thread of one part removes that part, its relationship and its
+     `commentRel` only. The other part, relationship and `commentRel` are
+     byte-identical;
+   - **add → delete the last thread → add** on one slide in one session.
+     The part is created again under the same name, the slide's new `rId`
+     is above the removed one, and there is exactly one `Override` for it.
 3. **XML invariant checker** (new: `crates/ooxml-pptx/tests/oracle/comments.py`,
    standard library only, `python3 -I`). It is written from the
    invariants below, not from the Rust code (ADR-0017's id-space lesson), and
@@ -568,6 +679,17 @@ impl Presentation {
    - I11: CT `Override` ↔ part existence;
    - I12: `p14:creationId` values are unique across slides.
 
+   **I3, I4, I6 and I12 compare input and output.** The checker takes
+   both packages and fails only on a violation that the input does not
+   already have. §9 tolerates some existing problems, which are not
+   failures:
+   - an unresolved `authorId` (I3);
+   - duplicate ids (I4);
+   - the all-zero `creationId` of `modern-comments.pptx` (I6);
+   - duplicate `p14:creationId`s from slide-copying tools (I12).
+   Elements this session created or edited must satisfy every invariant
+   outright.
+
    It runs in the CI python-pptx job on the `oracle_cases` outputs. There,
    python-pptx 1.0.2 also opens every output, and its slide and shape lists
    equal the input's: python-pptx ignores comments, so this proves the rest
@@ -576,21 +698,44 @@ impl Presentation {
    author, text, `created`, status, replies and `Anchor::Slide`/`Shapes([id])`.
    This uses the same crate, so it confirms the round trip, not
    correctness.
-5. **LibreOffice 25.2.7.2** (the pinned `libreoffice-check` workflow). For
-   pptx cases with a new `comments` key, the workflow converts to ODP and
-   compares `office:annotation` (`dc:creator`, text) in `content.xml`
-   against `expected.json`. How LibreOffice imports replies (threaded or
-   flat) is recorded by the first run *(u)*. This is an independent reader,
-   not PowerPoint.
+5. **LibreOffice 25.2.7.2** (the pinned `libreoffice-check` workflow). This
+   is an independent reader, not PowerPoint. The tool does not exist yet:
+   `tools/lo-check/check.py`'s `comments` key reads `.docx` through
+   python-docx (L280–282), and cannot be used for pptx.
+   - **New key `odp_annotations`** (implemented in P4a-1). It converts the
+     case to ODP and compares, for each slide, `office:annotation` in
+     `content.xml`: the count, `dc:creator` and the text, against
+     `expected.json`.
+   - **Baseline first (P4a-0).** Run the unedited
+     `project/powerpoint-shape-comment.pptx` and `libreoffice/modern-comments.pptx`
+     through the key, to confirm that 25.2 imports `p188` comments, and to
+     record how replies come out (threaded or flat) *(u)*.
+   - **If 25.2 does not import them,** the oracle is reduced, and the ADR
+     says so in a post-acceptance note: LibreOffice opens and re-saves the
+     case without crashing, and the comment and authors parts of the
+     **input** pass through to `--convert-to pptx` output byte-identical.
+     The latter only applies if LibreOffice keeps parts it does not
+     understand; otherwise the check is "opens without error".
 6. **Corpus sweep** over the 748 decks of the spike, adding the committed
    fixtures:
    - on slide 1 (or the first slide that §7 allows), add a slide comment
      and a comment on the first top-level `p:sp`, reply, edit, resolve,
      unresolve and delete;
    - save, reopen, and run 1, 3 and 4;
-   - refusals must be byte-identical and are counted by variant. Expected:
-     `LegacyCommentsOnSlide` only on the 5 legacy decks' commented slides,
-     and `UnsupportedCommentAnchor` where the first `p:sp` is inside AC.
+   - refusals must be byte-identical and are counted by variant;
+   - **allowlist.** Only these refusals are allowed, and any other
+     variant, or any `Ok` that breaks oracle 1 or 3, fails the sweep:
+     - `ShapeNotFound`, when the slide has no top-level `p:sp` (the shape
+       step only);
+     - `UnsupportedContent`, for a `p14:creationId` outside its place or not
+       a u32 (§3.2);
+     - `CreationIdsExhausted`;
+     - `CommentPartNotEditable` / `AuthorsPartNotEditable`, only for decks
+       whose existing parts the survey lists as non-conforming;
+     - `InsideAlternateContent` / `UnsupportedCommentAnchor` never occur,
+       because the step picks a top-level `p:sp` outside AC.
+     `LegacyCommentsOnSlide` cannot occur because the step skips such
+     slides. A separate case asserts it on `45545_Comment.pptx`.
 7. **Mutation tests** (hand-made, each must fail a test):
    - the uniqueness scan limited to related parts;
    - lower-case GUIDs;
@@ -600,7 +745,11 @@ impl Presentation {
    - the author key without `providerId`;
    - `commentRel` with the wrong `r:id`;
    - the `creationId` addition skipped;
-   - an empty `replyLst` kept.
+   - an empty `replyLst` kept;
+   - `commentRel` removal not filtered by `r:id` (M1; caught by the
+     two-relationship test);
+   - `p14` declared on the root instead of on `p14:creationId`;
+   - `\r` written raw.
 8. **PowerPoint (manual, Microsoft 365, owner VM).** No Office in CI, as in
    every ADR. Every case must open without repair, show the comment in the
    Comments pane, and survive a PowerPoint save:
@@ -610,13 +759,18 @@ impl Presentation {
      existing part and author);
    - **M3** a shape comment on a shape without `a16:creationId` (Q3:
      still attached after save?);
-   - **M4** reply by a second, `Account` author;
+   - **M4** reply by a second, `Account` author with a Japanese name
+     (record PowerPoint's initials, n3);
    - **M5** resolve, then unresolve;
    - **M6** delete the last thread (the slide shows no comment; the part is
      gone after a PowerPoint save);
    - **M7** edit text;
    - **M8** a modern comment on slide 2 of `45545_Comment.pptx` (§7);
-   - **M9** a comment on a slide made by `add_slide`.
+   - **M9** a comment on a slide made by `add_slide`;
+   - **M10** open the M4 file signed in as the `Account` author's own
+     account. Record whether the comment counts as the user's own (edit,
+     resolve, delete offered), and whether PowerPoint adds a second
+     `p188:author` with the same `userId`/`providerId` on save (Q1, Q5).
 
    The cases are added to `examples/manual_check.rs`, with their entries in
    `tools/lo-check/expected.json`.
@@ -636,6 +790,12 @@ Three PRs, in order, each reviewed until converged:
    - F6: `45545_Comment.pptx` with a modern comment added on a slide without
      legacy comments.
    - F7: a comment made with the VM's zone at UTC+9.
+   - F8: a comment made **signed out** (local account, a throwaway name),
+     with the author kept exactly as PowerPoint wrote it, not anonymised.
+     It decides §4's `Local` form (review m1).
+   - F9: two threads on one slide, the second added after the first, to see
+     the order of `p188:cm` in the part (§3.1 appends).
+   - The LibreOffice baseline run of §11.5 on the two existing fixtures.
 
    **Acceptance:**
    - the fixtures are in `reference/fixtures/pptx/project/` with
@@ -646,13 +806,15 @@ Three PRs, in order, each reviewed until converged:
 1. **P4a-1: allowlist, ids, authors, add.** §2–§4, §5 (ids, timestamps,
    new text), and `add_comment` for the slide anchor and the moniker kinds
    P4a-0 confirmed.
-   - **Acceptance:** AGENTS.md's definition of done; oracles 1–4, 6 (add
-     only) and 7; the python job runs `comments.py`; manual cases M1–M3,
-     M9; generated names unchanged.
+   - Includes the `odp_annotations` key in `tools/lo-check` (§11.5).
+   - **Acceptance:** AGENTS.md's definition of done; oracles 1–7 (add
+     only); the python job runs `comments.py`; manual cases M1–M3, M9;
+     generated names unchanged.
 2. **P4a-2: reply, edit, resolve, delete.** §5 (edit, status), §6 and the
    remaining §9 rows.
-   - **Acceptance:** oracles 1–7 for every operation; the LibreOffice
-     `comments` check on the new cases; manual cases M4–M8.
+   - **Acceptance:** oracles 1–7 for every operation, including the
+     two-relationship and add → delete-last → add tests; the
+     `odp_annotations` check on the new cases; manual cases M4–M8, M10.
 
 ## Alternatives considered
 
@@ -708,6 +870,11 @@ owner decides.
   deterministic source, checked against every comment and author id in the
   package and in the session. This is PowerPoint's form (4/4) and ADR-0017
   Q4. The alternative is UUID v8 derived from content, as P3e does.
+  *Caveat:* PowerPoint's **author** ids look derived from the account
+  (0/3 are v4). A new `Account` author with a random id might not be
+  recognised as the signed-in user. M10 checks this. If it fails, author
+  ids need PowerPoint's derivation, and comment and reply ids are
+  unaffected.
 - **Q2. Mixed decks.** *Recommended:* refuse only on slides that have
   legacy comments (`LegacyCommentsOnSlide`), and allow other slides. Widen
   to the whole deck if P4a-0 F6 / M8 shows PowerPoint warning, repairing or
@@ -719,10 +886,20 @@ owner decides.
 - **Q4. Slides without `p14:creationId`** (48 % of corpus slides, and every
   `add_slide` slide). *Recommended:* add one (ADR-0012 §3's rule), so the
   part name and `pc:sldMk@cId` take PowerPoint's form.
-- **Q5. Author identity key.** *Recommended:* all of `name`, `userId` and
-  `providerId` equal, as xlsx P5c does. A renamed account gets a new entry,
-  and existing authors are never edited. The alternative is `userId` +
-  `providerId` only, which would reuse an entry whose `name` is stale.
+- **Q5. Author identity key, by kind.** For `Local` authors `userId` =
+  name, so "all three fields" and "`userId` + `providerId`" behave
+  identically. The choice only matters for `Account` authors whose display
+  name changed.
+  - *Recommended:* all of `name`, `userId` and `providerId` equal, as in
+    xlsx P5c. Existing authors are never edited.
+  - *Trade-off:* PowerPoint probably identifies the user by `userId` +
+    `providerId` (presence). Then a renamed account gets two entries under
+    the recommendation, and two entries for one account may be worse than
+    one entry with a stale name.
+  - *Alternative:* key `Account` authors by (`userId`, `providerId`) and
+    `Local` authors by name.
+  - Decide after M10 shows what PowerPoint does with the same account
+    under a different name.
 - **Q6. Timestamps.** *Recommended:* UTC, millisecond precision, no zone
   suffix, unless P4a-0 F7 shows PowerPoint writing local time.
 - **Q7. Unresolve.** *Recommended:* remove `status="resolved"` (the
