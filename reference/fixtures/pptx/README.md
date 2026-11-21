@@ -1,10 +1,10 @@
 # PowerPoint fixtures
 
-24 real `.pptx` files (2,082,646 bytes in total) used by
+33 real `.pptx` files (2,834,435 bytes in total) used by
 [ADR-0005](../../../docs/adr/0005-pptx-phase0.md) and the
 [PowerPoint roadmap](../../../docs/roadmap/pptx.md). The collection includes
-23 files copied **unmodified** from public test corpora and one
-[project-made file](#project-made-file-project).
+23 files copied **unmodified** from public test corpora and ten
+[project-made files](#project-made-files-project).
 Treat them as untrusted input: inspect with `python3 -I` scripts from
 `spikes/pptx/`, never open them with a macro-capable application.
 
@@ -16,7 +16,7 @@ Licences (full texts in [`LICENSES/`](LICENSES/)):
 | `python-pptx/` | [scanny/python-pptx](https://github.com/scanny/python-pptx) `features/steps/test_files/` (master `278b47b1dedd`) | MIT, `LICENSES/python-pptx-LICENSE.txt` |
 | `open-xml-sdk/` | [dotnet/Open-XML-SDK](https://github.com/dotnet/Open-XML-SDK) `test/DocumentFormat.OpenXml.Tests.Assets/assets/TestFiles/` (main `431ab05cf160`) | MIT, `LICENSES/open-xml-sdk-LICENSE.txt` |
 | `libreoffice/` | [LibreOffice/core](https://github.com/LibreOffice/core) `sd/qa/unit/data/pptx/` (master `2e885d0bda9b`) | MPL-2.0 (the repository's licence for these files), `LICENSES/libreoffice-MPL-2.0.txt`; the files are unmodified, so their source form is the file itself |
-| `project/` | This project, see [Project-made file](#project-made-file-project) | Project licence (MIT OR Apache-2.0) |
+| `project/` | This project, see [Project-made files](#project-made-files-project) | Project licence (MIT OR Apache-2.0); the two files made from `poi/45545_Comment.pptx` keep that file's Apache-2.0 licence and NOTICE (`LICENSES/apache-poi-*`) |
 
 The original authorship of individual third-party test files (many are attachments to
 bug reports) was not traced beyond the repository that distributes them.
@@ -53,7 +53,16 @@ from `spikes/pptx/survey.py` (slide parts only).
 | `libreoffice/modern-comments.pptx` | 29,789 | PowerPoint 16 | modern (p188) comments, `authors.xml`, anchors `pc:sldMk@sldId` and `ac:spMk@id`. Does not open in PowerPoint 365 16.0.20326 ("file is corrupt", unedited; issue #114) |
 | `libreoffice/airplane-transition.pptx` | 29,755 | PowerPoint 16 | `p15:prstTrans` in AC; only slide part is `slide2.xml` (part names are not `1..N`) |
 | `libreoffice/slide-sections.pptx` | 138,108 | PowerPoint 16 | 2 sections, 7 notes slides, 18 groups, 36 custom geometries, `sldId` gaps (309…404) |
-| `project/powerpoint-shape-comment.pptx` | 34,111 | PowerPoint 16 | modern comment attached to the title shape (manual check 08) |
+| `project/powerpoint-shape-comment.pptx` | 34,114 | PowerPoint 16 | modern comment attached to the title shape (manual check 08) |
+| `project/powerpoint-slide-comment.pptx` | 34,148 | PowerPoint 16 | ADR-0019 F1: slide-anchored modern comment (`pc:sldMkLst`, no `p188:pos`) |
+| `project/powerpoint-reply-second-author.pptx` | 34,005 | PowerPoint 16 | F2: thread with two replies, the first by a second author (`試験 花子`, `initials=""`) |
+| `project/powerpoint-resolved-comment.pptx` | 33,867 | PowerPoint 16 | F3: resolved thread (`status="resolved"`, `complete="100000"`) |
+| `project/powerpoint-reopened-comment.pptx` | 33,851 | PowerPoint 16 | F3: the same thread reopened (no `status`, no `complete`) |
+| `project/powerpoint-comment-anchor-kinds.pptx` | 41,551 | PowerPoint 16 | F4: `picMk`, `cxnSpMk`, `graphicFrameMk`, `grpSpMk`, and `spMk` on a shape inside a group, one per slide |
+| `project/powerpoint-text-range-comment.pptx` | 35,236 | PowerPoint 16 | F5: text-range comment (`ac:txMkLst`, `ac:txMk cp len`, `ac:context hash`, `p188:pos`); a refusal fixture |
+| `project/powerpoint-legacy-deck-comment.pptx` | 264,031 | PowerPoint 16 | F6: `poi/45545_Comment.pptx` + a comment added on slide 3; PowerPoint wrote it as a **legacy** comment |
+| `project/powerpoint-mixed-deck-resaved.pptx` | 241,289 | PowerPoint 16 | F6: `poi/45545_Comment.pptx` + a hand-made modern comment on slide 3, saved by PowerPoint: all legacy comments **converted** to modern |
+| `project/powerpoint-two-threads.pptx` | 33,808 | PowerPoint 16 | F9: two threads on one slide, the second appended after the first |
 
 ## Checksums (SHA-256)
 
@@ -81,16 +90,25 @@ b81bda36d34258d78329187df6beb99d12bba5a3bd25e7a51506ede016a72191  open-xml-sdk/a
 0450cf856d80ea8826540cceadb2c4b13fef28b7c613fd4db657611fa804c600  libreoffice/modern-comments.pptx
 27eed094a47dfe56617061987b81520b1ae6af73f5702fd05cf656a9da64707c  libreoffice/airplane-transition.pptx
 2e2d1a6cfa6c282a2c81f92c74c704716357155741c9ed0abd9815aeac684369  libreoffice/slide-sections.pptx
-af9e92f61c8418360a97b214ba3aa914bfe8f326cfd08d983e7aa1588a2d6d01  project/powerpoint-shape-comment.pptx
+953ed8a79f9f760f5e039197ece1956e5b54037521fed184fb7852ec8f278109  project/powerpoint-shape-comment.pptx
+7861bd91c63d0fb9f54c263e9c2d54e6dde2e54d031c8f26571541f9dea5bb38  project/powerpoint-slide-comment.pptx
+7358f1e9b6adc8627beda34f2d863831eec4270bb5df754893b994271b2d32b6  project/powerpoint-reply-second-author.pptx
+1725523a4dcd1163def127fd4b3d14574338d32cf76d49f5e98b7321abaa84d0  project/powerpoint-resolved-comment.pptx
+b643fcadfde0cb46d26e5f0134a6fabd71cbf1207a683882eae35f7885b751cc  project/powerpoint-reopened-comment.pptx
+c72dcdb2e1fa1eef5be293de06b6446b979fecb09c3229a4885c8666b05ab391  project/powerpoint-comment-anchor-kinds.pptx
+383822db068a862792a4fff9c191e0f30817c1211b7fc59211d194d977e37613  project/powerpoint-text-range-comment.pptx
+248345de997e9f2180e3e6ceab2e20100f54b2209a8f59b8b8537011e1937337  project/powerpoint-legacy-deck-comment.pptx
+e3f0c5fdcd95477d50c61f665c3ba512fb3d5180c5c3f7d83e335a99bf15b08a  project/powerpoint-mixed-deck-resaved.pptx
+a2827b03f939d384929d4929e55a61cc90f0662d5f42179b1d86769efd1e40e9  project/powerpoint-two-threads.pptx
 ```
 
 Verify with `sha256sum -c` after extracting the block above, run from this
 directory.
 
-## Project-made file (`project/`)
+## Project-made files (`project/`)
 
-`project/powerpoint-shape-comment.pptx` (34,111 bytes,
-SHA-256 `af9e92f61c8418360a97b214ba3aa914bfe8f326cfd08d983e7aa1588a2d6d01`)
+`project/powerpoint-shape-comment.pptx` (34,114 bytes,
+SHA-256 `953ed8a79f9f760f5e039197ece1956e5b54037521fed184fb7852ec8f278109`)
 was made by this project in Microsoft 365 PowerPoint 16.0.20326 on
 2026-11-21 (issue #114, ADR-0008 Q6). A new deck with a Title and Content
 slide was created through COM. The title shape was then selected and the
@@ -102,7 +120,58 @@ In `ppt/authors.xml`, name/initials/userId became `Ada Lovelace`/`AL`/`Ada
 Lovelace` and providerId became `None`. In `docProps/core.xml`, creator
 and lastModifiedBy became `Ada Lovelace`. The edited file opens in
 PowerPoint 365, and the comment stays on the shape after a PowerPoint
-save. Licence: the project's own.
+save. On 2026-11-21 (PR #141) the author `id`, which PowerPoint had derived
+from the real account, was replaced in `authors.xml` and in `authorId` by
+`{F3ADE2BD-15AB-CAFA-2E5E-509A88BEB9F7}`. That is the id PowerPoint derives
+for `userId="Ada Lovelace"`/`providerId="None"`
+(`spikes/pptx-phase4a/p4a0/probe-ada-lovelace.pptx`), so the identity in
+the file is self-consistent. Licence: the project's own.
+
+### ADR-0019 P4a-0 comment fixtures (2026-11-21)
+
+Nine files made on 2026-11-21 in Microsoft 365 PowerPoint 16.0.20326.20318
+(Windows Server 2022 VM, zone UTC, signed in to an Entra ID work account) for
+[ADR-0019](../../../docs/adr/0019-pptx-phase4a-modern-comments.md) P4a-0.
+A Python driver ran in the interactive session. It built each deck through
+COM, selected the target, ran the ribbon's New Comment
+(`CommandBars.ExecuteMso("ReviewNewComment")`), set the card's text through
+UI Automation (ValuePattern on `cardEditor_*`) and invoked its Post button
+(`sendReplyButton_*`). It then saved with `SaveAs`. No keystrokes were sent.
+The comment, author and slide parts are PowerPoint's own.
+
+| File | ADR | How it was made |
+|---|---|---|
+| `powerpoint-slide-comment.pptx` | F1 | Title and Content slide, `Selection.Unselect()`, then New Comment in the UI |
+| `powerpoint-reply-second-author.pptx` | F2 | UI thread on the title. Reply 1 through COM `Comment.Replies.Add2(0, 0, "試験 花子", "", text, "AD", "S::hanako.shiken@example.com::2b7e1f0c-…")` (the UI posts only as the signed-in account). Reply 2 through the card's Reply box in the UI |
+| `powerpoint-resolved-comment.pptx`, `powerpoint-reopened-comment.pptx` | F3 | UI thread on the title. "More thread actions" → "Resolve thread", then `SaveAs`. Then the card's "Reopen" button, then `SaveAs` to the second name. Same thread id |
+| `powerpoint-comment-anchor-kinds.pptx` | F4 | Five blank slides: `AddPicture` (a generated PNG), `AddConnector`, `AddTable(2, 2)`, a group of a rectangle and an oval, and the same group again. Each target was selected through COM (`Shape.Select`; the oval inside the group through `GroupItems(2).Select`), then New Comment in the UI |
+| `powerpoint-text-range-comment.pptx` | F5 | `TextRange.Characters(43, 15).Select()` on "commented words" in the body's second paragraph, then New Comment in the UI |
+| `powerpoint-legacy-deck-comment.pptx` | F6 | `poi/45545_Comment.pptx` opened in PowerPoint. In this deck New Comment opens the **legacy** Comments pane, not the modern card. The UI text could not be committed without keystrokes, so the comment on slide 3 was added through COM `Comments.Add2(20, 20, "Author Two", "AT", text, "AD", "S::author.two@example.com::5c1f4e2a-…")`. PowerPoint wrote `ppt/comments/comment3.xml` (legacy) and a second `p:cmAuthor` with `p15:presenceInfo` |
+| `powerpoint-mixed-deck-resaved.pptx` | F6 | Input made on Linux, not by PowerPoint: `poi/45545_Comment.pptx` plus slide 3 `p14:creationId val="1234567890"`, one modern comment part `modernComment_21E_499602D2.xml` in F1's form (author `Probe User`, `providerId="AD"`, a dummy `userId`; `created="…T21:30:00.000"`), `p188:commentRel`, `authors.xml` and the content types. PowerPoint opened it without a repair prompt, showed the modern card on slide 3 and both legacy comments, and its `SaveAs` produced this file |
+| `powerpoint-two-threads.pptx` | F9 | New Comment on the body placeholder, then on the title, both in the UI |
+
+**What was replaced afterwards** (`zipfile`, all other entries copied
+unchanged; the edited files then opened in the same PowerPoint, read-only,
+with no repair prompt and all comments listed through COM):
+
+- `ppt/authors.xml`, the signed-in author: `name` → `Author One`;
+  `initials` → `AO`; `userId` `S::<real UPN>::<real object id>` →
+  `S::author.one@example.com::1d0c6f4e-3b2a-4c8d-9e7f-a1b2c3d4e5f6`.
+  `providerId="AD"` is kept as written.
+- The author `id` (in `authors.xml` and every `authorId`), which PowerPoint
+  derives from the account and which would therefore act as a stable
+  pseudonym, → `{C4DFFEAD-44DF-4B94-676D-1C9510DC94CD}`. That is the id
+  PowerPoint derives for the replacement `userId` with `providerId="AD"`
+  (`spikes/pptx-phase4a/p4a0/probe-author-one.pptx`), so each file's
+  (`userId`, `providerId`) → `id` pair is PowerPoint's own.
+- `docProps/core.xml`: `dc:creator` and `cp:lastModifiedBy` → `Author One`
+  where they named the account. The two 45545-based files keep the original's
+  `dc:creator` (`Antonio Vives`) and `app.xml` `Company` (`IADB`).
+- `app.xml` `Company` was empty in the other seven files. No other part
+  carried the account (checked with `grep` over every unzipped part).
+- `試験 花子`, `Author Two` and `Probe User` and their `userId`s are dummy
+  identities given through COM or by hand; PowerPoint derived their author
+  `id`s.
 
 ## Synthetic test inputs
 
@@ -118,9 +187,11 @@ fixtures are never packaged into a crate (they are read by relative path).
 
 ## Known gaps
 
-- No modern comment anchored to a **text range** (`ac:txMk`; 0 in the
-  105-file corpus, `spikes/pptx/probe.py`); covered by a synthetic input
-  (above); a real one is still wanted from third-party corpora.
+- Text-range comments (`ac:txMk`): the only real one is the project's
+  `powerpoint-text-range-comment.pptx` (0 in the 105-file corpus,
+  `spikes/pptx/probe.py`); the synthetic input above stays.
+- No modern comment made **signed out** of Office (ADR-0019 F8) or with the
+  machine in a zone other than UTC (F7); both are owed by the owner.
 - No custom show (`p:custShow`) in any of the 105 surveyed files.
 - No Strict-conformance or encrypted `.pptx` (ADR-0001's `Err` cases need a
   separate fixture; the SDK's `encrypted_pptx.pptx` is a candidate).

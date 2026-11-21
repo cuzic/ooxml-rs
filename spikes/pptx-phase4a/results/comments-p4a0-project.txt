@@ -1,0 +1,131 @@
+decks.commentAuthors_without_legacy_comments                                                         1   e.g. powerpoint-mixed-deck-resaved.pptx
+decks.legacy.producer=Microsoft Office PowerPoint                                                    1   e.g. powerpoint-legacy-deck-comment.pptx
+decks.modern.producer=Microsoft Office PowerPoint                                                    9
+decks.with_legacy_comments                                                                           1   e.g. powerpoint-legacy-deck-comment.pptx
+decks.with_modern_comments                                                                           9
+files.listed                                                                                         10
+legacy.author                                                                                        3
+legacy.author.@clrIdx=present                                                                        3   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.author.@id=present                                                                            3   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.author.@initials=present                                                                      3   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.author.@lastIdx=present                                                                       3   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.author.@name=present                                                                          3   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.author.clrIdx_equals_id                                                                       3   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.author.ext_uri={19B8F6BF-5375-455C-9EA6-DF929625EA0E}                                         1   e.g. powerpoint-legacy-deck-comment.pptx
+legacy.author.p15_presenceInfo.providerId=AD                                                         1   e.g. powerpoint-legacy-deck-comment.pptx
+legacy.author.p15_presenceInfo.userId=S::upn::guid                                                   1   e.g. powerpoint-legacy-deck-comment.pptx
+legacy.authors_ct=application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml    2
+legacy.authors_part                                                                                  2   e.g. powerpoint-legacy-deck-comment.pptx, powerpoint-mixed-deck-resaved.pptx
+legacy.authors_part_name=ppt/commentAuthors.xml                                                      2
+legacy.cm                                                                                            3
+legacy.cm.@idx=present                                                                               3
+legacy.cm.date=frac3_zone_none                                                                       3   e.g. powerpoint-legacy-deck-comment.pptx
+legacy.cm.ext_uri={C676402C-5697-4E1C-873F-D02D1690AC5C}                                             1   e.g. powerpoint-legacy-deck-comment.pptx
+legacy.cm.pos=present                                                                                3
+legacy.comment_ct=application/vnd.openxmlformats-officedocument.presentationml.comments+xml          3
+legacy.comment_part                                                                                  3   e.g. powerpoint-legacy-deck-comment.pptx
+legacy.part_name_form=commentN                                                                       3   e.g. powerpoint-legacy-deck-comment.pptx
+modern.ac_moniker.creationId=matches_a16                                                             12
+modern.ac_moniker=ac:cxnSpMk_on_p:cxnSp_top                                                          1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.ac_moniker=ac:graphicFrameMk_on_p:graphicFrame_top                                            1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.ac_moniker=ac:grpSpMk_on_p:grpSp_top                                                          1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.ac_moniker=ac:picMk_on_p:pic_top                                                              1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.ac_moniker=ac:spMk_on_p:sp_nested                                                             1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.ac_moniker=ac:spMk_on_p:sp_top                                                                7
+modern.anchor.ac_context(hash)                                                                       1   e.g. powerpoint-text-range-comment.pptx
+modern.anchor.text_offsets                                                                           2   e.g. powerpoint-text-range-comment.pptx
+modern.author                                                                                        11
+modern.author.@id=present                                                                            11
+modern.author.@initials=present                                                                      11
+modern.author.@name=present                                                                          11
+modern.author.@providerId=present                                                                    11
+modern.author.@userId=present                                                                        11
+modern.author.id_case=upper                                                                          11
+modern.author.id_form=braced_guid                                                                    11
+modern.author.id_variant=other                                                                       11
+modern.author.id_version_nibble=1                                                                    1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.author.id_version_nibble=4                                                                    7
+modern.author.id_version_nibble=5                                                                    2   e.g. powerpoint-mixed-deck-resaved.pptx, powerpoint-reply-second-author.pptx
+modern.author.id_version_nibble=C                                                                    1   e.g. powerpoint-shape-comment.pptx
+modern.author.providerId=AD                                                                          9
+modern.author.providerId=None                                                                        2   e.g. powerpoint-mixed-deck-resaved.pptx, powerpoint-shape-comment.pptx
+modern.author.userId=S::upn::guid                                                                    9
+modern.author.userId=equals_name                                                                     1   e.g. powerpoint-shape-comment.pptx
+modern.author.userId=other                                                                           1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.authors_ct=application/vnd.ms-powerpoint.authors+xml                                          9
+modern.authors_part                                                                                  9
+modern.authors_part_name=ppt/authors.xml                                                             9
+modern.authors_root=p188:authorLst                                                                   9
+modern.cm                                                                                            16
+modern.cm.anchor=ac:deMkLst                                                                          11
+modern.cm.anchor=ac:txMkLst                                                                          1   e.g. powerpoint-text-range-comment.pptx
+modern.cm.anchor=pc:sldMkLst                                                                         4   e.g. powerpoint-mixed-deck-resaved.pptx, powerpoint-slide-comment.pptx
+modern.cm.anchor_count=1                                                                             16
+modern.cm.anchor_monikers=ac:deMkLst[pc:docMk,pc:sldMk,ac:cxnSpMk]                                   1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.cm.anchor_monikers=ac:deMkLst[pc:docMk,pc:sldMk,ac:graphicFrameMk]                            1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.cm.anchor_monikers=ac:deMkLst[pc:docMk,pc:sldMk,ac:grpSpMk]                                   1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.cm.anchor_monikers=ac:deMkLst[pc:docMk,pc:sldMk,ac:picMk]                                     1   e.g. powerpoint-comment-anchor-kinds.pptx
+modern.cm.anchor_monikers=ac:deMkLst[pc:docMk,pc:sldMk,ac:spMk]                                      7
+modern.cm.anchor_monikers=ac:txMkLst[pc:docMk,pc:sldMk,ac:spMk,ac:txMk]                              1   e.g. powerpoint-text-range-comment.pptx
+modern.cm.anchor_monikers=pc:sldMkLst[pc:docMk,pc:sldMk]                                             4   e.g. powerpoint-mixed-deck-resaved.pptx, powerpoint-slide-comment.pptx
+modern.cm.anchor_nested_children_under=ac:txMk                                                       1   e.g. powerpoint-text-range-comment.pptx
+modern.cm.child_sequence=ANCHOR,pos,txBody                                                           3   e.g. powerpoint-mixed-deck-resaved.pptx, powerpoint-text-range-comment.pptx
+modern.cm.child_sequence=ANCHOR,replyLst,txBody                                                      1   e.g. powerpoint-reply-second-author.pptx
+modern.cm.child_sequence=ANCHOR,txBody                                                               12
+modern.cm.date=frac0_zone_none                                                                       1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.cm.date=frac3_zone_none                                                                       15
+modern.cm.id_case=upper                                                                              16
+modern.cm.id_form=braced_guid                                                                        16
+modern.cm.id_variant=other                                                                           1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.cm.id_variant=rfc4122                                                                         15
+modern.cm.id_version_nibble=3                                                                        1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.cm.id_version_nibble=4                                                                        14
+modern.cm.id_version_nibble=F                                                                        1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.cm.other_attr=complete                                                                        1   e.g. powerpoint-resolved-comment.pptx
+modern.cm.pos=absent                                                                                 13
+modern.cm.pos=present                                                                                3   e.g. powerpoint-mixed-deck-resaved.pptx, powerpoint-text-range-comment.pptx
+modern.cm.replies=0                                                                                  15
+modern.cm.replies=2                                                                                  1   e.g. powerpoint-reply-second-author.pptx
+modern.cm.status=None                                                                                15
+modern.cm.status=resolved                                                                            1   e.g. powerpoint-resolved-comment.pptx
+modern.comment_ct=application/vnd.ms-powerpoint.comments+xml                                         15
+modern.comment_local_decl_on_moniker=ac                                                              12
+modern.comment_local_decl_on_moniker=pc                                                              28
+modern.comment_part                                                                                  15
+modern.comment_root=p188:cmLst                                                                       15
+modern.comment_root_declares=a                                                                       15
+modern.comment_root_declares=p188                                                                    15
+modern.comment_root_declares=r                                                                       15
+modern.part_name=sldIdHex_match_cIdHex_match                                                         13
+modern.part_name=sldIdHex_match_cIdHex_slide_has_none                                                2   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.part_name_hex_case=upper                                                                      15
+modern.reply                                                                                         2
+modern.reply.child_sequence=txBody                                                                   2   e.g. powerpoint-reply-second-author.pptx
+modern.reply.date=frac3_zone_none                                                                    2   e.g. powerpoint-reply-second-author.pptx
+modern.reply.id_case=upper                                                                           2   e.g. powerpoint-reply-second-author.pptx
+modern.reply.id_form=braced_guid                                                                     2
+modern.reply.id_variant=rfc4122                                                                      2   e.g. powerpoint-reply-second-author.pptx
+modern.reply.id_version_nibble=4                                                                     2   e.g. powerpoint-reply-second-author.pptx
+modern.reply.status=None                                                                             2   e.g. powerpoint-reply-second-author.pptx
+modern.sldMk.cId_differs                                                                             2   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.sldMk.cId_matches_slide                                                                       14
+modern.sldMk.sldId_matches_slide                                                                     16
+modern.slide.commentRel_count=1                                                                      15
+modern.slide.extLst_is_last=True                                                                     15
+modern.slide.has_mc_AlternateContent                                                                 1   e.g. powerpoint-mixed-deck-resaved.pptx
+modern.slide_ext_uri={6950BFC3-D8DA-4A85-94F7-54DA5524770B}                                          15
+modern.txBody.children=a:bodyPr,a:lstStyle,a:p                                                       18
+modern.txBody.p                                                                                      18
+modern.txBody.p_child=a:r                                                                            18
+modern.txBody.rPr_attrs=lang                                                                         18
+packages.read                                                                                        10
+presentation.ext_uri={2D200454-40CA-4A62-9FC3-DE9A4176ACB9}                                          2
+presentation.ext_uri={EFAFB233-063F-42B5-8137-9DF3F51BA10A}                                          2
+shapes.depth=nested                                                                                  4
+shapes.depth=top                                                                                     95
+shapes.with_a16_creationId                                                                           23
+shapes.without_a16_creationId                                                                        76
+slides                                                                                               34
+slides.with_modern_comments                                                                          15
+slides.with_p14_creationId                                                                           13
+slides.without_p14_creationId                                                                        21
