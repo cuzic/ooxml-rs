@@ -522,6 +522,11 @@ nobody widens the table ad hoc.
     `_FilterDatabase` (none expected) are invalidated like any name edit (§2's row).
   - A range overlapping a table is refused (`TableOverlap`): tables carry their own
     `autoFilter`.
+  - **Post-acceptance note (issue #112).** The sheet prefix of the name's text uses the
+    single quoting rule of ADR-0009 §6 (`sheet_ops::quote_sheet`). A real Excel 365
+    (16.0.20326) refuses to open a workbook whose `_FilterDatabase` reads `TRUE!$A$1:$B$2`
+    and opens `'TRUE'!$A$1:$B$2`, so `TRUE`/`FALSE` and the other names ADR-0009 quotes are
+    quoted here too (PR #58 round 1 m7's open point).
 - **Filter criteria are out of scope.** Writing a `filterColumn` without hiding the rows it
   excludes leaves a sheet that disagrees with itself until Excel re-applies the filter.
   Existing `filterColumn` and `sortState` are preserved.

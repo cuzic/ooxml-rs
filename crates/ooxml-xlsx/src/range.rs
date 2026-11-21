@@ -15,6 +15,7 @@ use crate::error::{Error, Result};
 use crate::formula::precedents::{NameDef, Scope, fold};
 use crate::protect::{MANAGED, MANAGED_WORKBOOK, SheetProtection, WorkbookProtection};
 use crate::reference::{CellIndex, CellRange};
+use crate::sheet_ops::quote_sheet;
 use crate::workbook::Workbook;
 use crate::worksheet::Worksheet;
 
@@ -30,23 +31,6 @@ impl CellRange {
             && self.first.col <= other.last.col
             && other.first.col <= self.last.col
     }
-}
-
-/// `Sheet1`, or `'My Sheet'` with `'` doubled, as a formula sheet prefix.
-/// Quoted unless the name is a plain identifier that cannot be read as a
-/// cell reference (quoting is always valid; this only keeps Excel's form).
-pub(crate) fn quote_sheet(name: &str) -> String {
-    let plain = name.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
-        && CellIndex::parse(name).is_err()
-        && !looks_r1c1(name);
-    if plain { name.to_owned() } else { format!("'{}'", name.replace('\'', "''")) }
-}
-
-fn looks_r1c1(s: &str) -> bool {
-    let u = s.to_ascii_uppercase();
-    let rest = |p: &str| u.strip_prefix(p).map(|r| r.chars().all(|c| c.is_ascii_digit()));
-    matches!(rest("R"), Some(true)) || matches!(rest("C"), Some(true)) || u.starts_with('R') && u[1..].split_once('C').is_some_and(|(a, b)| a.chars().all(|c| c.is_ascii_digit()) && b.chars().all(|c| c.is_ascii_digit()))
 }
 
 fn absolute(r: &CellRange) -> String {
