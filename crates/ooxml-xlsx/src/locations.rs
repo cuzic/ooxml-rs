@@ -1,7 +1,7 @@
 //! Sheet-name dispatch for the reference locations in ADR-0018 §2.2.
 
 use crate::SML_NS as SML;
-use crate::x14::{NS_X14 as X14, NS_XM as XM, URI_CF, URI_DV};
+use crate::x14::{NS_X14 as X14, NS_XM as XM, URI_CF, URI_DV, URI_SPARKLINE};
 use ooxml_schema::props::{NS_AP as AP, NS_VT as VT};
 
 pub(crate) const CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
@@ -10,7 +10,11 @@ const CX: &str = "http://schemas.microsoft.com/office/drawing/2014/chartex";
 const VML: &str = "urn:schemas-microsoft-com:office:excel";
 const XDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
 const CDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/chartDrawing";
-const SPARKLINE: &str = "{05C60535-1F16-4FD2-B633-F4F36F0B64E0}";
+const MC: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+const RICH_DATA: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata2";
+const TC: &str = "http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments";
+const SORT_STATE: &str = "{0FC57C36-975A-43D2-8416-536B9B585D1B}";
+const FILTER_COLUMN: &str = "{68452572-C921-441B-96FD-77FB3E787301}";
 const RELS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,10 +38,17 @@ pub(crate) enum PartKind {
     PivotTable,
     SingleXmlCells,
     VolatileDependencies,
+    ThreadedComments,
+    QueryTable,
+    Revisions,
+    ActiveX,
+    ExternalLink,
+    Metadata,
+    RichData,
     Other,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Rule {
     Refuse,
     Rewrite,
@@ -45,7 +56,7 @@ pub(crate) enum Rule {
     Unaffected,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Syntax {
     Formula,
     Location,
@@ -54,9 +65,16 @@ pub(crate) enum Syntax {
     Sqref,
     Cell,
     Range,
+    Index,
+    Marker,
+    Count,
+    Flags,
+    ColumnSpans,
+    ColumnOffset,
+    Element,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Scope {
     Any,
     Own,
@@ -71,6 +89,8 @@ pub(crate) struct Location {
     scope: Scope,
     pub(crate) rename: Rule,
     pub(crate) delete: Rule,
+    #[cfg_attr(not(test), expect(dead_code, reason = "structural dispatch is wired in P7a–d"))]
+    rules: &'static OperationRules,
     extension: Option<&'static str>,
 }
 
@@ -123,7 +143,7 @@ impl Location {
 macro_rules! location {
     ($id:literal, $part:ident, $syntax:ident, $delete:ident, $attr:expr, $uri:expr; $($ns:ident : $name:literal),+) => {
         Location { id: $id, part: PartKind::$part, path: &[$(($ns, $name)),+], attr: $attr,
-            syntax: Syntax::$syntax, scope: Scope::Any, rename: Rule::Rewrite, delete: Rule::$delete, extension: $uri }
+            syntax: Syntax::$syntax, scope: Scope::Any, rename: Rule::Rewrite, delete: Rule::$delete, rules: &OPERATION_RULES[$id - 1], extension: $uri }
     };
 }
 
@@ -131,7 +151,7 @@ macro_rules! sqref {
     ($id:literal, $uri:expr; $($ns:ident : $name:literal),+) => {
         Location { id: $id, part: PartKind::Worksheet, path: &[$(($ns, $name)),+], attr: None,
             syntax: Syntax::Sqref, scope: Scope::Own, rename: Rule::Keep, delete: Rule::Keep,
-            extension: Some($uri) }
+            rules: &OPERATION_RULES[$id - 1], extension: Some($uri) }
     };
 }
 
@@ -139,7 +159,16 @@ macro_rules! position {
     ($id:literal, $part:ident, $syntax:ident, $attr:literal; $($name:literal),+) => {
         Location { id: $id, part: PartKind::$part, path: &[$((SML, $name)),+], attr: Some($attr),
             syntax: Syntax::$syntax, scope: Scope::Own, rename: Rule::Unaffected, delete: Rule::Unaffected,
-            extension: None }
+            rules: &OPERATION_RULES[$id - 1], extension: None }
+    };
+}
+
+// Some rows describe an entire part or an element rather than an attribute.
+macro_rules! site {
+    ($id:literal, $part:ident, $syntax:ident, $attr:expr, $uri:expr; $($ns:ident : $name:literal),*) => {
+        Location { id: $id, part: PartKind::$part, path: &[$(($ns, $name)),*], attr: $attr,
+            syntax: Syntax::$syntax, scope: Scope::Own, rename: Rule::Unaffected, delete: Rule::Unaffected,
+            rules: &OPERATION_RULES[$id - 1], extension: $uri }
     };
 }
 
@@ -153,15 +182,15 @@ const IGNORED_ERRORS: &str = "{01252117-D84E-4E92-8308-4BE1C098FCBB}";
 const EXTENSIONS: &[(&str, &[u8])] = &[
     (URI_CF, &[20]),
     (URI_DV, &[20]),
-    (SPARKLINE, &[21]),
+    (URI_SPARKLINE, &[21]),
     (PROTECTED_RANGES, &[68]),
     (IGNORED_ERRORS, &[69]),
     (WEB_EXTENSIONS, &[70]),
     ("{A8765BA9-456A-4DAB-B4F3-ACF838C121DE}", &[]),
     ("{7E03D99C-DC04-49d9-9315-930204A7B6E9}", &[]),
     ("{B025F937-C7B1-47D3-B67F-A62EFF666E3E}", &[]),
-    ("{0FC57C36-975A-43D2-8416-536B9B585D1B}", &[74]),
-    ("{68452572-C921-441B-96FD-77FB3E787301}", &[74]),
+    (SORT_STATE, &[74]),
+    (FILTER_COLUMN, &[74]),
     (
         "http://schemas.microsoft.com/office/mac/excel/2008/main",
         &[],
@@ -169,7 +198,185 @@ const EXTENSIONS: &[(&str, &[u8])] = &[
     ("{64002731-A6B0-56B0-2670-7721B7C09600}", &[]),
 ];
 
+#[cfg_attr(not(test), expect(dead_code, reason = "structural dispatch is wired in P7a–d"))]
+struct OperationRules {
+    g1: &'static str,
+    copy: &'static str,
+    table_rename: &'static str,
+}
+
+const OPERATION_RULES: [OperationRules; 74] = [
+    OperationRules { g1: "D (row removed)", copy: "copied", table_rename: "–" }, // L1
+    OperationRules { g1: "R (column edits)", copy: "copied", table_rename: "–" }, // L2
+    OperationRules { g1: "D (cell removed)", copy: "copied", table_rename: "–" }, // L3
+    OperationRules { g1: "R (§3.3)", copy: "R (§4.4)", table_rename: "R" }, // L4
+    OperationRules { g1: "R; X when an array is split (§3.3.3)", copy: "copied", table_rename: "–" }, // L5
+    OperationRules { g1: "R; X when deleted", copy: "copied", table_rename: "–" }, // L6
+    OperationRules { g1: "R", copy: "copied", table_rename: "–" }, // L7
+    OperationRules { g1: "R (§3.4)", copy: "copied", table_rename: "–" }, // L8
+    OperationRules { g1: "R, clamped (§3.5)", copy: "copied", table_rename: "–" }, // L9
+    OperationRules { g1: "R (§3.5)", copy: "copied", table_rename: "–" }, // L10
+    OperationRules { g1: "R, clamped", copy: "copied", table_rename: "–" }, // L11
+    OperationRules { g1: "D (§3.5)", copy: "copied", table_rename: "–" }, // L12
+    OperationRules { g1: "D", copy: "copied", table_rename: "–" }, // L13
+    OperationRules { g1: "R; X when its target is deleted (§3.5)", copy: "kept (§4.4)", table_rename: "–" }, // L14
+    OperationRules { g1: "R; X header row or a filtered column deleted (§3.5)", copy: "copied", table_rename: "–" }, // L15
+    OperationRules { g1: "D (rule removed when empty)", copy: "copied", table_rename: "–" }, // L16
+    OperationRules { g1: "R (§3.3.4)", copy: "R", table_rename: "R" }, // L17
+    OperationRules { g1: "D", copy: "copied", table_rename: "–" }, // L18
+    OperationRules { g1: "R (§3.3.4)", copy: "R", table_rename: "R" }, // L19
+    OperationRules { g1: "as L16–L19", copy: "R", table_rename: "R" }, // L20
+    OperationRules { g1: "R; sparkline removed with its host; X when its data range is wholly deleted (§3.5)", copy: "R (retargeted, Q3)", table_rename: "R" }, // L21
+    OperationRules { g1: "D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2)", copy: "copied", table_rename: "–" }, // L22
+    OperationRules { g1: "D", copy: "copied", table_rename: "–" }, // L23
+    OperationRules { g1: "R; X when it would become empty", copy: "copied", table_rename: "–" }, // L24
+    OperationRules { g1: "as there", copy: "copied", table_rename: "–" }, // L25
+    OperationRules { g1: "D", copy: "copied", table_rename: "–" }, // L26
+    OperationRules { g1: "XX", copy: "XX", table_rename: "–" }, // L27
+    OperationRules { g1: "XX", copy: "XX", table_rename: "–" }, // L28
+    OperationRules { g1: "XX", copy: "XX", table_rename: "–" }, // L29
+    OperationRules { g1: "XX", copy: "XX", table_rename: "–" }, // L30
+    OperationRules { g1: "XX; X inside a registry element", copy: "XX", table_rename: "X inside a registry element" }, // L31
+    OperationRules { g1: "R (§3.3.5)", copy: "R + local names duplicated (§4.4)", table_rename: "R" }, // L32
+    OperationRules { g1: "–", copy: "N (ADR-0009 §4)", table_rename: "–" }, // L33
+    OperationRules { g1: "part removed (ADR-0003 §4.3)", copy: "part removed", table_rename: "–" }, // L34
+    OperationRules { g1: "R / X (§3.6.1)", copy: "N (§4.3)", table_rename: "–" }, // L35
+    OperationRules { g1: "R (§3.6.1)", copy: "copied", table_rename: "column name: R" }, // L36
+    OperationRules { g1: "R", copy: "R", table_rename: "R" }, // L37
+    OperationRules { g1: "–", copy: "N", table_rename: "R" }, // L38
+    OperationRules { g1: "D (note removed with its VML shape and thread)", copy: "copied", table_rename: "–" }, // L39
+    OperationRules { g1: "R with L39", copy: "copied", table_rename: "–" }, // L40
+    OperationRules { g1: "R (§3.6.3)", copy: "copied", table_rename: "–" }, // L41
+    OperationRules { g1: "X", copy: "XX (controls)", table_rename: "X" }, // L42
+    OperationRules { g1: "D with L39", copy: "N (new GUIDs)", table_rename: "–" }, // L43
+    OperationRules { g1: "R / X (§3.6.3)", copy: "copied", table_rename: "–" }, // L44
+    OperationRules { g1: "X when they would change", copy: "XX", table_rename: "–" }, // L45
+    OperationRules { g1: "R", copy: "R", table_rename: "R" }, // L46
+    OperationRules { g1: "R; X when a series range is wholly deleted (§3.6.4)", copy: "R (§4.4)", table_rename: "R" }, // L47
+    OperationRules { g1: "X", copy: "XX", table_rename: "X" }, // L48
+    OperationRules { g1: "K (pivot rules apply to the pivot table)", copy: "XX", table_rename: "–" }, // L49
+    OperationRules { g1: "R when moved; X when expanded or shrunk (§3.6.5)", copy: "–", table_rename: "–" }, // L50
+    OperationRules { g1: "–", copy: "–", table_rename: "R (table rename)" }, // L51
+    OperationRules { g1: "X if the edit crosses or moves it (§3.6.5)", copy: "XX", table_rename: "–" }, // L52
+    OperationRules { g1: "X", copy: "–", table_rename: "–" }, // L53
+    OperationRules { g1: "R; X when deleted", copy: "XX", table_rename: "–" }, // L54
+    OperationRules { g1: "R", copy: "–", table_rename: "R" }, // L55
+    OperationRules { g1: "X", copy: "XX", table_rename: "X" }, // L56
+    OperationRules { g1: "X when its table's `ref` changes", copy: "XX", table_rename: "X (rename)" }, // L57
+    OperationRules { g1: "XX (`SharedWorkbook`)", copy: "XX", table_rename: "XX" }, // L58
+    OperationRules { g1: "XX (`BinaryReferencesPossible`, ADR-0009 §6)", copy: "XX", table_rename: "XX" }, // L59
+    OperationRules { g1: "K", copy: "–", table_rename: "–" }, // L60
+    OperationRules { g1: "– (move with the cell)", copy: "copied", table_rename: "–" }, // L61
+    OperationRules { g1: "R when it names the edited sheet's area *(u: it has no sheet; assumed the first sheet)*; X when its area is changed in any other way", copy: "–", table_rename: "–" }, // L62
+    OperationRules { g1: "X when it names the edited sheet", copy: "X", table_rename: "X" }, // L63
+    OperationRules { g1: "–", copy: "–", table_rename: "X (table rename; review m13)" }, // L64
+    OperationRules { g1: "XX when the edited sheet has any", copy: "XX", table_rename: "–" }, // L65
+    OperationRules { g1: "–", copy: "removed on the copy (§4.2)", table_rename: "–" }, // L66
+    OperationRules { g1: "refuse when locked (Q13)", copy: "refuse on `lockStructure` (Q13)", table_rename: "–" }, // L67
+    OperationRules { g1: "as L24", copy: "copied", table_rename: "–" }, // L68
+    OperationRules { g1: "as L23", copy: "copied", table_rename: "–" }, // L69
+    OperationRules { g1: "X", copy: "XX", table_rename: "X" }, // L70
+    OperationRules { g1: "R through `set_relationship_target` in the operation's `RegistryPlan`; X when the target is wholly deleted (as L14)", copy: "kept", table_rename: "–" }, // L71
+    OperationRules { g1: "– (positions are L50/L53/L28)", copy: "–", table_rename: "–" }, // L72
+    OperationRules { g1: "K", copy: "N (ADR-0009 §11)", table_rename: "–" }, // L73
+    OperationRules { g1: "X while it holds a `ref`", copy: "copied", table_rename: "–" }, // L74
+];
+
 pub(crate) const LOCATIONS: &[Location] = &[
+    position!(1, Worksheet, Index, "r"; "worksheet", "sheetData", "row"),
+    position!(2, Worksheet, ColumnSpans, "spans"; "worksheet", "sheetData", "row"),
+    position!(8, Worksheet, Index, "min"; "worksheet", "cols", "col"),
+    position!(8, Worksheet, Index, "max"; "worksheet", "cols", "col"),
+    position!(10, Worksheet, Count, "xSplit"; "worksheet", "sheetViews", "sheetView", "pane"),
+    position!(10, Worksheet, Count, "ySplit"; "worksheet", "sheetViews", "sheetView", "pane"),
+    position!(25, Worksheet, Count, "xSplit"; "worksheet", "customSheetViews", "customSheetView", "pane"),
+    position!(25, Worksheet, Count, "ySplit"; "worksheet", "customSheetViews", "customSheetView", "pane"),
+    position!(22, Worksheet, Index, "id"; "worksheet", "rowBreaks", "brk"),
+    position!(22, Worksheet, Index, "min"; "worksheet", "rowBreaks", "brk"),
+    position!(22, Worksheet, Index, "max"; "worksheet", "rowBreaks", "brk"),
+    position!(22, Worksheet, Count, "count"; "worksheet", "rowBreaks"),
+    position!(22, Worksheet, Count, "manualBreakCount"; "worksheet", "rowBreaks"),
+    position!(22, Worksheet, Index, "id"; "worksheet", "colBreaks", "brk"),
+    position!(22, Worksheet, Index, "min"; "worksheet", "colBreaks", "brk"),
+    position!(22, Worksheet, Index, "max"; "worksheet", "colBreaks", "brk"),
+    position!(22, Worksheet, Count, "count"; "worksheet", "colBreaks"),
+    position!(22, Worksheet, Count, "manualBreakCount"; "worksheet", "colBreaks"),
+    position!(25, Worksheet, Index, "id"; "worksheet", "customSheetViews", "customSheetView", "rowBreaks", "brk"),
+    position!(25, Worksheet, Index, "min"; "worksheet", "customSheetViews", "customSheetView", "rowBreaks", "brk"),
+    position!(25, Worksheet, Index, "max"; "worksheet", "customSheetViews", "customSheetView", "rowBreaks", "brk"),
+    position!(25, Worksheet, Count, "count"; "worksheet", "customSheetViews", "customSheetView", "rowBreaks"),
+    position!(25, Worksheet, Count, "manualBreakCount"; "worksheet", "customSheetViews", "customSheetView", "rowBreaks"),
+    position!(25, Worksheet, Index, "id"; "worksheet", "customSheetViews", "customSheetView", "colBreaks", "brk"),
+    position!(25, Worksheet, Index, "min"; "worksheet", "customSheetViews", "customSheetView", "colBreaks", "brk"),
+    position!(25, Worksheet, Index, "max"; "worksheet", "customSheetViews", "customSheetView", "colBreaks", "brk"),
+    position!(25, Worksheet, Count, "count"; "worksheet", "customSheetViews", "customSheetView", "colBreaks"),
+    position!(25, Worksheet, Count, "manualBreakCount"; "worksheet", "customSheetViews", "customSheetView", "colBreaks"),
+    position!(15, Worksheet, ColumnOffset, "colId"; "worksheet", "autoFilter", "filterColumn"),
+    position!(25, Worksheet, ColumnOffset, "colId"; "worksheet", "customSheetViews", "customSheetView", "autoFilter", "filterColumn"),
+    position!(36, Table, ColumnOffset, "colId"; "table", "autoFilter", "filterColumn"),
+    site!(31, Worksheet, Element, None, None; SML:"worksheet", MC:"AlternateContent"),
+    site!(31, Worksheet, Element, None, None; SML:"worksheet", SML:"sheetData", MC:"AlternateContent"),
+    site!(31, Worksheet, Element, None, None; SML:"worksheet", SML:"sheetData", SML:"row", MC:"AlternateContent"),
+    position!(33, Workbook, Index, "localSheetId"; "workbook", "definedNames", "definedName"),
+    position!(33, Workbook, Index, "activeTab"; "workbook", "bookViews", "workbookView"),
+    position!(33, Workbook, Index, "firstSheet"; "workbook", "bookViews", "workbookView"),
+    position!(34, CalcChain, Index, "i"; "calcChain", "c"),
+    site!(36, Table, Element, None, None; SML:"table", SML:"tableColumns", SML:"tableColumn"),
+    position!(38, Table, RawName, "name"; "table"),
+    position!(38, Table, RawName, "displayName"; "table"),
+    site!(40, Vml, Index, None, None; VML:"ClientData", VML:"Row"),
+    site!(40, Vml, Index, None, None; VML:"ClientData", VML:"Column"),
+    site!(41, Vml, Marker, None, None; VML:"ClientData", VML:"Anchor"),
+    site!(43, ThreadedComments, Cell, Some("ref"), None; TC:"ThreadedComments", TC:"threadedComment"),
+    site!(44, Drawing, Marker, None, None; XDR:"wsDr", XDR:"twoCellAnchor", XDR:"from"),
+    site!(44, Drawing, Marker, None, None; XDR:"wsDr", XDR:"twoCellAnchor", XDR:"to"),
+    site!(44, Drawing, Marker, None, None; XDR:"wsDr", XDR:"oneCellAnchor", XDR:"from"),
+    site!(45, Drawing, Marker, None, None; XDR:"wsDr", MC:"AlternateContent", MC:"Choice", XDR:"twoCellAnchor"),
+    site!(45, Drawing, Marker, None, None; XDR:"wsDr", MC:"AlternateContent", MC:"Choice", XDR:"oneCellAnchor"),
+    site!(45, Drawing, Marker, None, None; XDR:"wsDr", MC:"AlternateContent", MC:"Choice", XDR:"absoluteAnchor"),
+    site!(45, Drawing, Marker, None, None; XDR:"wsDr", MC:"AlternateContent", MC:"Fallback", XDR:"twoCellAnchor"),
+    site!(45, Drawing, Marker, None, None; XDR:"wsDr", MC:"AlternateContent", MC:"Fallback", XDR:"oneCellAnchor"),
+    site!(45, Drawing, Marker, None, None; XDR:"wsDr", MC:"AlternateContent", MC:"Fallback", XDR:"absoluteAnchor"),
+    position!(51, PivotCache, RawName, "name"; "pivotCacheDefinition", "cacheSource", "worksheetSource"),
+    site!(57, QueryTable, Element, None, None; SML:"queryTable"),
+    site!(58, Revisions, Element, None, None; ),
+    site!(59, ActiveX, Element, Some("LinkedCell"), None; ),
+    site!(59, ActiveX, Element, Some("ListFillRange"), None; ),
+    Location { scope: Scope::Any, ..site!(60, ExternalLink, Element, None, None; SML:"externalLink") },
+    site!(61, Metadata, Index, Some("cm"), None; SML:"worksheet", SML:"sheetData", SML:"row", SML:"c"),
+    site!(61, RichData, Index, Some("cm"), None; SML:"worksheet", SML:"sheetData", SML:"row", SML:"c"),
+    site!(61, Metadata, Index, Some("vm"), None; SML:"worksheet", SML:"sheetData", SML:"row", SML:"c"),
+    site!(61, RichData, Index, Some("vm"), None; SML:"worksheet", SML:"sheetData", SML:"row", SML:"c"),
+    position!(63, Workbook, RawName, "sourceObject"; "workbook", "webPublishObjects", "webPublishObject"),
+    site!(64, Connections, RawName, Some("sourceName"), None; X15:"rangePr"),
+    position!(64, Connections, RawName, "name"; "connections", "connection"),
+    position!(66, Worksheet, RawName, "codeName"; "worksheet", "sheetPr"),
+    position!(67, Worksheet, Flags, "insertRows"; "worksheet", "sheetProtection"),
+    position!(67, Worksheet, Flags, "insertColumns"; "worksheet", "sheetProtection"),
+    position!(67, Worksheet, Flags, "deleteRows"; "worksheet", "sheetProtection"),
+    position!(67, Worksheet, Flags, "deleteColumns"; "worksheet", "sheetProtection"),
+    position!(67, Workbook, Flags, "lockStructure"; "workbook", "workbookProtection"),
+    site!(74, Worksheet, Range, Some("ref"), Some(SORT_STATE); SML:"worksheet", SML:"sortState", SML:"extLst", SML:"ext", X14:"sortCondition"),
+    site!(74, Worksheet, Range, Some("ref"), Some(SORT_STATE); SML:"worksheet", SML:"sortState", SML:"extLst", SML:"ext", RICH_DATA:"richSortCondition"),
+    site!(74, Worksheet, Range, Some("ref"), Some(SORT_STATE); SML:"worksheet", SML:"autoFilter", SML:"sortState", SML:"extLst", SML:"ext", X14:"sortCondition"),
+    site!(74, Worksheet, Range, Some("ref"), Some(SORT_STATE); SML:"worksheet", SML:"autoFilter", SML:"sortState", SML:"extLst", SML:"ext", RICH_DATA:"richSortCondition"),
+    site!(74, Worksheet, Range, Some("ref"), Some(FILTER_COLUMN); SML:"worksheet", SML:"autoFilter", SML:"filterColumn", SML:"extLst", SML:"ext", RICH_DATA:"filterColumn"),
+    site!(74, Worksheet, Range, Some("ref"), Some(SORT_STATE); SML:"worksheet", SML:"customSheetViews", SML:"customSheetView", SML:"autoFilter", SML:"sortState", SML:"extLst", SML:"ext", X14:"sortCondition"),
+    site!(74, Worksheet, Range, Some("ref"), Some(SORT_STATE); SML:"worksheet", SML:"customSheetViews", SML:"customSheetView", SML:"autoFilter", SML:"sortState", SML:"extLst", SML:"ext", RICH_DATA:"richSortCondition"),
+    site!(74, Worksheet, Range, Some("ref"), Some(FILTER_COLUMN); SML:"worksheet", SML:"customSheetViews", SML:"customSheetView", SML:"autoFilter", SML:"filterColumn", SML:"extLst", SML:"ext", RICH_DATA:"filterColumn"),
+    site!(74, Table, Range, Some("ref"), Some(SORT_STATE); SML:"table", SML:"sortState", SML:"extLst", SML:"ext", X14:"sortCondition"),
+    site!(74, Table, Range, Some("ref"), Some(SORT_STATE); SML:"table", SML:"sortState", SML:"extLst", SML:"ext", RICH_DATA:"richSortCondition"),
+    site!(74, Table, Range, Some("ref"), Some(SORT_STATE); SML:"table", SML:"autoFilter", SML:"sortState", SML:"extLst", SML:"ext", X14:"sortCondition"),
+    site!(74, Table, Range, Some("ref"), Some(SORT_STATE); SML:"table", SML:"autoFilter", SML:"sortState", SML:"extLst", SML:"ext", RICH_DATA:"richSortCondition"),
+    site!(74, Table, Range, Some("ref"), Some(FILTER_COLUMN); SML:"table", SML:"autoFilter", SML:"filterColumn", SML:"extLst", SML:"ext", RICH_DATA:"filterColumn"),
+    site!(30, Worksheet, Marker, None, None; SML:"worksheet", SML:"oleObjects", SML:"oleObject", SML:"objectPr", SML:"anchor"),
+    site!(30, Worksheet, Marker, None, None; SML:"worksheet", SML:"controls", SML:"control", SML:"controlPr", SML:"anchor"),
+    Location { scope: Scope::Any, ..site!(47, Chart, Formula, None, None; C15_NS:"sqref") },
+    Location { scope: Scope::Any, ..site!(47, Chart, Formula, None, None; C15_NS:"fullRef") },
+    Location { scope: Scope::Any, ..site!(47, Chart, Formula, None, None; C15_NS:"formulaRef") },
+    Location { scope: Scope::Any, ..site!(47, Chart, Formula, None, None; C15_NS:"datalabelsRange") },
+    Location { scope: Scope::Any, ..site!(47, Chart, Formula, None, None; C15_NS:"filteredSeriesTitle") },
+    Location { scope: Scope::Any, ..site!(47, Chart, Formula, None, None; C15_NS:"filteredCategoryTitle") },
     position!(15, Worksheet, Range, "ref"; "worksheet", "autoFilter"),
     position!(15, Worksheet, Range, "ref"; "worksheet", "autoFilter", "sortState"),
     position!(15, Worksheet, Range, "ref"; "worksheet", "autoFilter", "sortState", "sortCondition"),
@@ -234,13 +441,17 @@ pub(crate) const LOCATIONS: &[Location] = &[
     location!(20, Worksheet, Formula, Rewrite, None, Some(URI_CF); SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", X14:"cfRule", X14:"iconSet", X14:"cfvo", XM:"f"),
     sqref!(20, URI_CF; SML:"worksheet", SML:"extLst", SML:"ext", X14:"conditionalFormattings", X14:"conditionalFormatting", XM:"sqref"),
     sqref!(20, URI_DV; SML:"worksheet", SML:"extLst", SML:"ext", X14:"dataValidations", X14:"dataValidation", XM:"sqref"),
-    sqref!(21, SPARKLINE; SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", X14:"sparklines", X14:"sparkline", XM:"sqref"),
+    sqref!(21, URI_SPARKLINE; SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", X14:"sparklines", X14:"sparkline", XM:"sqref"),
     sqref!(68, PROTECTED_RANGES; SML:"worksheet", SML:"extLst", SML:"ext", X14:"protectedRanges", X14:"protectedRange", XM:"sqref"),
     sqref!(69, IGNORED_ERRORS; SML:"worksheet", SML:"extLst", SML:"ext", X14:"ignoredErrors", X14:"ignoredError", XM:"sqref"),
-    location!(21, Worksheet, Formula, Rewrite, None, Some(SPARKLINE); SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", X14:"sparklines", X14:"sparkline", XM:"f"),
-    location!(21, Worksheet, Formula, Rewrite, None, Some(SPARKLINE); SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", XM:"f"),
+    location!(21, Worksheet, Formula, Rewrite, None, Some(URI_SPARKLINE); SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", X14:"sparklines", X14:"sparkline", XM:"f"),
+    location!(21, Worksheet, Formula, Rewrite, None, Some(URI_SPARKLINE); SML:"worksheet", SML:"extLst", SML:"ext", X14:"sparklineGroups", X14:"sparklineGroup", XM:"f"),
     location!(30, Worksheet, Formula, Rewrite, Some("linkedCell"), None; SML:"worksheet", SML:"controls", SML:"control", SML:"controlPr"),
     location!(30, Worksheet, Formula, Rewrite, Some("listFillRange"), None; SML:"worksheet", SML:"controls", SML:"control", SML:"controlPr"),
+    location!(30, Worksheet, Formula, Rewrite, Some("linkedCell"), None; SML:"worksheet", MC:"AlternateContent", MC:"Choice", SML:"controls", SML:"control", SML:"controlPr"),
+    location!(30, Worksheet, Formula, Rewrite, Some("listFillRange"), None; SML:"worksheet", MC:"AlternateContent", MC:"Choice", SML:"controls", SML:"control", SML:"controlPr"),
+    location!(30, Worksheet, Formula, Rewrite, Some("linkedCell"), None; SML:"worksheet", MC:"AlternateContent", MC:"Fallback", SML:"controls", SML:"control", SML:"controlPr"),
+    location!(30, Worksheet, Formula, Rewrite, Some("listFillRange"), None; SML:"worksheet", MC:"AlternateContent", MC:"Fallback", SML:"controls", SML:"control", SML:"controlPr"),
     location!(32, Workbook, Formula, Rewrite, None, None; SML:"workbook", SML:"definedNames", SML:"definedName"),
     location!(37, Table, Formula, Rewrite, None, None; SML:"table", SML:"tableColumns", SML:"tableColumn", SML:"calculatedColumnFormula"),
     location!(37, Table, Formula, Rewrite, None, None; SML:"table", SML:"tableColumns", SML:"tableColumn", SML:"totalsRowFormula"),
@@ -338,48 +549,71 @@ fn extension_rows(uri: Option<&str>) -> &'static [u8] {
 mod tests {
     use super::*;
 
+    const ADR: &str = include_str!("../../../docs/adr/0018-xlsx-phase7-structural-edits.md");
+
     #[test]
-    fn extension_uris_match_the_adr() {
-        let adr = include_str!("../../../docs/adr/0018-xlsx-phase7-structural-edits.md");
-        let table = adr
-            .split_once("| URI | Element | Rows / rule | Corpus |")
-            .unwrap()
-            .1;
-        let uris: Vec<_> = table
-            .lines()
-            .skip(2)
-            .take_while(|line| line.starts_with('|'))
+    fn extension_uris_and_rows_match_the_adr() {
+        let table = ADR.split_once("| URI | Element | Rows / rule | Corpus |").unwrap().1;
+        let expected: Vec<_> = table.lines().skip(2).take_while(|line| line.starts_with('|'))
             .flat_map(|line| {
-                line.split('|')
-                    .nth(1)
-                    .unwrap()
-                    .split('`')
-                    .skip(1)
-                    .step_by(2)
-            })
-            .filter(|value| value.starts_with('{') || value.starts_with("http://"))
-            .collect();
-        assert_eq!(uris.len(), EXTENSIONS.len());
-        for uri in uris {
-            assert!(
-                EXTENSIONS
-                    .iter()
-                    .any(|(registered, _)| registered.eq_ignore_ascii_case(uri)),
-                "{uri}"
-            );
-        }
+                let columns: Vec<_> = line.split('|').map(str::trim).collect();
+                let ids: Vec<u8> = columns[3].strip_prefix('L')
+                    .and_then(|value| value.split(|c: char| !c.is_ascii_digit()).next())
+                    .and_then(|id| id.parse().ok()).into_iter().collect();
+                columns[1].split('`').skip(1).step_by(2)
+                    .filter(|uri| uri.starts_with('{') || uri.starts_with("http://"))
+                    .map(move |uri| (uri.to_ascii_lowercase(), ids.clone()))
+            }).collect();
+        let actual: Vec<_> = EXTENSIONS.iter().map(|(uri, ids)| (uri.to_ascii_lowercase(), ids.to_vec())).collect();
+        assert_eq!(actual, expected);
     }
 
     #[test]
-    fn registry_accepts_legacy_locations_for_rename() {
-        for (id, count) in [(4, 1), (14, 1), (32, 1), (47, 2), (71, 1)] {
-            assert_eq!(
-                LOCATIONS
-                    .iter()
-                    .filter(|row| row.id == id && row.rename == Rule::Rewrite)
-                    .count(),
-                count
-            );
+    fn each_qualified_location_and_its_rules_match_the_adr() {
+        let table = ADR.split_once("<!-- BEGIN QUALIFIED LOCATIONS -->\n").unwrap().1;
+        let expected: Vec<_> = table.lines().skip(2).take_while(|line| line.starts_with('|')).collect();
+        let namespace = |ns| match ns {
+            SML => "sml",
+            X14 => "x14",
+            X15 => "x15",
+            XM => "xm",
+            MC => "mc",
+            TC => "tc",
+            RICH_DATA => "xlrd2",
+            VML => "x",
+            XDR => "xdr",
+            CDR => "cdr",
+            CHART_NS => "c",
+            C15_NS => "c15",
+            CX => "cx",
+            RELS => "rels",
+            AP => "ap",
+            VT => "vt",
+            _ => panic!("unknown namespace {ns}"),
+        };
+        let mut rows: Vec<_> = LOCATIONS.iter().collect();
+        rows.sort_by_key(|row| row.id);
+        let actual: Vec<_> = rows.into_iter().map(|row| {
+            let path = row.path.iter().map(|&(ns, name)| format!("{}:{name}", namespace(ns)))
+                .collect::<Vec<_>>().join("/");
+            format!("| L{} | {:?} | {:?} | {} | {} | {:?} | {} | {} | {} | {:?} | {:?} | {} |",
+                row.id, row.part, row.scope, path, row.attr.unwrap_or(""), row.syntax,
+                row.rules.g1, row.rules.copy, row.rules.table_rename, row.rename, row.delete,
+                row.extension.unwrap_or("").to_ascii_uppercase())
+        }).collect();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn operation_columns_match_the_location_summary() {
+        let summary: Vec<_> = ADR.lines().filter(|line| line.starts_with("| L")
+            && line.split('|').count() == 12).collect();
+        assert_eq!(summary.len(), OPERATION_RULES.len());
+        for (i, (line, rules)) in summary.into_iter().zip(&OPERATION_RULES).enumerate() {
+            let fields: Vec<_> = line.split('|').map(str::trim).collect();
+            assert_eq!(fields[1], format!("L{}", i + 1));
+            assert_eq!(&fields[5..8], [rules.g1, rules.copy, rules.table_rename], "{}", fields[1]);
+            assert!(LOCATIONS.iter().any(|row| usize::from(row.id) == i + 1), "{}", fields[1]);
         }
     }
 

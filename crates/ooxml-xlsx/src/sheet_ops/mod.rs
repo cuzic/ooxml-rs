@@ -349,25 +349,10 @@ impl Workbook {
     }
 
     /// Stages the change's clones and runs `steps`, applies, rebuilds.
-    fn commit(&mut self, mut change: Change, scan_extensions: bool, steps: impl FnOnce(&mut RegistryPlan, &Package) -> Result<()>) -> Result<Vec<RewrittenLocation>> {
+    fn commit(&mut self, mut change: Change, steps: impl FnOnce(&mut RegistryPlan, &Package) -> Result<()>) -> Result<Vec<RewrittenLocation>> {
         let mut plan = RegistryPlan::new(&self.pkg);
         // staged content first: the removals' reference scans read it
         self.stage_shared_string_count(&mut change)?;
-        for (part, doc) in change.docs.iter().filter(|_| scan_extensions) {
-            let ct = self.pkg.content_type(part).unwrap_or_default();
-            let kind = if ct.eq_ignore_ascii_case(CT_WORKSHEET) {
-                PartKind::Worksheet
-            } else if *part == self.workbook_part {
-                PartKind::Workbook
-            } else {
-                locations::additional_part(&ct.to_ascii_lowercase())
-            };
-            if matches!(kind, PartKind::Worksheet | PartKind::Workbook | PartKind::Table)
-                && doc.source().contains("extLst")
-            {
-                scan_part(part, doc.serialize().as_bytes(), kind, "", None)?;
-            }
-        }
         let Change { docs, bytes, rewritten, .. } = change;
         for (part, doc) in docs {
             plan.stage_part(&self.pkg, &part, doc)?;
@@ -714,7 +699,7 @@ impl Workbook {
         let before = self.listed()?;
         let after: Vec<Listed> = perm.iter().map(|&o| before[o].clone()).collect();
         self.stage_app_xml(&mut change, &before, &after, None, None)?;
-        self.commit(change, false, |_, _| Ok(())).map(drop)
+        self.commit(change, |_, _| Ok(())).map(drop)
     }
 
     /// Refuses a permutation that reverses any 3-D reference.
@@ -790,7 +775,7 @@ impl Workbook {
         let mut after = before.clone();
         after[i].very_hidden = state == SheetState::VeryHidden;
         self.stage_app_xml(&mut change, &before, &after, None, None)?;
-        self.commit(change, false, |_, _| Ok(())).map(drop)
+        self.commit(change, |_, _| Ok(())).map(drop)
     }
 
     /// Sets (`Some(0xRRGGBB)`) or removes (`None`) a worksheet's tab colour
@@ -819,7 +804,7 @@ impl Workbook {
                 }
             }
         }
-        self.commit(change, false, |_, _| Ok(())).map(drop)
+        self.commit(change, |_, _| Ok(())).map(drop)
     }
 
     // ------------------------------------------------------------ rename
@@ -893,7 +878,7 @@ impl Workbook {
                 after: after.clone(),
             });
         }
-        self.commit(change, true, |plan, pkg| {
+        self.commit(change, |plan, pkg| {
             for (src, id, _, after) in &targets {
                 plan.set_relationship_target(pkg, src.as_deref(), id, after)?;
             }
@@ -1186,10 +1171,15 @@ impl Workbook {
             let source = doc.source();
             let mut xml = String::with_capacity(source.len());
             let mut cursor = 0;
-            ranges.sort_by_key(|(range, _)| range.start);
-            for (range, rewrite) in ranges {
+            ranges.sort_by_key(|(range, _, _)| range.start);
+            for (range, rewrite, attribute) in ranges {
                 xml.push_str(&source[cursor..range.start]);
-                xml.push_str(&quick_xml::escape::escape(&rewrite.after));
+                let escaped = quick_xml::escape::partial_escape(rewrite.after.as_str());
+                match attribute.then(|| source.as_bytes()[range.start - 1]) {
+                    Some(b'\'') => xml.push_str(&escaped.replace('\'', "&apos;")),
+                    Some(b'"') => xml.push_str(&escaped.replace('"', "&quot;")),
+                    _ => xml.push_str(&escaped),
+                }
                 cursor = range.end;
                 change.rewritten.push(rewrite);
             }
@@ -1355,7 +1345,7 @@ impl Workbook {
         let calc_chain = self.calc_chain.clone();
         let set_refs: Vec<String> = set.clone();
         let removed_table_max = self.removed_table_max(&set);
-        let out = self.commit(change, true, move |plan, pkg| {
+        let out = self.commit(change, move |plan, pkg| {
             let names: Vec<&str> = set_refs.iter().map(String::as_str).collect();
             plan.remove_parts(pkg, &names, &[REL_WORKSHEET])?;
             if let Some(cc) = &calc_chain {
@@ -1569,7 +1559,7 @@ impl Workbook {
     }
 }
 
-type FormulaRewrite = (std::ops::Range<usize>, RewrittenLocation);
+type FormulaRewrite = (std::ops::Range<usize>, RewrittenLocation, bool);
 
 #[expect(clippy::too_many_arguments, reason = "the traversal carries the same dispatch context at each node")]
 fn collect_registered_formulas(
@@ -1635,7 +1625,7 @@ fn collect_registered_formulas(
             }
             span.open_end..close
         };
-        ranges.push((range, RewrittenLocation { part: part.to_owned(), location, before: before.to_owned(), after }));
+        ranges.push((range, RewrittenLocation { part: part.to_owned(), location, before: before.to_owned(), after }, attr.is_some()));
         Ok(())
     };
     for attr in node.attrs().iter().filter(|attr| attr.name().ns().is_empty()) {

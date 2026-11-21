@@ -97,23 +97,69 @@ fn protected_corpus_workbooks() {
 }
 
 #[test]
-fn unregistered_positions_in_changed_extensions_refuse_atomically() {
+fn sheet_operations_preserve_unprefixed_extension_positions() {
     let base = common::p1::book(&[("Data", ""), ("Other", "")], "", "");
     let part = "xl/workbook.xml";
-    for uri in ["{UNKNOWN}", "{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}"] {
-        let workbook = text(&base, part).replace(
-            "</workbook>",
-            &format!(
-                r#"<extLst><ext uri="{uri}"><newFeature ref="A1:B2"/></ext></extLst></workbook>"#
-            ),
-        );
-        let input = rebuild(&base, &[(part, workbook.into_bytes())]);
+    let extension = r#"<extLst><ext uri="{UNKNOWN}"><newFeature ref="A1:B2"/></ext></extLst>"#;
+    let workbook = text(&base, part).replace("</workbook>", &format!("{extension}</workbook>"));
+    let input = rebuild(&base, &[(part, workbook.into_bytes())]);
+    let mut book = Workbook::from_bytes(input).unwrap();
+    book.rename_sheet("Data", "New").unwrap();
+    assert!(text(&book.to_bytes().unwrap(), part).contains(extension));
+    book.delete_sheet("New").unwrap();
+    assert!(text(&book.to_bytes().unwrap(), part).contains(extension));
+}
+
+#[test]
+fn sheet_operations_preserve_sort_state_extensions_and_rewrite_wrapped_controls() {
+    let body = r#"<sheetData><row r="1"><c r="A1"><f>Data!A1</f></c></row></sheetData>
+        <autoFilter ref="A1:A5"><sortState ref="A1:A5"><extLst>
+          <ext uri="{0FC57C36-975A-43D2-8416-536B9B585D1B}">
+            <x14:sortCondition xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" ref="A2:A5"/>
+          </ext>
+        </extLst></sortState></autoFilter>
+        <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main">
+          <mc:Choice Requires="x14"><controls><control><controlPr linkedCell="Data!B1"/></control></controls></mc:Choice>
+          <mc:Fallback><controls><control><controlPr linkedCell="Data!C1"/></control></controls></mc:Fallback>
+        </mc:AlternateContent>"#;
+    let base = common::p1::book(&[("Data", ""), ("Other", "")], "", "");
+    let part = "xl/worksheets/sheet2.xml";
+    let other = text(&base, part).replace("<sheetData></sheetData>", body);
+    assert!(other.contains(body));
+    let untouched = body
+        .split_once("</sheetData>")
+        .unwrap()
+        .1
+        .split_once("<mc:AlternateContent")
+        .unwrap()
+        .0;
+    let input = rebuild(&base, &[(part, other.into_bytes())]);
+    for deleting in [false, true] {
         let mut book = Workbook::from_bytes(input.clone()).unwrap();
-        std::assert_matches!(
-            book.rename_sheet("Data", "New"),
-            Err(Error::UnrewritableReference { part: p, location }) if p == part && location.contains(uri)
+        let formula = if deleting {
+            book.delete_sheet("Data").unwrap();
+            "#REF!"
+        } else {
+            book.rename_sheet("Data", "New").unwrap();
+            "New!A1"
+        };
+        let output = text(&book.to_bytes().unwrap(), part);
+        assert!(output.contains(&format!("<f>{formula}</f>")), "{output}");
+        let (choice, fallback) = if deleting {
+            ("#REF!", "#REF!")
+        } else {
+            ("New!B1", "New!C1")
+        };
+        assert!(
+            output.contains(&format!(r#"linkedCell="{choice}""#)),
+            "{output}"
         );
-        assert!(book.to_bytes().unwrap() == input);
+        assert!(
+            output.contains(&format!(r#"linkedCell="{fallback}""#)),
+            "{output}"
+        );
+        assert!(output.contains(untouched), "{output}");
     }
 }
 
@@ -283,4 +329,45 @@ fn registered_web_extension_binding_is_rewritten() {
     let mut book = Workbook::from_bytes(input).unwrap();
     assert_eq!(book.delete_sheet("Data").unwrap()[0].after, "#REF!");
     assert!(text(&book.to_bytes().unwrap(), part).contains(">#REF!</xm:f>"));
+}
+
+#[test]
+fn registered_formula_rewrite_escapes_text_and_respects_attribute_delimiters() {
+    let extension = r#"<dataValidations count="1"><dataValidation sqref="B1"><formula1>Data!A1&amp;"&lt;&gt;"</formula1></dataValidation></dataValidations><controls><control><controlPr linkedCell='Data!A1'/></control></controls>"#;
+    let input = common::p1::book(&[("Data", ""), ("Other", "")], "", "");
+    let part = "xl/worksheets/sheet2.xml";
+    let sheet = text(&input, part).replace("</worksheet>", &format!("{extension}</worksheet>"));
+    let input = rebuild(&input, &[(part, sheet.into_bytes())]);
+    let mut book = Workbook::from_bytes(input).unwrap();
+    book.rename_sheet("Data", "New sheet").unwrap();
+    let output = text(&book.to_bytes().unwrap(), part);
+    assert!(
+        output.contains(r#"<formula1>'New sheet'!A1&amp;"&lt;&gt;"</formula1>"#),
+        "{output}"
+    );
+    assert!(
+        output.contains("linkedCell='&apos;New sheet&apos;!A1'"),
+        "{output}"
+    );
+}
+
+#[test]
+fn sheet_operations_refuse_an_unregistered_extension_formula_atomically() {
+    let input = common::p1::book(&[("Data", ""), ("Other", "")], "", "");
+    let part = "xl/worksheets/sheet2.xml";
+    let extension = r#"<extLst><ext uri="{UNKNOWN}"><binding ref="Data!A1"/></ext></extLst>"#;
+    let sheet = text(&input, part).replace("</worksheet>", &format!("{extension}</worksheet>"));
+    let input = rebuild(&input, &[(part, sheet.into_bytes())]);
+    let mut book = Workbook::from_bytes(input).unwrap();
+    let before = book.to_bytes().unwrap();
+    std::assert_matches!(
+        book.rename_sheet("Data", "New"),
+        Err(Error::UnrewritableReference { part: p, location }) if p == part && location.contains("{UNKNOWN}")
+    );
+    assert_eq!(book.to_bytes().unwrap(), before);
+    std::assert_matches!(
+        book.delete_sheet("Data"),
+        Err(Error::UnrewritableReference { part: p, location }) if p == part && location.contains("{UNKNOWN}")
+    );
+    assert_eq!(book.to_bytes().unwrap(), before);
 }

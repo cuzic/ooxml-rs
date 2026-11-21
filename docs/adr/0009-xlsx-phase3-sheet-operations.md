@@ -1068,8 +1068,17 @@ Sheet addition, deletion (including strict deletion), rename and move refuse wit
 `lockWindows` alone does not trigger it.
 
 The sheet-name pass rewrites CF and DV formulas (L17, L19), registered x14 CF/DV
-and sparkline formulas (L20, L21), worksheet controls (L30), table column
+and sparkline formulas (L20, L21), worksheet controls in direct paths and in
+both `mc:AlternateContent` branches (L30), table column
 formulas (L37), VML controls (L42), drawing text links (L46), connection cell
 parameters (L55) and control property formulas (L56). A pivot chart source
 (L49) can be renamed when the new name needs no quoting. Removing the pivot
 chart source sheet remains a refusal.
+
+Sheet rename and deletion use the sheet-prefix scan for extension formulas.
+A matching sheet prefix in an unregistered URI or element path is refused
+with `UnrewritableReference`, as with unregistered XML in §6. Unprefixed
+positions in extension content are preserved during these sheet operations.
+The positional extension check in ADR-0018 §2.2 is reserved for structural
+edits. This preserves the existing result for workbook extensions and for
+sort and filter extension ranges (L74).

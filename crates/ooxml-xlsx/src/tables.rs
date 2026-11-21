@@ -457,7 +457,7 @@ impl Workbook {
                 )?;
             }
         }
-        let plan = self.plan_table_writes(writes, &headers, false)?;
+        let plan = self.plan_writes_after(None, writes, &headers, Default::default())?;
         if staged.is_empty() {
             return self.apply_writes(plan);
         }

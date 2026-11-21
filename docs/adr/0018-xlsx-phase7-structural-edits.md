@@ -490,7 +490,7 @@ The code and the tests use the data:
     extension places listed in the table. Nothing else is tokenised. In particular, **values
     shaped like GUIDs** (`xr:uid`, `x14:id`, `xr:revisionPtr`, `{…}` values) and colours are
     never scanned.
-  - **Extensions.** Every `ext/@uri`, at any depth, in a part the operation must change has
+  - **Extensions (G1 and copy).** Every `ext/@uri`, at any depth, in a part the operation must change has
     to appear in the `EXTENSIONS` table below, as a URI with registry rows or as
     `NOT_APPLICABLE` with a reason.
     - **Reference-shaped content** means a sheet-prefix hit, or text matching the A1
@@ -547,7 +547,7 @@ The code and the tests use the data:
 The URIs and element mappings are those of MS-XLSX §2.2.4.12 as fetched by the round-2
 reviewer (learn.microsoft.com, page `07d607af-5618-4ca2-b683-6a78dc0d9627`, updated
 2026-11-18). URIs compare case-insensitively. A unit test feeds `ignoredErrors` content under
-its real URI, which must be rewritten (L69). It feeds the same content under a deliberately
+its real URI, which must be accepted by the structural scan for rewriting (L69). It feeds the same content under a deliberately
 swapped mapping, which must refuse.
 
 Syntax kinds:
@@ -684,6 +684,211 @@ L33-35), plus the in-part non-references of `scan.rs` L62-65:
   (ADR-0009 §6).
 
 The ADR-0009 ↔ `LOCATIONS` test asserts this set as well.
+
+**Qualified registry paths.** The summary above groups attributes and paths
+that share operation rules. The following table expands them into dispatch
+entries. An empty path denotes a package-level location. Sheet dispatch rules
+describe how the sheet-operation XML scanner classifies that exact path.
+Structural rule details remain in the summary.
+
+<!-- BEGIN QUALIFIED LOCATIONS -->
+| Row | Part kind | Scope | QName path | Attribute | Syntax | G1 | Copy | Table rename | Sheet rename dispatch | Sheet delete dispatch | Extension URI |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| L1 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row | r | Index | D (row removed) | copied | – | Unaffected | Unaffected |  |
+| L2 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row | spans | ColumnSpans | R (column edits) | copied | – | Unaffected | Unaffected |  |
+| L3 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row/sml:c | r | Cell | D (cell removed) | copied | – | Unaffected | Unaffected |  |
+| L4 | Worksheet | Any | sml:worksheet/sml:sheetData/sml:row/sml:c/sml:f |  | Formula | R (§3.3) | R (§4.4) | R | Rewrite | Rewrite |  |
+| L5 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row/sml:c/sml:f | ref | Range | R; X when an array is split (§3.3.3) | copied | – | Unaffected | Unaffected |  |
+| L6 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row/sml:c/sml:f | r1 | Cell | R; X when deleted | copied | – | Unaffected | Unaffected |  |
+| L6 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row/sml:c/sml:f | r2 | Cell | R; X when deleted | copied | – | Unaffected | Unaffected |  |
+| L7 | Worksheet | Own | sml:worksheet/sml:dimension | ref | Range | R | copied | – | Unaffected | Unaffected |  |
+| L8 | Worksheet | Own | sml:worksheet/sml:cols/sml:col | min | Index | R (§3.4) | copied | – | Unaffected | Unaffected |  |
+| L8 | Worksheet | Own | sml:worksheet/sml:cols/sml:col | max | Index | R (§3.4) | copied | – | Unaffected | Unaffected |  |
+| L9 | Worksheet | Own | sml:worksheet/sml:sheetViews/sml:sheetView | topLeftCell | Cell | R, clamped (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L9 | Worksheet | Own | sml:worksheet/sml:sheetViews/sml:sheetView/sml:pane | topLeftCell | Cell | R, clamped (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L9 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView | topLeftCell | Cell | R, clamped (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L10 | Worksheet | Own | sml:worksheet/sml:sheetViews/sml:sheetView/sml:pane | xSplit | Count | R (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L10 | Worksheet | Own | sml:worksheet/sml:sheetViews/sml:sheetView/sml:pane | ySplit | Count | R (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L11 | Worksheet | Own | sml:worksheet/sml:sheetViews/sml:sheetView/sml:selection | activeCell | Cell | R, clamped | copied | – | Unaffected | Unaffected |  |
+| L11 | Worksheet | Own | sml:worksheet/sml:sheetViews/sml:sheetView/sml:selection | sqref | Sqref | R, clamped | copied | – | Unaffected | Unaffected |  |
+| L12 | Worksheet | Own | sml:worksheet/sml:mergeCells/sml:mergeCell | ref | Range | D (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L13 | Worksheet | Own | sml:worksheet/sml:hyperlinks/sml:hyperlink | ref | Range | D | copied | – | Unaffected | Unaffected |  |
+| L14 | Worksheet | Any | sml:worksheet/sml:hyperlinks/sml:hyperlink | location | Location | R; X when its target is deleted (§3.5) | kept (§4.4) | – | Rewrite | Keep |  |
+| L15 | Worksheet | Own | sml:worksheet/sml:autoFilter/sml:filterColumn | colId | ColumnOffset | R; X header row or a filtered column deleted (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L15 | Worksheet | Own | sml:worksheet/sml:autoFilter | ref | Range | R; X header row or a filtered column deleted (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L15 | Worksheet | Own | sml:worksheet/sml:autoFilter/sml:sortState | ref | Range | R; X header row or a filtered column deleted (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L15 | Worksheet | Own | sml:worksheet/sml:autoFilter/sml:sortState/sml:sortCondition | ref | Range | R; X header row or a filtered column deleted (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L15 | Worksheet | Own | sml:worksheet/sml:sortState | ref | Range | R; X header row or a filtered column deleted (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L15 | Worksheet | Own | sml:worksheet/sml:sortState/sml:sortCondition | ref | Range | R; X header row or a filtered column deleted (§3.5) | copied | – | Unaffected | Unaffected |  |
+| L16 | Worksheet | Own | sml:worksheet/sml:conditionalFormatting | sqref | Sqref | D (rule removed when empty) | copied | – | Unaffected | Unaffected |  |
+| L17 | Worksheet | Any | sml:worksheet/sml:conditionalFormatting/sml:cfRule/sml:formula |  | Formula | R (§3.3.4) | R | R | Rewrite | Rewrite |  |
+| L17 | Worksheet | Any | sml:worksheet/sml:conditionalFormatting/sml:cfRule/sml:colorScale/sml:cfvo | val | Formula | R (§3.3.4) | R | R | Rewrite | Rewrite |  |
+| L17 | Worksheet | Any | sml:worksheet/sml:conditionalFormatting/sml:cfRule/sml:dataBar/sml:cfvo | val | Formula | R (§3.3.4) | R | R | Rewrite | Rewrite |  |
+| L17 | Worksheet | Any | sml:worksheet/sml:conditionalFormatting/sml:cfRule/sml:iconSet/sml:cfvo | val | Formula | R (§3.3.4) | R | R | Rewrite | Rewrite |  |
+| L18 | Worksheet | Own | sml:worksheet/sml:dataValidations/sml:dataValidation | sqref | Sqref | D | copied | – | Unaffected | Unaffected |  |
+| L19 | Worksheet | Any | sml:worksheet/sml:dataValidations/sml:dataValidation/sml:formula1 |  | Formula | R (§3.3.4) | R | R | Rewrite | Rewrite |  |
+| L19 | Worksheet | Any | sml:worksheet/sml:dataValidations/sml:dataValidation/sml:formula2 |  | Formula | R (§3.3.4) | R | R | Rewrite | Rewrite |  |
+| L20 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:conditionalFormattings/x14:conditionalFormatting/x14:cfRule/xm:f |  | Formula | as L16–L19 | R | R | Rewrite | Rewrite | {78C0D931-6437-407D-A8EE-F0AAD7539E65} |
+| L20 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:dataValidations/x14:dataValidation/x14:formula1/xm:f |  | Formula | as L16–L19 | R | R | Rewrite | Rewrite | {CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF} |
+| L20 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:dataValidations/x14:dataValidation/x14:formula2/xm:f |  | Formula | as L16–L19 | R | R | Rewrite | Rewrite | {CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF} |
+| L20 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:conditionalFormattings/x14:conditionalFormatting/x14:cfRule/x14:colorScale/x14:cfvo/xm:f |  | Formula | as L16–L19 | R | R | Rewrite | Rewrite | {78C0D931-6437-407D-A8EE-F0AAD7539E65} |
+| L20 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:conditionalFormattings/x14:conditionalFormatting/x14:cfRule/x14:dataBar/x14:cfvo/xm:f |  | Formula | as L16–L19 | R | R | Rewrite | Rewrite | {78C0D931-6437-407D-A8EE-F0AAD7539E65} |
+| L20 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:conditionalFormattings/x14:conditionalFormatting/x14:cfRule/x14:iconSet/x14:cfvo/xm:f |  | Formula | as L16–L19 | R | R | Rewrite | Rewrite | {78C0D931-6437-407D-A8EE-F0AAD7539E65} |
+| L20 | Worksheet | Own | sml:worksheet/sml:extLst/sml:ext/x14:conditionalFormattings/x14:conditionalFormatting/xm:sqref |  | Sqref | as L16–L19 | R | R | Keep | Keep | {78C0D931-6437-407D-A8EE-F0AAD7539E65} |
+| L20 | Worksheet | Own | sml:worksheet/sml:extLst/sml:ext/x14:dataValidations/x14:dataValidation/xm:sqref |  | Sqref | as L16–L19 | R | R | Keep | Keep | {CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF} |
+| L21 | Worksheet | Own | sml:worksheet/sml:extLst/sml:ext/x14:sparklineGroups/x14:sparklineGroup/x14:sparklines/x14:sparkline/xm:sqref |  | Sqref | R; sparkline removed with its host; X when its data range is wholly deleted (§3.5) | R (retargeted, Q3) | R | Keep | Keep | {05C60535-1F16-4FD2-B633-F4F36F0B64E0} |
+| L21 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:sparklineGroups/x14:sparklineGroup/x14:sparklines/x14:sparkline/xm:f |  | Formula | R; sparkline removed with its host; X when its data range is wholly deleted (§3.5) | R (retargeted, Q3) | R | Rewrite | Rewrite | {05C60535-1F16-4FD2-B633-F4F36F0B64E0} |
+| L21 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x14:sparklineGroups/x14:sparklineGroup/xm:f |  | Formula | R; sparkline removed with its host; X when its data range is wholly deleted (§3.5) | R (retargeted, Q3) | R | Rewrite | Rewrite | {05C60535-1F16-4FD2-B633-F4F36F0B64E0} |
+| L22 | Worksheet | Own | sml:worksheet/sml:rowBreaks/sml:brk | id | Index | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:rowBreaks/sml:brk | min | Index | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:rowBreaks/sml:brk | max | Index | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:rowBreaks | count | Count | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:rowBreaks | manualBreakCount | Count | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:colBreaks/sml:brk | id | Index | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:colBreaks/sml:brk | min | Index | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:colBreaks/sml:brk | max | Index | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:colBreaks | count | Count | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L22 | Worksheet | Own | sml:worksheet/sml:colBreaks | manualBreakCount | Count | D; `@min`/`@max` by the range rule on the other axis, pinned at the edge (§3.2) | copied | – | Unaffected | Unaffected |  |
+| L23 | Worksheet | Own | sml:worksheet/sml:ignoredErrors/sml:ignoredError | sqref | Sqref | D | copied | – | Unaffected | Unaffected |  |
+| L24 | Worksheet | Own | sml:worksheet/sml:protectedRanges/sml:protectedRange | sqref | Sqref | R; X when it would become empty | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:pane | xSplit | Count | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:pane | ySplit | Count | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:rowBreaks/sml:brk | id | Index | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:rowBreaks/sml:brk | min | Index | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:rowBreaks/sml:brk | max | Index | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:rowBreaks | count | Count | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:rowBreaks | manualBreakCount | Count | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:colBreaks/sml:brk | id | Index | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:colBreaks/sml:brk | min | Index | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:colBreaks/sml:brk | max | Index | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:colBreaks | count | Count | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:colBreaks | manualBreakCount | Count | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter/sml:filterColumn | colId | ColumnOffset | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter | ref | Range | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter/sml:sortState | ref | Range | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter/sml:sortState/sml:sortCondition | ref | Range | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:pane | topLeftCell | Cell | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:selection | activeCell | Cell | as there | copied | – | Unaffected | Unaffected |  |
+| L25 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:selection | sqref | Sqref | as there | copied | – | Unaffected | Unaffected |  |
+| L26 | Worksheet | Own | sml:worksheet/sml:smartTags/sml:cellSmartTags | r | Cell | D | copied | – | Unaffected | Unaffected |  |
+| L26 | Worksheet | Own | sml:worksheet/sml:cellWatches/sml:cellWatch | r | Cell | D | copied | – | Unaffected | Unaffected |  |
+| L27 | Worksheet | Own | sml:worksheet/sml:scenarios | sqref | Sqref | XX | XX | – | Unaffected | Unaffected |  |
+| L27 | Worksheet | Own | sml:worksheet/sml:scenarios/sml:scenario/sml:inputCells | r | Cell | XX | XX | – | Unaffected | Unaffected |  |
+| L28 | Worksheet | Own | sml:worksheet/sml:dataConsolidate/sml:dataRefs/sml:dataRef | ref | Range | XX | XX | – | Unaffected | Unaffected |  |
+| L29 | Worksheet | Own | sml:worksheet/sml:webPublishItems/sml:webPublishItem | sourceRef | Range | XX | XX | – | Unaffected | Unaffected |  |
+| L30 | Worksheet | Own | sml:worksheet/sml:oleObjects/sml:oleObject/sml:objectPr/sml:anchor |  | Marker | XX | XX | – | Unaffected | Unaffected |  |
+| L30 | Worksheet | Own | sml:worksheet/sml:controls/sml:control/sml:controlPr/sml:anchor |  | Marker | XX | XX | – | Unaffected | Unaffected |  |
+| L30 | Worksheet | Any | sml:worksheet/sml:controls/sml:control/sml:controlPr | linkedCell | Formula | XX | XX | – | Rewrite | Rewrite |  |
+| L30 | Worksheet | Any | sml:worksheet/sml:controls/sml:control/sml:controlPr | listFillRange | Formula | XX | XX | – | Rewrite | Rewrite |  |
+| L30 | Worksheet | Any | sml:worksheet/mc:AlternateContent/mc:Choice/sml:controls/sml:control/sml:controlPr | linkedCell | Formula | XX | XX | – | Rewrite | Rewrite |  |
+| L30 | Worksheet | Any | sml:worksheet/mc:AlternateContent/mc:Choice/sml:controls/sml:control/sml:controlPr | listFillRange | Formula | XX | XX | – | Rewrite | Rewrite |  |
+| L30 | Worksheet | Any | sml:worksheet/mc:AlternateContent/mc:Fallback/sml:controls/sml:control/sml:controlPr | linkedCell | Formula | XX | XX | – | Rewrite | Rewrite |  |
+| L30 | Worksheet | Any | sml:worksheet/mc:AlternateContent/mc:Fallback/sml:controls/sml:control/sml:controlPr | listFillRange | Formula | XX | XX | – | Rewrite | Rewrite |  |
+| L31 | Worksheet | Own | sml:worksheet/mc:AlternateContent |  | Element | XX; X inside a registry element | XX | X inside a registry element | Unaffected | Unaffected |  |
+| L31 | Worksheet | Own | sml:worksheet/sml:sheetData/mc:AlternateContent |  | Element | XX; X inside a registry element | XX | X inside a registry element | Unaffected | Unaffected |  |
+| L31 | Worksheet | Own | sml:worksheet/sml:sheetData/sml:row/mc:AlternateContent |  | Element | XX; X inside a registry element | XX | X inside a registry element | Unaffected | Unaffected |  |
+| L32 | Workbook | Any | sml:workbook/sml:definedNames/sml:definedName |  | Formula | R (§3.3.5) | R + local names duplicated (§4.4) | R | Rewrite | Rewrite |  |
+| L33 | Workbook | Own | sml:workbook/sml:definedNames/sml:definedName | localSheetId | Index | – | N (ADR-0009 §4) | – | Unaffected | Unaffected |  |
+| L33 | Workbook | Own | sml:workbook/sml:bookViews/sml:workbookView | activeTab | Index | – | N (ADR-0009 §4) | – | Unaffected | Unaffected |  |
+| L33 | Workbook | Own | sml:workbook/sml:bookViews/sml:workbookView | firstSheet | Index | – | N (ADR-0009 §4) | – | Unaffected | Unaffected |  |
+| L34 | CalcChain | Own | sml:calcChain/sml:c | i | Index | part removed (ADR-0003 §4.3) | part removed | – | Unaffected | Unaffected |  |
+| L34 | CalcChain | Own | sml:calcChain/sml:c | r | Cell | part removed (ADR-0003 §4.3) | part removed | – | Unaffected | Unaffected |  |
+| L34 | CalcChain | Own | sml:calcChain/sml:c | ref | Cell | part removed (ADR-0003 §4.3) | part removed | – | Unaffected | Unaffected |  |
+| L35 | Table | Own | sml:table/sml:autoFilter | ref | Range | R / X (§3.6.1) | N (§4.3) | – | Unaffected | Unaffected |  |
+| L35 | Table | Own | sml:table/sml:autoFilter/sml:sortState | ref | Range | R / X (§3.6.1) | N (§4.3) | – | Unaffected | Unaffected |  |
+| L35 | Table | Own | sml:table/sml:autoFilter/sml:sortState/sml:sortCondition | ref | Range | R / X (§3.6.1) | N (§4.3) | – | Unaffected | Unaffected |  |
+| L35 | Table | Own | sml:table/sml:sortState | ref | Range | R / X (§3.6.1) | N (§4.3) | – | Unaffected | Unaffected |  |
+| L35 | Table | Own | sml:table/sml:sortState/sml:sortCondition | ref | Range | R / X (§3.6.1) | N (§4.3) | – | Unaffected | Unaffected |  |
+| L35 | Table | Own | sml:table | ref | Range | R / X (§3.6.1) | N (§4.3) | – | Unaffected | Unaffected |  |
+| L36 | Table | Own | sml:table/sml:autoFilter/sml:filterColumn | colId | ColumnOffset | R (§3.6.1) | copied | column name: R | Unaffected | Unaffected |  |
+| L36 | Table | Own | sml:table/sml:tableColumns/sml:tableColumn |  | Element | R (§3.6.1) | copied | column name: R | Unaffected | Unaffected |  |
+| L37 | Table | Any | sml:table/sml:tableColumns/sml:tableColumn/sml:calculatedColumnFormula |  | Formula | R | R | R | Rewrite | Rewrite |  |
+| L37 | Table | Any | sml:table/sml:tableColumns/sml:tableColumn/sml:totalsRowFormula |  | Formula | R | R | R | Rewrite | Rewrite |  |
+| L38 | Table | Own | sml:table | name | RawName | – | N | R | Unaffected | Unaffected |  |
+| L38 | Table | Own | sml:table | displayName | RawName | – | N | R | Unaffected | Unaffected |  |
+| L39 | Comments | Own | sml:comments/sml:commentList/sml:comment | ref | Cell | D (note removed with its VML shape and thread) | copied | – | Unaffected | Unaffected |  |
+| L40 | Vml | Own | x:ClientData/x:Row |  | Index | R with L39 | copied | – | Unaffected | Unaffected |  |
+| L40 | Vml | Own | x:ClientData/x:Column |  | Index | R with L39 | copied | – | Unaffected | Unaffected |  |
+| L41 | Vml | Own | x:ClientData/x:Anchor |  | Marker | R (§3.6.3) | copied | – | Unaffected | Unaffected |  |
+| L42 | Vml | Any | x:ClientData/x:FmlaLink |  | Formula | X | XX (controls) | X | Rewrite | Rewrite |  |
+| L42 | Vml | Any | x:ClientData/x:FmlaRange |  | Formula | X | XX (controls) | X | Rewrite | Rewrite |  |
+| L42 | Vml | Any | x:ClientData/x:FmlaTxbx |  | Formula | X | XX (controls) | X | Rewrite | Rewrite |  |
+| L42 | Vml | Any | x:ClientData/x:FmlaPict |  | Formula | X | XX (controls) | X | Rewrite | Rewrite |  |
+| L42 | Vml | Any | x:ClientData/x:FmlaGroup |  | Formula | X | XX (controls) | X | Rewrite | Rewrite |  |
+| L43 | ThreadedComments | Own | tc:ThreadedComments/tc:threadedComment | ref | Cell | D with L39 | N (new GUIDs) | – | Unaffected | Unaffected |  |
+| L44 | Drawing | Own | xdr:wsDr/xdr:twoCellAnchor/xdr:from |  | Marker | R / X (§3.6.3) | copied | – | Unaffected | Unaffected |  |
+| L44 | Drawing | Own | xdr:wsDr/xdr:twoCellAnchor/xdr:to |  | Marker | R / X (§3.6.3) | copied | – | Unaffected | Unaffected |  |
+| L44 | Drawing | Own | xdr:wsDr/xdr:oneCellAnchor/xdr:from |  | Marker | R / X (§3.6.3) | copied | – | Unaffected | Unaffected |  |
+| L45 | Drawing | Own | xdr:wsDr/mc:AlternateContent/mc:Choice/xdr:twoCellAnchor |  | Marker | X when they would change | XX | – | Unaffected | Unaffected |  |
+| L45 | Drawing | Own | xdr:wsDr/mc:AlternateContent/mc:Choice/xdr:oneCellAnchor |  | Marker | X when they would change | XX | – | Unaffected | Unaffected |  |
+| L45 | Drawing | Own | xdr:wsDr/mc:AlternateContent/mc:Choice/xdr:absoluteAnchor |  | Marker | X when they would change | XX | – | Unaffected | Unaffected |  |
+| L45 | Drawing | Own | xdr:wsDr/mc:AlternateContent/mc:Fallback/xdr:twoCellAnchor |  | Marker | X when they would change | XX | – | Unaffected | Unaffected |  |
+| L45 | Drawing | Own | xdr:wsDr/mc:AlternateContent/mc:Fallback/xdr:oneCellAnchor |  | Marker | X when they would change | XX | – | Unaffected | Unaffected |  |
+| L45 | Drawing | Own | xdr:wsDr/mc:AlternateContent/mc:Fallback/xdr:absoluteAnchor |  | Marker | X when they would change | XX | – | Unaffected | Unaffected |  |
+| L46 | Drawing | Any | xdr:sp | textlink | Formula | R | R | R | Rewrite | Rewrite |  |
+| L46 | ChartShapes | Any | cdr:sp | textlink | Formula | R | R | R | Rewrite | Rewrite |  |
+| L47 | Chart | Any | c15:sqref |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Unaffected | Unaffected |  |
+| L47 | Chart | Any | c15:fullRef |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Unaffected | Unaffected |  |
+| L47 | Chart | Any | c15:formulaRef |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Unaffected | Unaffected |  |
+| L47 | Chart | Any | c15:datalabelsRange |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Unaffected | Unaffected |  |
+| L47 | Chart | Any | c15:filteredSeriesTitle |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Unaffected | Unaffected |  |
+| L47 | Chart | Any | c15:filteredCategoryTitle |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Unaffected | Unaffected |  |
+| L47 | Chart | Any | c:f |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Rewrite | Rewrite |  |
+| L47 | Chart | Any | c15:f |  | Formula | R; X when a series range is wholly deleted (§3.6.4) | R (§4.4) | R | Rewrite | Rewrite |  |
+| L48 | ChartEx | Any | cx:f |  | Formula | X | XX | X | Refuse | Refuse |  |
+| L49 | Chart | Any | c:pivotSource/c:name |  | PivotSource | K (pivot rules apply to the pivot table) | XX | – | Rewrite | Refuse |  |
+| L50 | PivotCache | Own | sml:pivotCacheDefinition/sml:cacheSource/sml:worksheetSource | ref | Range | R when moved; X when expanded or shrunk (§3.6.5) | – | – | Unaffected | Unaffected |  |
+| L51 | PivotCache | Own | sml:pivotCacheDefinition/sml:cacheSource/sml:worksheetSource | name | RawName | – | – | R (table rename) | Unaffected | Unaffected |  |
+| L52 | PivotTable | Own | sml:pivotTableDefinition/sml:location | ref | Range | X if the edit crosses or moves it (§3.6.5) | XX | – | Unaffected | Unaffected |  |
+| L53 | PivotCache | Own | sml:pivotCacheDefinition/sml:cacheSource/sml:consolidation/sml:rangeSets/sml:rangeSet | ref | Range | X | – | – | Unaffected | Unaffected |  |
+| L54 | SingleXmlCells | Own | sml:singleXmlCells/sml:singleXmlCell | r | Cell | R; X when deleted | XX | – | Unaffected | Unaffected |  |
+| L55 | Connections | Any | sml:connections/sml:connection/sml:parameters/sml:parameter | cell | Formula | R | – | R | Rewrite | Rewrite |  |
+| L56 | Control | Any | x14:formControlPr | fmlaLink | Formula | X | XX | X | Rewrite | Rewrite |  |
+| L56 | Control | Any | x14:formControlPr | fmlaRange | Formula | X | XX | X | Rewrite | Rewrite |  |
+| L56 | Control | Any | x14:formControlPr | fmlaTxbx | Formula | X | XX | X | Rewrite | Rewrite |  |
+| L56 | Control | Any | x14:formControlPr | fmlaGroup | Formula | X | XX | X | Rewrite | Rewrite |  |
+| L57 | QueryTable | Own | sml:queryTable |  | Element | X when its table's `ref` changes | XX | X (rename) | Unaffected | Unaffected |  |
+| L58 | Revisions | Own |  |  | Element | XX (`SharedWorkbook`) | XX | XX | Unaffected | Unaffected |  |
+| L59 | ActiveX | Own |  | LinkedCell | Element | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | Unaffected | Unaffected |  |
+| L59 | ActiveX | Own |  | ListFillRange | Element | XX (`BinaryReferencesPossible`, ADR-0009 §6) | XX | XX | Unaffected | Unaffected |  |
+| L60 | ExternalLink | Any | sml:externalLink |  | Element | K | – | – | Unaffected | Unaffected |  |
+| L61 | Metadata | Own | sml:worksheet/sml:sheetData/sml:row/sml:c | cm | Index | – (move with the cell) | copied | – | Unaffected | Unaffected |  |
+| L61 | RichData | Own | sml:worksheet/sml:sheetData/sml:row/sml:c | cm | Index | – (move with the cell) | copied | – | Unaffected | Unaffected |  |
+| L61 | Metadata | Own | sml:worksheet/sml:sheetData/sml:row/sml:c | vm | Index | – (move with the cell) | copied | – | Unaffected | Unaffected |  |
+| L61 | RichData | Own | sml:worksheet/sml:sheetData/sml:row/sml:c | vm | Index | – (move with the cell) | copied | – | Unaffected | Unaffected |  |
+| L62 | Workbook | Own | sml:workbook/sml:oleSize | ref | Range | R when it names the edited sheet's area *(u: it has no sheet; assumed the first sheet)*; X when its area is changed in any other way | – | – | Unaffected | Unaffected |  |
+| L63 | Workbook | Own | sml:workbook/sml:webPublishObjects/sml:webPublishObject | sourceObject | RawName | X when it names the edited sheet | X | X | Unaffected | Unaffected |  |
+| L64 | Connections | Own | x15:rangePr | sourceName | RawName | – | – | X (table rename; review m13) | Unaffected | Unaffected |  |
+| L64 | Connections | Own | sml:connections/sml:connection | name | RawName | – | – | X (table rename; review m13) | Unaffected | Unaffected |  |
+| L65 | VolatileDependencies | Own | sml:volTypes/sml:volType/sml:main/sml:tp/sml:tr | r | Cell | XX when the edited sheet has any | XX | – | Unaffected | Unaffected |  |
+| L66 | Worksheet | Own | sml:worksheet/sml:sheetPr | codeName | RawName | – | removed on the copy (§4.2) | – | Unaffected | Unaffected |  |
+| L67 | Worksheet | Own | sml:worksheet/sml:sheetProtection | insertRows | Flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | Unaffected | Unaffected |  |
+| L67 | Worksheet | Own | sml:worksheet/sml:sheetProtection | insertColumns | Flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | Unaffected | Unaffected |  |
+| L67 | Worksheet | Own | sml:worksheet/sml:sheetProtection | deleteRows | Flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | Unaffected | Unaffected |  |
+| L67 | Worksheet | Own | sml:worksheet/sml:sheetProtection | deleteColumns | Flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | Unaffected | Unaffected |  |
+| L67 | Workbook | Own | sml:workbook/sml:workbookProtection | lockStructure | Flags | refuse when locked (Q13) | refuse on `lockStructure` (Q13) | – | Unaffected | Unaffected |  |
+| L68 | Worksheet | Own | sml:worksheet/sml:extLst/sml:ext/x14:protectedRanges/x14:protectedRange/xm:sqref |  | Sqref | as L24 | copied | – | Keep | Keep | {FC87AEE6-9EDD-4A0A-B7FB-166176984837} |
+| L69 | Worksheet | Own | sml:worksheet/sml:extLst/sml:ext/x14:ignoredErrors/x14:ignoredError/xm:sqref |  | Sqref | as L23 | copied | – | Keep | Keep | {01252117-D84E-4E92-8308-4BE1C098FCBB} |
+| L70 | Worksheet | Any | sml:worksheet/sml:extLst/sml:ext/x15:webExtensions/x15:webExtension/xm:f |  | Formula | X | XX | X | Rewrite | Rewrite | {F7C9EE02-42E1-4005-9D12-6889AFFD525C} |
+| L71 | Relationships | Any | rels:Relationships/rels:Relationship | Target | Location | R through `set_relationship_target` in the operation's `RegistryPlan`; X when the target is wholly deleted (as L14) | kept | – | Rewrite | Keep |  |
+| L72 | PivotCache | Any | sml:pivotCacheDefinition/sml:cacheSource/sml:worksheetSource | sheet | RawName | – (positions are L50/L53/L28) | – | – | Rewrite | Refuse |  |
+| L72 | PivotCache | Any | sml:pivotCacheDefinition/sml:cacheSource/sml:consolidation/sml:rangeSets/sml:rangeSet | sheet | RawName | – (positions are L50/L53/L28) | – | – | Refuse | Refuse |  |
+| L72 | Worksheet | Any | sml:worksheet/sml:dataConsolidate/sml:dataRefs/sml:dataRef | sheet | RawName | – (positions are L50/L53/L28) | – | – | Refuse | Refuse |  |
+| L73 | AppProperties | Any | ap:Properties/ap:TitlesOfParts/vt:vector/vt:lpstr |  | Location | K | N (ADR-0009 §11) | – | Rewrite | Rewrite |  |
+| L74 | Worksheet | Own | sml:worksheet/sml:sortState/sml:extLst/sml:ext/x14:sortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Worksheet | Own | sml:worksheet/sml:sortState/sml:extLst/sml:ext/xlrd2:richSortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Worksheet | Own | sml:worksheet/sml:autoFilter/sml:sortState/sml:extLst/sml:ext/x14:sortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Worksheet | Own | sml:worksheet/sml:autoFilter/sml:sortState/sml:extLst/sml:ext/xlrd2:richSortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Worksheet | Own | sml:worksheet/sml:autoFilter/sml:filterColumn/sml:extLst/sml:ext/xlrd2:filterColumn | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {68452572-C921-441B-96FD-77FB3E787301} |
+| L74 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter/sml:sortState/sml:extLst/sml:ext/x14:sortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter/sml:sortState/sml:extLst/sml:ext/xlrd2:richSortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Worksheet | Own | sml:worksheet/sml:customSheetViews/sml:customSheetView/sml:autoFilter/sml:filterColumn/sml:extLst/sml:ext/xlrd2:filterColumn | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {68452572-C921-441B-96FD-77FB3E787301} |
+| L74 | Table | Own | sml:table/sml:sortState/sml:extLst/sml:ext/x14:sortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Table | Own | sml:table/sml:sortState/sml:extLst/sml:ext/xlrd2:richSortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Table | Own | sml:table/sml:autoFilter/sml:sortState/sml:extLst/sml:ext/x14:sortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Table | Own | sml:table/sml:autoFilter/sml:sortState/sml:extLst/sml:ext/xlrd2:richSortCondition | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {0FC57C36-975A-43D2-8416-536B9B585D1B} |
+| L74 | Table | Own | sml:table/sml:autoFilter/sml:filterColumn/sml:extLst/sml:ext/xlrd2:filterColumn | ref | Range | X while it holds a `ref` | copied | – | Unaffected | Unaffected | {68452572-C921-441B-96FD-77FB3E787301} |
+<!-- END QUALIFIED LOCATIONS -->
 
 #### 2.3 One rewriter per syntax
 
@@ -1578,8 +1783,27 @@ exclusions. The new formula locations splice
 escaped text or attribute values into the staged XML. Existing typed writers
 retain their report labels and ordering. The structural range helper retains the
 original endpoint order and absolute flags, using spatial order for clipping and
-pinning. A cell write plan requests the full-calc flag, which can be applied to
-the operation's staged workbook document.
+pinning. `plan_writes_after` uses the structural index map to find
+pre-edit census entries, and plans insertions and overwrites on the staged
+worksheet at post-edit coordinates. Its shared-string appends and reference
+deltas join the structural registry apply. The caller owns calcChain removal
+and dependent cache strips. The full-calc flag is written to the operation's
+single staged workbook document.
+
+Delivery 0 clause 4 is measured against main on the POI and calamine corpus
+of 334 editable workbooks and 811 sheets. The 10 non-`Protected` rename
+refusals match the errors from main. They consist of two
+`BinaryReferencesPossible`, three `IterativeCalculation`, three
+`SharedWorkbook`, and two `UnrewritableReference` for formulas the lexer
+could not read. `Protected` is the only new refusal for operations that
+succeed on main.
+
+Clause 2 takes precedence over clause 3 for two locked workbooks whose lone
+worksheet previously returned `LastVisibleSheet` on deletion. They return
+`Protected` before staging changes. The protection test compares the entry
+names and inflated bytes of every saved ZIP entry with the input. It also
+compares the entire saved archive before and after each refused operation.
+The input ZIP encoding can differ from the initial save.
 
 Core exposes `LensMut::remove_range` over child-item indices (including text and
 markup). Invalid ranges return false and empty ranges succeed without dirtying

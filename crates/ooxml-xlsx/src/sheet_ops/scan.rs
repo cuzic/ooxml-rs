@@ -178,3 +178,70 @@ fn guid_shaped(value: &str) -> bool {
         if matches!(index, 8 | 13 | 18 | 23) { byte == b'-' } else { byte.is_ascii_hexdigit() }
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn structural_scan_checks_ignored_errors_uri() {
+        let scan = |uri| {
+            let xml = format!(
+                r#"<worksheet xmlns="{SML}" xmlns:x14="{}" xmlns:xm="{}">
+                    <extLst><ext uri="{uri}"><x14:ignoredErrors><x14:ignoredError>
+                        <xm:sqref>A1:B2 C3</xm:sqref>
+                    </x14:ignoredError></x14:ignoredErrors></ext></extLst>
+                </worksheet>"#,
+                crate::x14::NS_X14, crate::x14::NS_XM
+            );
+            scan_part("sheet.xml", xml.as_bytes(), PartKind::Worksheet, "", None)
+        };
+        scan("{01252117-D84E-4E92-8308-4BE1C098FCBB}").unwrap();
+        std::assert_matches!(scan("{FC87AEE6-9EDD-4A0A-B7FB-166176984837}"), Err(Error::UnrewritableReference { .. }));
+    }
+
+    #[test]
+    fn structural_scan_checks_the_sort_state_extension_path() {
+        let scan = |uri| {
+            let xml = format!(r#"<worksheet xmlns="{SML}">
+                <autoFilter ref="A1:A5"><sortState ref="A1:A5"><extLst>
+                    <ext uri="{uri}"><rd:richSortCondition
+                        xmlns:rd="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata2" ref="A2:A5"/>
+                    </ext>
+                </extLst></sortState></autoFilter>
+            </worksheet>"#);
+            scan_part("sheet.xml", xml.as_bytes(), PartKind::Worksheet, "", None)
+        };
+        scan("{0FC57C36-975A-43D2-8416-536B9B585D1B}").unwrap();
+        std::assert_matches!(scan("{68452572-C921-441B-96FD-77FB3E787301}"), Err(Error::UnrewritableReference { .. }));
+    }
+
+    #[test]
+    fn adr_0009_legacy_scan_places_still_accept_sheet_prefixes() {
+        let worksheet = |body| format!(r#"<worksheet xmlns="{SML}">{body}</worksheet>"#);
+        let cases = [
+            (PartKind::Worksheet, worksheet("<sheetData><row><c><f>Data!A1</f><v>Data!A1</v><is><t>Data!A1</t><r><t>Data!A1</t></r></is></c></row></sheetData>")),
+            (PartKind::Worksheet, worksheet(r#"<hyperlinks><hyperlink location="Data!A1"/></hyperlinks>"#)),
+            (PartKind::Workbook, format!(r#"<workbook xmlns="{SML}"><definedNames><definedName>Data!A1</definedName></definedNames></workbook>"#)),
+            (PartKind::Chart, format!(r#"<chart xmlns="{}"><f>Data!A1</f></chart>"#, locations::CHART_NS)),
+            (PartKind::Chart, format!(r#"<chart xmlns="{}"><f>Data!A1</f></chart>"#, locations::C15_NS)),
+            (PartKind::Relationships, r##"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="#Data!A1"/></Relationships>"##.into()),
+            (PartKind::NonReference, "<t>Data!A1</t>".into()),
+        ];
+        let edit = PrefixEdit::Rename { old: "data".into(), new: "New" };
+        for (kind, xml) in cases {
+            scan_part("part.xml", xml.as_bytes(), kind, "Data", Some(&edit)).unwrap();
+        }
+    }
+
+    #[test]
+    fn extension_guid_in_reference_field_is_not_a_position() {
+        let guid = "DEADBEEF-A123-B123-C123-DEADBEEFDEAD";
+        let xml = format!(r#"<worksheet xmlns="{SML}"><extLst><ext uri="unknown">
+            <unknown ref="{guid}"/><unknown ref="{{{guid}}}"/>
+        </ext></extLst></worksheet>"#);
+        assert!(lex(guid).unwrap().iter().any(|token| matches!(&token.kind, TokKind::Ref(_))));
+        scan_part("sheet.xml", xml.as_bytes(), PartKind::Worksheet, "", None).unwrap();
+        assert!(!guid_shaped("{01252117-D84E-4E92-8308-4BE1C098FCBG}"));
+    }
+}

@@ -206,7 +206,7 @@ pub(crate) fn rewrite_formula(
         match shift_area(reference.area, axis, edit)? {
             AreaOutcome::Unchanged => continue,
             AreaOutcome::Deleted => {
-                rewritten.push_str(&text[last..token.start]);
+                rewritten.push_str(&text[last..token.start + reference.area_offset]);
                 rewritten.push_str("#REF!");
             }
             AreaOutcome::Moved(area) | AreaOutcome::Resized(area) => {
@@ -331,12 +331,26 @@ pub(crate) fn rewrite_structured<'a>(
     Ok(Rewrite::New(rewritten))
 }
 
-pub(crate) fn rewrite_index(index: u32, axis: Axis, edit: Shift) -> Result<Rewrite, RewriteError> {
+/// Rewrite a numeric position. Range ends stay at the edge if the range
+/// survives. The caller checks for a wholly deleted range first.
+pub(crate) fn rewrite_index(
+    index: u32,
+    axis: Axis,
+    edit: Shift,
+    range_end: bool,
+) -> Result<Rewrite, RewriteError> {
     let limit = match axis {
         Axis::Row => MAX_ROWS,
         Axis::Column => MAX_COLS,
     };
-    Ok(match edit.after(index, limit)? {
+    if range_end && index == limit - 1 {
+        return Ok(Rewrite::Keep);
+    }
+    let next = match edit.after(index, limit) {
+        Err(_) if range_end && index < limit => Some(limit - 1),
+        outcome => outcome?,
+    };
+    Ok(match next {
         Some(next) if next == index => Rewrite::Keep,
         Some(next) => Rewrite::New(next.to_string()),
         None => Rewrite::Remove,
@@ -377,16 +391,17 @@ mod tests {
     #[test]
     fn rewrites_only_references_selected_by_the_sheet_context() {
         let edit = Shift::Delete { at: 1, count: 2 };
-        let formula = r#"SUM($A$2:A5, Other!A4, Data!B2, [1]Data!B2, "Data!A2", #REF!)"#;
+        let formula =
+            r#"SUM($A$2:A5, Other!A4, Data!B2, 'My Data'!B2, [1]Data!B2, "Data!A2", #REF!)"#;
         let rewritten = rewrite_formula(formula, Axis::Row, edit, |prefix| match prefix {
             Prefix::None => true,
-            Prefix::Sheet(name) => name == "Data",
+            Prefix::Sheet(name) => matches!(name.as_str(), "Data" | "My Data"),
             _ => false,
         })
         .unwrap();
         assert_eq!(
             rewritten,
-            Rewrite::New(r#"SUM($A$2:A3, Other!A4, #REF!, [1]Data!B2, "Data!A2", #REF!)"#.into())
+            Rewrite::New(r#"SUM($A$2:A3, Other!A4, Data!#REF!, 'My Data'!#REF!, [1]Data!B2, "Data!A2", #REF!)"#.into())
         );
         assert_eq!(
             rewrite_sqref("A1 B2 A5:D6", Axis::Row, edit).unwrap(),
@@ -436,10 +451,32 @@ mod tests {
         );
         assert_eq!(rewrite_marker(3, 77, Axis::Column, delete), Ok(None));
         assert_eq!(
-            rewrite_index(5, Axis::Column, delete),
+            rewrite_index(5, Axis::Column, delete, false),
             Ok(Rewrite::New("3".into()))
         );
         assert_eq!(delete.before(3), Some(5));
+    }
+
+    #[test]
+    fn numeric_range_ends_pin_and_clip() {
+        let insert = Shift::Insert { at: 2, count: 2 };
+        let delete = Shift::Delete { at: 2, count: 2 };
+        assert_eq!(
+            rewrite_index(MAX_COLS - 1, Axis::Column, insert, true),
+            Ok(Rewrite::Keep)
+        );
+        assert_eq!(
+            rewrite_index(MAX_COLS - 1, Axis::Column, delete, true),
+            Ok(Rewrite::Keep)
+        );
+        assert_eq!(
+            rewrite_index(MAX_COLS - 2, Axis::Column, insert, true),
+            Ok(Rewrite::New("16383".into()))
+        );
+        assert_eq!(
+            rewrite_index(MAX_COLS - 1, Axis::Column, insert, false),
+            Err(RewriteError::OffSheet)
+        );
     }
 
     #[test]

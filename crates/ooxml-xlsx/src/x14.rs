@@ -12,6 +12,7 @@ pub(crate) const NS_XM: &str = "http://schemas.microsoft.com/office/excel/2006/m
 pub(crate) const URI_DV: &str = "{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}";
 /// `ext/@uri` of x14 conditional formatting.
 pub(crate) const URI_CF: &str = "{78C0D931-6437-407d-A8EE-F0AAD7539E65}";
+pub(crate) const URI_SPARKLINE: &str = "{05C60535-1F16-4FD2-B633-F4F36F0B64E0}";
 
 const ANY: Slot = Slot { names: &[], wildcard: Some(Wildcard::Any), max_each: None, max_total: None };
 
