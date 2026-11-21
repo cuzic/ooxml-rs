@@ -14,6 +14,7 @@ use ooxml_schema::pml;
 use crate::error::{Error, Result};
 use crate::names::*;
 use crate::write::SlideMut;
+mod notes;
 
 /// Largest `p:sldId@id` (`ST_SlideId`: 256 ≤ id < 2³¹).
 const MAX_SLIDE_ID: u32 = 2_147_483_647;
@@ -920,11 +921,14 @@ fn bump<C: ooxml_core::ChildOf<pml::Properties>>(
     let Ok(old) = e.node().text().trim().parse::<i64>() else {
         return Ok(false);
     };
-    let new = (old + delta).max(0);
+    let Some(new) = old.checked_add(delta).map(|n| n.max(0)) else {
+        return Ok(false);
+    };
     if new == old {
         return Ok(false);
     }
-    e.set_text(&new.to_string())?;
+    let mut buf = core::fmt::NumBuffer::new();
+    e.set_text(new.format_into(&mut buf))?;
     Ok(true)
 }
 

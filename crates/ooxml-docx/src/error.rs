@@ -10,6 +10,12 @@ use crate::replace::Refusal;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// A tracked mark at this position has no paragraph to merge with.
+    #[error("no following paragraph for the tracked paragraph mark")]
+    NoFollowingParagraph,
+    /// Tracked insertion inherits the previous paragraph's mark.
+    #[error("tracked insertion does not accept explicit paragraph formatting")]
+    TrackedParagraphFormatting,
     /// A bookmark range crosses a story or block container boundary.
     #[error("bookmark spans containers")]
     BookmarkSpansContainers,
@@ -113,6 +119,10 @@ pub enum Error {
     /// settings, so append is refused (Phase0 does not move `w:sectPr`).
     #[error("the body ends with a section break in its last paragraph; appending would start a new section")]
     SectionBreakAtEnd,
+
+    /// Deleting the tracked paragraph mark would also delete a section break.
+    #[error("tracked paragraph deletion would remove a section break")]
+    TrackedSectionBreakDeletion,
 
     /// W1: `w:trackRevisions` is on in `settings.xml`. An untracked edit
     /// would break the author's expectation that every change is recorded.

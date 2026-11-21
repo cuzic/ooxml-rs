@@ -404,7 +404,7 @@ fn out_of_range_comment_years_are_rejected_atomically() {
         assert_matches!(
             doc.add_comment(range(&doc), new),
             Err(Error::InvalidValue {
-                what: "comment date year",
+                what: "date year",
                 ..
             })
         );

@@ -125,6 +125,7 @@ const NO_FRAME: u32 = u32::MAX;
 pub(crate) struct RunInfo {
     pub frame: u32,
     pub in_field: bool,
+    pub in_revision_range: bool,
 }
 
 /// A paragraph in body flow.
@@ -134,6 +135,7 @@ pub(crate) struct ParaInfo {
     pub runs: Vec<RunInfo>,
     /// A complex field was already open at the start of this paragraph.
     pub starts_in_field: bool,
+    pub in_revision_range: bool,
     /// Index in [`BodyIndex::notes`] of the note or comment holding the
     /// paragraph (notes and comments parts only).
     pub note: Option<u32>,
@@ -158,10 +160,19 @@ pub(crate) struct BodyIndex {
     pub notes: Vec<NoteInfo>,
     /// Complex fields still open after the last run of the body.
     pub open_fields_at_end: usize,
+    // Positions immediately before ranged rows, or at a table’s end.
+    row_positions_in_revision_ranges: std::collections::BTreeSet<Vec<usize>>,
     frames: Vec<Frame>,
 }
 
 impl BodyIndex {
+    pub(crate) fn check_row_revision_range(&self, path: &[usize]) -> crate::Result<()> {
+        if self.row_positions_in_revision_ranges.contains(path) {
+            return Err(crate::Error::InsideRevision { context: crate::RunContext::Direct });
+        }
+        Ok(())
+    }
+
     /// Child indices from the part root (`w:document`) to the element of
     /// `frame`.
     pub(crate) fn path(&self, frame: u32) -> Vec<usize> {
@@ -284,25 +295,44 @@ fn walk(top: &RawNode, top_index: Option<usize>, top_mode: Mode) -> BodyIndex {
     };
     let mut depth = 0usize;
     let mut note: Option<u32> = None;
+    let mut revision_ranges = std::collections::BTreeSet::new();
     // (element, its frame, mode, index of the next child to look at)
     let mut stack: Vec<(&RawNode, u32, Mode, usize)> = vec![(top, top_frame, top_mode, 0)];
     while let Some((node, frame, mode, next)) = stack.last_mut() {
         let (node, frame, mode) = (*node, *frame, *mode);
         let Some((i, child)) = next_element(node, *next) else {
+            if !revision_ranges.is_empty() && is::<Table>(node) {
+                let mut path = out.path(frame);
+                path.push(node.children().len());
+                out.row_positions_in_revision_ranges.insert(path);
+            }
             stack.pop();
             continue;
         };
         *next = i + 1;
+        if let Some((kind, id, start)) = crate::revisions::range_marker(child) {
+            if start {
+                revision_ranges.insert((kind, id));
+            } else {
+                revision_ranges.remove(&(kind, id));
+            }
+        }
+        let in_revision_range = !revision_ranges.is_empty();
         let Some((child_mode, wrapper)) = descend(mode, child) else { continue };
         let f = new_frame(&mut out, frame, i, wrapper);
+        if in_revision_range && is::<TableRow>(child) {
+            let path = out.path(f);
+            out.row_positions_in_revision_ranges.insert(path);
+        }
         if mode == Mode::Notes {
+            revision_ranges.clear();
             let id = u32::try_from(out.notes.len()).expect("fewer than 2^32 notes");
             let separator = child.attr(W_TYPE).is_some_and(|t| SEPARATOR_TYPES.contains(&t));
             out.notes.push(NoteInfo { id: child.attr(W_ID).map(str::to_owned), separator });
             note = Some(id);
         }
         if mode == Mode::Block && is::<Paragraph>(child) {
-            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new(), starts_in_field: depth > 0, note });
+            out.paragraphs.push(ParaInfo { frame: f, runs: Vec::new(), starts_in_field: depth > 0, in_revision_range, note });
         }
         if child_mode == Mode::Run {
             let before = depth;
@@ -319,7 +349,7 @@ fn walk(top: &RawNode, top_index: Option<usize>, top_mode: Mode) -> BodyIndex {
                 }
             }
             let para = out.paragraphs.last_mut().expect("runs are only walked inside a paragraph");
-            para.runs.push(RunInfo { frame: f, in_field: before > 0 || depth > 0 || has_fld_char });
+            para.runs.push(RunInfo { frame: f, in_field: before > 0 || depth > 0 || has_fld_char, in_revision_range });
         }
         stack.push((child, f, child_mode, 0));
     }

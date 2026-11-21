@@ -863,3 +863,11 @@ Still open:
 - python-docx `e4545460`: `src/docx/oxml/text/paragraph.py` (`CT_P.text`).
 - Apache POI XWPF trunk `47dcff76`: `XWPFParagraph.searchText`, `XWPFDocument.enforceUpdateFields`.
 - ADR-0001, ADR-0002, `docs/research/2026-11-16-word-powerpoint-applicability.md`.
+
+## Post-acceptance note (ADR-0015 D3c)
+
+The extended R2 gate in ADR-0015 §5.2 makes Phase0's `set_run_text`
+return `InsideRevision` for a run carrying `rPrChange`, for a run in a
+paragraph carrying `pPrChange` or a paragraph-mark revision, and for a
+run inside an active move or custom XML revision range. These refusals
+leave the package byte-identical.

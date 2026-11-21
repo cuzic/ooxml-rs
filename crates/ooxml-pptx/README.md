@@ -52,7 +52,8 @@ adds or removes and the registries change.
 | `delete_slide(i)` | removes the slide, its notes and every part only it uses (charts, media, …); refused when anything else references the slide |
 | `duplicate_slide(i, at)` | same relationship `Id`s; layout and media shared, notes and tags copied, new `p14:creationId`; comments not copied; slides with charts, diagrams or OLE refused |
 | `next_shape_id(i)` | one more than every id, `spid` and comment moniker of the slide |
-| `add_text_box`, `add_picture`, `ensure_notes_slide` | not yet (ADR-0012 §4.5–§4.6, a follow-up PR) |
+| `ensure_notes_slide(i)`, `notes_mut_or_create(i)` | create a notes slide and, if needed, a notes master sized to the deck. The second method returns an editable `NotesMut` (ADR-0016 §8) |
+| `add_text_box`, `add_picture` | not yet (ADR-0012 §4.5) |
 
 Ids are never reused: `p:sldId` stays above every id seen in the session,
 part numbers and `rId`s above every one in use or removed. Sections stay

@@ -11,6 +11,18 @@
 # Word Phase0 write path: append a paragraph to the body; replace run content.
 [write]
 names = [
+    # Word Phase3c (ADR-0015 §5 and §10).
+    "w:CT_RunTrackChange/w:ins",
+    "w:CT_RunTrackChange/w:del",
+    "w:CT_Text/w:delText",
+    "w:CT_Text/w:delInstrText",
+    "w:CT_ParaRPr/w:rPr",
+    "w:CT_TrackChange/w:ins",
+    "w:CT_TrackChange/w:del",
+    "w:CT_RPrChange/w:rPrChange",
+    "w:CT_PPrChange/w:pPrChange",
+    "w:CT_PPrExtended/w:pPr",
+    "w:CT_RPrOriginal/w:rPr",
     # Word Phase3b (ADR-0015 §3 and §10).
     "w:CT_Comments/w:comments",
     "w:CT_Comment/w:comment",
@@ -139,13 +151,9 @@ names = [
     "w:CT_Empty/w:lastRenderedPageBreak",
     "w:CT_FldChar/w:fldChar",
     "w:CT_Text/w:instrText",
-    "w:CT_Text/w:delInstrText",
     "w:CT_SimpleField/w:fldSimple",
-    "w:CT_RunTrackChange/w:ins",
-    "w:CT_RunTrackChange/w:del",
     "w:CT_RunTrackChange/w:moveFrom",
     "w:CT_RunTrackChange/w:moveTo",
-    "w:CT_Text/w:delText",
     "w:CT_Settings/w:settings",
     "w:CT_OnOff/w:trackRevisions",
     "w:CT_OnOff/w:updateFields",
@@ -178,6 +186,8 @@ names = [
 # footer references (r:id), which are written again with typed setters.
 [detach]
 names = [
+    "w:CT_RPrOriginal/w:rPr",
+    "w:CT_PPrExtended/w:pPr",
     "w:CT_RPr/w:rPr",
     "w:CT_NumLvl/w:lvlOverride",
     "w:CT_PPr/w:pPr",

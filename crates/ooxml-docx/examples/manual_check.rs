@@ -212,6 +212,7 @@ fn run(out: &Path) -> Result<Vec<Case>, Box<dyn std::error::Error>> {
         done: "Added a comment to a package whose comments root has no ignorable w14 binding".into(),
         check: "Open the document and verify that both comments are visible on their respective anchors.",
     });
+    tracked_cases(out, &mut cases)?;
     Ok(cases)
 }
 
@@ -543,6 +544,93 @@ fn synthetic_with_sect(body: &str, sect: &str) -> Result<Document, Box<dyn std::
 }
 
 /// [`save`] without the reopen-through-the-gates check (the opt-in is per
+fn tracked_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_docx::{Author, LocalDateTime, ParaRef, ParagraphSpec, Place, Prop, RunFormat, RunRef, StoryIndex};
+
+    let date = LocalDateTime { wall_clock: "2026-11-19T12:00:00".parse()?, utc_offset_minutes: 540 };
+    let author = || Author::new("Ada Lovelace");
+    let p = |i| ParaRef::new(StoryIndex::MAIN, i);
+    let mut doc = synthetic(concat!(
+        "<w:p><w:r><w:rPr><w:i/></w:rPr><w:t>Original text.</w:t></w:r></w:p>",
+        "<w:p><w:r><w:t>Format this text.</w:t></w:r></w:p>",
+    ))?;
+    {
+        let mut tracked = doc.track_changes(author(), Some(date))?;
+        tracked.set_run_text(0, 0, "Tracked replacement.")?;
+        tracked.set_run_properties(RunRef::new(p(1), 0), &RunFormat { bold: Prop::Set(true), ..RunFormat::default() })?;
+    }
+    let file = "33-tracked-replacement-and-format.docx";
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file, fixture: "",
+        done: "Recorded a replacement and a bold formatting change with a local date".into(),
+        check: "In All Markup, verify the author and displayed time. Accept All shows Tracked replacement and bold text on the second line. Reject All restores Original text and removes the new bold formatting.",
+    });
+
+    let mut doc = synthetic_with_styles(
+        concat!(
+            "<w:p><w:pPr><w:pStyle w:val='Heading1'/></w:pPr><w:r><w:t>Heading before edit</w:t></w:r></w:p>",
+            "<w:p><w:pPr><w:sectPr><w:type w:val='continuous'/></w:sectPr></w:pPr><w:r><w:t>Section before edit</w:t></w:r></w:p>",
+        ),
+        Some(concat!(
+            "<w:style w:type='paragraph' w:default='1' w:styleId='Normal'><w:name w:val='Normal'/></w:style>",
+            "<w:style w:type='paragraph' w:styleId='Heading1'><w:name w:val='heading 1'/>",
+            "<w:basedOn w:val='Normal'/><w:next w:val='Normal'/><w:pPr><w:outlineLvl w:val='0'/></w:pPr></w:style>",
+        )),
+    )?;
+    {
+        let mut tracked = doc.track_changes(author(), Some(date))?;
+        tracked.insert_paragraph(Place::After(p(0)), "Tracked after heading", &ParagraphSpec::Plain)?;
+        tracked.append_paragraph("Tracked after section")?;
+    }
+    let file = "34-tracked-paragraph-marks.docx";
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file, fixture: "",
+        done: "Inserted text and paragraph marks after a heading and before a section boundary".into(),
+        check: "Reject All should retain the original heading style and continuous section boundary. Accept All should put the section boundary at the end of Tracked after section.",
+    });
+
+    let mut doc = synthetic(concat!(
+        "<w:tbl><w:tblGrid><w:gridCol w:w='2500'/></w:tblGrid>",
+        "<w:tr><w:tc><w:p><w:r><w:t>Remove this row.</w:t></w:r></w:p></w:tc></w:tr>",
+        "<w:tr><w:tc><w:p><w:r><w:t>Keep this row.</w:t></w:r></w:p></w:tc></w:tr>",
+        "</w:tbl><w:p/>",
+    ))?;
+    {
+        use ooxml_docx::{RowTemplate, TableRef};
+        let mut tracked = doc.track_changes(author(), Some(date))?;
+        let table = TableRef::new(StoryIndex::MAIN, 0);
+        tracked.insert_rows(table, 2, 1, RowTemplate::Above)?;
+        tracked.delete_rows(table, 0..1)?;
+    }
+    let file = "35-tracked-table-rows.docx";
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file, fixture: "",
+        done: "Marked the first row and its text deleted, and inserted an empty last row".into(),
+        check: "Accept All keeps the second row and the new empty row. Reject All restores only the two original rows, including Remove this row.",
+    });
+    let mut doc = synthetic(concat!(
+        "<w:p><w:pPr><w:sectPr><w:type w:val='continuous'/></w:sectPr></w:pPr>",
+        "<w:r><w:t>First section.</w:t></w:r></w:p>",
+        "<w:p><w:r><w:t>Second section.</w:t></w:r></w:p><w:sectPr/>",
+    ))?;
+    doc.track_changes(author(), Some(date))?.insert_paragraph(
+        Place::After(p(0)),
+        "New end of first section.",
+        &ParagraphSpec::Plain,
+    )?;
+    let file = "36-tracked-mid-document-section.docx";
+    save(&doc, out, file)?;
+    cases.push(Case {
+        file, fixture: "",
+        done: "Inserted a tracked paragraph at the end of the first of two sections".into(),
+        check: "Accept All should leave the continuous section break after New end of first section. Reject All should restore the break after First section. Second section should remain in both views.",
+    });
+    Ok(())
+}
+
 /// `Document`, so a reopened copy is gated again).
 fn save_ungated(doc: &Document, out: &Path, file: &str) -> Result<(), Box<dyn std::error::Error>> {
     doc.save(out.join(file))?;
