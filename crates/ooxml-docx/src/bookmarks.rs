@@ -145,6 +145,14 @@ impl Document {
         {
             return Err(Error::InsideField);
         }
+        for p in [first_p, last_p] {
+            let at = p.para_ref();
+            if p.info.in_revision_range {
+                return Err(Error::InsideRevision { context: RunContext::Direct });
+            }
+            let path = self.stories[at.story().get()].index.path(p.info.frame);
+            crate::revisions::check_path(xml.root(), &path)?;
+        }
         let mut end_path = last_parent;
         end_path.push(last_item);
         let index = split_boundary::<Paragraph>(&mut xml, &end_path, end)?;
@@ -281,7 +289,7 @@ impl Document {
                     offset = past;
                     continue;
                 }
-                run.check_settable()?;
+                crate::text::check_text_only(run.raw())?;
                 let path = index.path(run.info.frame);
                 let child = *path.last().expect("run path");
                 if is_start {

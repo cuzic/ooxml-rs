@@ -745,11 +745,11 @@ impl Document {
     pub(crate) fn check_formattable_run(&self, at: RunRef) -> Result<()> {
         let r = self.run_at(at).ok_or(Error::NoSuchRun { paragraph: at.para.index, run: at.run })?;
         match r.check_settable() {
+            Err(Error::InsideRevision { context: RunContext::Direct }) if r.has_formatting_change() => {
+                return Err(Error::TrackedPropertyChange { element: "w:rPrChange" });
+            }
             Ok(()) | Err(Error::RunNotTextOnly { .. }) => {}
             Err(e) => return Err(e),
-        }
-        if r.has_formatting_change() {
-            return Err(Error::TrackedPropertyChange { element: "w:rPrChange" });
         }
         Ok(())
     }
@@ -782,11 +782,16 @@ impl Document {
                 return Err(Error::TrackedPropertyChange { element: "w:rPrChange" });
             }
         }
+        if p.info.in_revision_range {
+            return Err(Error::InsideRevision { context: RunContext::Direct });
+        }
+        let path = self.stories[at.story.0].index.path(p.info.frame);
+        crate::revisions::check_path(self.story_root_node(at.story), &path)?;
         Ok(())
     }
 
     /// The run's `w:rPr`, its path from the story root, and the run's path.
-    fn run_container(&self, at: RunRef) -> Result<(Option<&RawNode>, Vec<usize>)> {
+    pub(crate) fn run_container(&self, at: RunRef) -> Result<(Option<&RawNode>, Vec<usize>)> {
         let missing = || Error::NoSuchRun { paragraph: at.para.index, run: at.run };
         let data = self.stories.get(at.para.story.0).ok_or(Error::NoSuchStory)?;
         let info = data.index.paragraphs.get(at.para.index).and_then(|p| p.runs.get(at.run)).ok_or_else(missing)?;
@@ -798,7 +803,7 @@ impl Document {
         Ok((r.elements().find(|e| is::<RunProperties>(e)), path))
     }
 
-    fn para_container(&self, at: ParaRef) -> Result<(Option<&RawNode>, Vec<usize>)> {
+    pub(crate) fn para_container(&self, at: ParaRef) -> Result<(Option<&RawNode>, Vec<usize>)> {
         let data = self.stories.get(at.story.0).ok_or(Error::NoSuchStory)?;
         let info = data.index.paragraphs.get(at.index).ok_or(Error::NoSuchParagraph(at.index))?;
         let path = data.index.path(info.frame);
@@ -807,7 +812,7 @@ impl Document {
     }
 
     /// n4: every new `w:` attribute will find a prefixed WML binding.
-    fn check_prefixes(&self, story: crate::story::StoryIndex, path: &[usize], container: Option<&RawNode>, plan: &ContainerPlan) -> Result<()> {
+    pub(crate) fn check_prefixes(&self, story: crate::story::StoryIndex, path: &[usize], container: Option<&RawNode>, plan: &ContainerPlan) -> Result<()> {
         let root = self.story_root_node(story);
         let parent = node_at(root, path);
         let cpath: Vec<usize> = match container {
