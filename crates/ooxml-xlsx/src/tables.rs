@@ -457,7 +457,7 @@ impl Workbook {
                 )?;
             }
         }
-        let plan = self.plan_table_writes(writes, &headers, false)?;
+        let plan = self.plan_writes_after(None, writes, &headers, Default::default())?;
         if staged.is_empty() {
             return self.apply_writes(plan);
         }
@@ -658,7 +658,7 @@ impl Worksheet<'_> {
             Target::Part(part.clone()),
         )?;
         let sheet_index = self.sheet;
-        wb.apply_writes_with_insertion(cell_plan, registry, |wb| {
+        wb.apply_writes_with_insertion(cell_plan, registry, None, |wb| {
             wb.fault_point(ApplyStepHook::TableParts)?;
             let mut sheet = wb
                 .pkg

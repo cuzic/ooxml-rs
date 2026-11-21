@@ -15,6 +15,7 @@ members = ["."]
 [dependencies]
 libfuzzer-sys = "0.4"
 ooxml-robustness = { path = "../crates/ooxml-robustness" }
+ooxml-core = { path = "../crates/ooxml-core" }
 
 [profile.release]
 debug = 1

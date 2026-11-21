@@ -100,6 +100,7 @@ mod tests {
         assert_eq!(tr("INDIRECT(\"A1\")+Table1[Col]+Name1", 5, 5).unwrap(), "INDIRECT(\"A1\")+Table1[Col]+Name1");
         assert_eq!(tr("{1,2}+A1", 1, 0).unwrap(), "{1,2}+A2");
         assert_eq!(tr("Sheet1!#REF!+A1", 1, 0).unwrap(), "Sheet1!#REF!+A2");
+        assert_eq!(tr("#REF!+A1", 1, 1).unwrap(), "#REF!+B2");
         assert_eq!(tr("A1", 0, 0).unwrap(), "A1");
     }
 

@@ -180,3 +180,21 @@ references (2), a 2-D shared block.
   would split at the edit position like the 6 above.
 - Structured references are counted by syntax; whether their table exists is checked against
   the package's table names (all 4,022 cell-formula ones name an existing table).
+
+### Compare ADR-0009 sheet operations
+
+Run the same `crates/ooxml-xlsx/tests/phase7_probe.rs` test on the base commit
+(copy the test into a temporary worktree) and on the change. Use the same
+`OOXML_XLSX_CORPUS` directory for both and keep the output logs outside the
+repository. The test compares the saved output before and after each refusal.
+
+```sh
+cargo test --release -p ooxml-xlsx --test phase7_probe -- --ignored --nocapture
+python3 -I spikes/xlsx-phase7/compare_sheet_operations.py "$BEFORE_LOG" "$AFTER_LOG"
+cargo test -p ooxml-xlsx --test phase7_pre -- --include-ignored --nocapture
+```
+
+The comparison matches successful output and audit-list digests and identifies
+each expected newly supported operation. The last test checks the registered
+XML values for those operations and checks all the structure-protection
+refusals, including workbook entry and ZIP output equality.
