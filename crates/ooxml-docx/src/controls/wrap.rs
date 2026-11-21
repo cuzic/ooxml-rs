@@ -482,21 +482,14 @@ fn properties(xml: &mut XmlDocument, path: &[usize], spec: &ControlSpec, id: Sdt
 }
 
 #[cfg(test)]
-#[path = "../../tests/common/mod.rs"]
-mod test_package;
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn wrap_skips_ids_in_other_stories() {
-        let input = test_package::docx(
+        let input = crate::test_package::docx(
             "<w:p><w:r><w:t>body</w:t></w:r></w:p>",
-            None,
-            Some(
-                "<w:sdt><w:sdtPr><w:id w:val='27'/></w:sdtPr><w:sdtContent><w:p/></w:sdtContent></w:sdt>",
-            ),
+            Some("<w:sdt><w:sdtPr><w:id w:val='27'/></w:sdtPr><w:sdtContent><w:p/></w:sdtContent></w:sdt>"),
         );
         let mut doc = Document::from_bytes(input).unwrap();
         let paragraph = ParaRef::new(crate::StoryIndex::MAIN, 0);

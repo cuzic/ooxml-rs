@@ -73,6 +73,9 @@ mod document;
 mod effective;
 mod error;
 pub mod fields;
+mod insert_field;
+#[cfg(test)]
+mod test_package;
 mod format;
 mod images;
 mod names;
@@ -98,6 +101,7 @@ pub use document::{Document, Paragraph, Run};
 pub use effective::{EffectiveParagraph, EffectiveProperties, EffectiveRun, EffectiveValue, Provenance};
 pub use error::{Error, Result};
 pub use fields::Operation;
+pub use insert_field::FieldSpec;
 pub use notes::NoteId;
 pub use numbering::{ListTemplate, NumId};
 pub use format::{

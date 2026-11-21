@@ -1,7 +1,7 @@
 //! Content control value edits and XML store transactions (ADR-0015 §6).
 
 mod binding;
-mod date;
+pub(crate) mod date;
 mod wrap;
 
 pub use binding::Binding;
