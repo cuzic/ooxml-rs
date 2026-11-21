@@ -71,6 +71,7 @@ impl Worksheet<'_> {
             .map(|(part, doc)| threads::at(part, doc, at))
             .transpose()?
             .unwrap_or_default();
+        let thread_root = thread.as_ref().map(|(_, doc)| doc.root());
         let is_thread = !entries.is_empty();
         if is_thread
             && matches!(
@@ -108,16 +109,10 @@ impl Worksheet<'_> {
             }
             Operation::SetText(text) => {
                 let current = current.ok_or(Error::NoSuchNote)?;
-                if notes::is_fallback(&notes, current) {
-                    return Err(Error::ThreadedComment);
-                }
                 vec![notes.set_text(current, text)?]
             }
             Operation::RemoveNote => {
                 let current = current.ok_or(Error::NoSuchNote)?;
-                if notes::is_fallback(&notes, current) {
-                    return Err(Error::ThreadedComment);
-                }
                 remove_note_shape = true;
                 vec![xml::replace(current, String::new())]
             }
@@ -126,7 +121,7 @@ impl Worksheet<'_> {
                     return Err(Error::NoteExists);
                 }
                 let id = threads::guid(wb)?;
-                let markup = comment.markup(wb, at, &id, None)?;
+                let markup = comment.markup(wb, at, &id, None, thread_root)?;
                 let fallback =
                     Note::new(format!("{}{text}", threads::FALLBACK, text = comment.text))
                         .author(format!("tc={id}"));
@@ -140,14 +135,12 @@ impl Worksheet<'_> {
                 let (part, _) = thread.as_ref().expect("entries have a part");
                 let id = threads::root_id(part, &entries)?;
                 let current = current
-                    .filter(|node| {
-                        node.attr(notes::UID)
-                            .is_some_and(|uid| uid.eq_ignore_ascii_case(id))
-                    })
+                    .filter(|node| notes::is_fallback(node, id))
                     .ok_or_else(|| part_error(part, "thread has no matching fallback note"))?;
                 if let Operation::Reply(comment) = operation {
                     let reply_id = threads::guid(wb)?;
-                    thread_markup = Some(comment.markup(wb, at, &reply_id, Some(id))?);
+                    thread_markup =
+                        Some(comment.markup(wb, at, &reply_id, Some(id), thread_root)?);
                     new_guid = Some(reply_id);
                     let fallback = threads::fallback_text(part, &entries, &comment.text)?;
                     vec![notes.set_text(current, &fallback)?]

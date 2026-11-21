@@ -123,7 +123,8 @@ impl<'doc> Notes<'doc> {
             .position(|node| node.text() == encoded);
         let author = author.unwrap_or_else(|| {
             let value = xml::text(&encoded);
-            let markup = format!("<author xmlns=\"{SML}\">{value}</author>");
+            let ns = self.namespace_declaration(self.authors);
+            let markup = format!("<author{ns}>{value}</author>");
             edits.push(xml::insert(self.authors, None, markup));
             self.authors.elements().count()
         });
@@ -131,9 +132,10 @@ impl<'doc> Notes<'doc> {
             .map(|id| self.revision_attrs(id))
             .transpose()?
             .unwrap_or_default();
-        let text = rich_text(&note.text);
+        let text = rich_text(&note.text, "");
+        let ns = self.namespace_declaration(self.list);
         let markup = format!(
-            "<comment xmlns=\"{SML}\" ref=\"{at}\" authorId=\"{author}\" shapeId=\"0\"{xr}>{text}</comment>"
+            "<comment{ns} ref=\"{at}\" authorId=\"{author}\" shapeId=\"0\"{xr}>{text}</comment>"
         );
         let before = self
             .entries
@@ -147,6 +149,13 @@ impl<'doc> Notes<'doc> {
             .map(|(_, node)| *node);
         edits.push(xml::insert(self.list, before, markup));
         Ok(edits)
+    }
+
+    fn namespace_declaration(&self, parent: &RawNode) -> String {
+        xml::namespace_declaration(
+            xml::default_namespace(parent).or_else(|| xml::default_namespace(self.root)),
+            SML,
+        )
     }
 
     fn revision_attrs(&self, id: &str) -> Result<String> {
@@ -186,11 +195,17 @@ impl<'doc> Notes<'doc> {
         if matches.next().is_some() {
             return Err(part_error(self.part, "note has multiple text elements"));
         }
-        Ok(xml::replace(existing, rich_text(text)))
+        let ns = xml::namespace_declaration(
+            xml::default_namespace(note)
+                .or_else(|| xml::default_namespace(self.list))
+                .or_else(|| xml::default_namespace(self.root)),
+            SML,
+        );
+        Ok(xml::replace(existing, rich_text(text, &ns)))
     }
 }
 
-fn rich_text(value: &str) -> String {
+fn rich_text(value: &str, ns: &str) -> String {
     let preserve = if value.starts_with(char::is_whitespace) || value.ends_with(char::is_whitespace)
     {
         " xml:space=\"preserve\""
@@ -198,15 +213,11 @@ fn rich_text(value: &str) -> String {
         ""
     };
     let encoded = xml::text(&escape::encode(value));
-    format!("<text xmlns=\"{SML}\"><r><t{preserve}>{encoded}</t></r></text>")
+    format!("<text{ns}><r><t{preserve}>{encoded}</t></r></text>")
 }
 
-pub(super) fn is_fallback(notes: &Notes<'_>, node: &RawNode) -> bool {
-    let Some(uid) = node.attr(UID) else {
-        return false;
-    };
-    node.attr(attr("authorId"))
-        .and_then(|n| n.parse().ok())
-        .and_then(|n| notes.authors.elements().nth(n))
-        .is_some_and(|author| author.text().strip_prefix("tc=") == Some(uid))
+// A fallback is paired with an existing thread by its revision UID.
+pub(super) fn is_fallback(node: &RawNode, thread_id: &str) -> bool {
+    node.attr(UID)
+        .is_some_and(|uid| uid.eq_ignore_ascii_case(thread_id))
 }

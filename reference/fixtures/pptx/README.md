@@ -16,6 +16,7 @@ Licences (full texts in [`LICENSES/`](LICENSES/)):
 | `python-pptx/` | [scanny/python-pptx](https://github.com/scanny/python-pptx) `features/steps/test_files/` (master `278b47b1dedd`) | MIT, `LICENSES/python-pptx-LICENSE.txt` |
 | `open-xml-sdk/` | [dotnet/Open-XML-SDK](https://github.com/dotnet/Open-XML-SDK) `test/DocumentFormat.OpenXml.Tests.Assets/assets/TestFiles/` (main `431ab05cf160`) | MIT, `LICENSES/open-xml-sdk-LICENSE.txt` |
 | `libreoffice/` | [LibreOffice/core](https://github.com/LibreOffice/core) `sd/qa/unit/data/pptx/` (master `2e885d0bda9b`) | MPL-2.0 (the repository's licence for these files), `LICENSES/libreoffice-MPL-2.0.txt`; the files are unmodified, so their source form is the file itself |
+| `project/` | This project, see [Project-made file](#project-made-file-project) | Project licence (MIT OR Apache-2.0) |
 
 The original authorship of individual third-party test files (many are attachments to
 bug reports) was not traced beyond the repository that distributes them.
