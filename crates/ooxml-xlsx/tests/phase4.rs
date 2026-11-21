@@ -265,6 +265,14 @@ fn autofilter_quotes_the_sheet_prefix_like_names() {
         let expected = format!(r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">{prefix}!$A$1:$B$2"#);
         assert_eq!(names(&wb.to_bytes().unwrap()), [expected], "{sheet}");
     }
+    // a name the old code wrote unquoted is repaired when it is reused (m1)
+    let old = book(&[("TRUE", "")], r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">TRUE!$A$1:$B$2</definedName>"#, "");
+    let (wb, r) = try_on(&old, 0, |ws| ws.set_autofilter("A1:C3"));
+    r.unwrap();
+    assert_eq!(
+        names(&wb.to_bytes().unwrap()),
+        [r#"<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'TRUE'!$A$1:$C$3"#]
+    );
 }
 
 #[test]

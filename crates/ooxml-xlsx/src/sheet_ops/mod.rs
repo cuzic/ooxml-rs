@@ -13,10 +13,11 @@
 mod app_xml;
 mod names;
 
+mod scan;
+
 /// The one sheet-prefix quoting rule (ADR-0009 §6 "Quoting"), shared by
 /// every writer of `Sheet!` prefixes (issue #112).
 pub(crate) use names::quote_sheet;
-mod scan;
 
 use std::collections::{BTreeMap, HashSet};
 
