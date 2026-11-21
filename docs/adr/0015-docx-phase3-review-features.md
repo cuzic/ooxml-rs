@@ -565,6 +565,17 @@ R3 is lifted for these kinds; every other kind stays refused:
 | `{6668398D-A668-4E3E-A5EB-62B293D839F1}`, extended properties (82) | `docProps/app.xml` | Read only (`UnsupportedBinding` on write) |
 | Cover-page properties `{55AF091B-…}` with no part in the package (141), or any other store without a part (17) | — | Refused: there is no store to write |
 
+The supported custom XML part row includes these vendored store vocabularies.
+
+| Vendored custom XML store vocabulary | Namespace URI |
+|---|---|
+| Cover page properties | `http://schemas.microsoft.com/office/2006/coverPageProps` |
+| SharePoint content type | `http://schemas.microsoft.com/office/2006/metadata/contentType` |
+| SharePoint InfoPath form template | `http://schemas.microsoft.com/office/2006/metadata/customXsn` |
+| SharePoint long properties | `http://schemas.microsoft.com/office/2006/metadata/longProperties` |
+| SharePoint property metadata | `http://schemas.microsoft.com/office/2006/metadata/properties/metaAttributes` |
+| Bibliography | `http://schemas.openxmlformats.org/officeDocument/2006/bibliography` |
+
 - **Core properties and fields (M5).** ADR-0004 classifies `TITLE`, `SUBJECT`, `AUTHOR`,
   `KEYWORDS`, `COMMENTS` and `DOCPROPERTY Title` (etc.) as safe because Phase0 never writes
   `docProps`. A bound write changes the property those fields read. So:
@@ -1147,11 +1158,12 @@ Core implements the §6.2 (a) prerequisite independently of D3d. Both
 by namespace URI and local name, with zero-based indexing among matching
 element siblings. The root has index zero. An empty path or a missing
 step returns `NoSuchElement`. The shared preflight returns `TypedNamespace`
-for a matched element in a namespace with an allowlisted, generated
-element type or in Markup Compatibility, which core handles directly.
-The generator produces the namespace table from the resolved allowlists.
-Cover page properties, bibliography, SharePoint metadata and customXsn
-stores can be edited through this API. Preflight returns `NotLeaf` for
+for a matched element in a namespace reserved for structured editing.
+Codegen collects all target namespaces from the vendored SDK and
+Transitional XSD schemas and excludes the custom XML store vocabularies
+listed in §6.2. Core also refuses Markup Compatibility, the OPC namespaces
+used by relationship parts and `[Content_Types].xml`, and any namespace
+under `http://purl.oclc.org/ooxml/` (Strict). Preflight returns `NotLeaf` for
 non-text children and `NilElement` when a present `xsi:nil` is neither
 `false` nor `0` after XML whitespace trimming. Invalid replacement text
 returns the existing `InvalidXmlChar`.

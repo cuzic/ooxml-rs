@@ -58,7 +58,7 @@ pub fn generate(root: &Path) -> Res<BTreeMap<String, String>> {
         out.insert(format!("{SCHEMA_GEN_DIR}/{g}.rs"), ctx.emit_group(g, &mut diags)?);
     }
     out.insert(format!("{SCHEMA_GEN_DIR}/mod.rs"), ctx.emit_mod()?);
-    out.insert(TYPED_ELEMENT_NAMESPACES_FILE.into(), ctx.emit_typed_element_namespaces()?);
+    out.insert(TYPED_ELEMENT_NAMESPACES_FILE.into(), emit::emit_typed_element_namespaces(&sdk, &xsd));
     out.insert(PARTS_FILE.into(), emit::emit_parts(&model)?);
     // whole-schema diagnostics (default join, unresolved bases, ECMA order)
     for name in model.index.keys() {
@@ -229,13 +229,43 @@ fn main() -> ExitCode {
     }
 }
 
-#[test]
-fn typed_element_namespaces_match_the_generator() {
-    let root = root();
-    let generated = generate(&root).unwrap();
-    assert_eq!(
-        std::fs::read_to_string(root.join(TYPED_ELEMENT_NAMESPACES_FILE)).unwrap(),
-        generated[TYPED_ELEMENT_NAMESPACES_FILE],
-        "run cargo xtask codegen to sync the leaf-text refusal list with the allowlists"
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    mod generated {
+        include!("../../crates/ooxml-core/src/generated/typed_element_namespaces.rs");
+    }
+
+    #[test]
+    fn leaf_text_namespaces_partition_the_reference_schemas() {
+        let root = root();
+        let sdk = sdk::Sdk::load(&root.join(SDK_DIR)).unwrap();
+        let xsd = xsd::Xsd::load(&root.join(XSD_DIR)).unwrap();
+        let mut reference = BTreeSet::new();
+        for (_, schema) in &sdk.files {
+            reference.insert(schema.target_namespace.as_str());
+        }
+        for schema in &xsd.files {
+            reference.insert(schema.tns.as_str());
+        }
+
+        let generated = generated::TYPED_ELEMENT_NAMESPACES;
+        assert!(generated.windows(2).all(|pair| pair[0] < pair[1]));
+        let refused: BTreeSet<_> = generated.iter().copied().collect();
+        let exceptions: BTreeSet<_> = emit::CUSTOM_XML_STORE_NAMESPACES.iter().copied().collect();
+        assert!(refused.is_disjoint(&exceptions));
+        assert_eq!(refused.union(&exceptions).copied().collect::<BTreeSet<_>>(), reference);
+
+        let adr = include_str!("../../docs/adr/0015-docx-phase3-review-features.md");
+        let (_, store_table) = adr.split_once("| Vendored custom XML store vocabulary | Namespace URI |").unwrap();
+        let documented: BTreeSet<_> = store_table
+            .lines()
+            .skip(2)
+            .take_while(|line| line.starts_with('|'))
+            .map(|line| line.split('|').nth(2).unwrap().trim().strip_circumfix('`', '`').unwrap())
+            .collect();
+        assert_eq!(exceptions, documented);
+    }
 }

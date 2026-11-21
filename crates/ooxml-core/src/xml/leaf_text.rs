@@ -1,6 +1,6 @@
 use super::{RawItem, RawNode, RawText, XmlDocument, mark_path_dirty};
 use crate::error::{Error, Result};
-use crate::name::{MC_NS, QName, TYPED_ELEMENT_NAMESPACES};
+use crate::name::{CONTENT_TYPES_NS, MC_NS, PACKAGE_RELATIONSHIPS_NS, QName, STRICT_NS_PREFIX, TYPED_ELEMENT_NAMESPACES};
 use crate::value::{check_xml_chars, parse_bool};
 
 const XSI_NIL: QName = QName::new("http://www.w3.org/2001/XMLSchema-instance", "nil");
@@ -33,7 +33,8 @@ impl XmlDocument {
     ///
     /// The path begins at the document root. An empty or unmatched path returns
     /// [`Error::NoSuchElement`]. Each matched element must be outside the
-    /// namespaces reserved for typed editing ([`Error::TypedNamespace`]).
+    /// namespaces reserved for structured editing, including OPC relationship
+    /// and content type namespaces and Strict OOXML ([`Error::TypedNamespace`]).
     /// Elements, comments or processing instructions inside the target return
     /// [`Error::NotLeaf`]. An `xsi:nil` value other than `false` or `0`
     /// (after XML whitespace trimming) returns [`Error::NilElement`].
@@ -97,7 +98,10 @@ impl XmlDocument {
 fn check_namespace(node: &RawNode) -> Result<()> {
     let ns = node.name().ns();
     // Markup Compatibility has semantics in core even without generated types.
-    if ns == MC_NS || TYPED_ELEMENT_NAMESPACES.contains(&ns) {
+    if matches!(ns, MC_NS | PACKAGE_RELATIONSHIPS_NS | CONTENT_TYPES_NS)
+        || ns.starts_with(STRICT_NS_PREFIX)
+        || TYPED_ELEMENT_NAMESPACES.binary_search(&ns).is_ok()
+    {
         return Err(Error::TypedNamespace);
     }
     Ok(())

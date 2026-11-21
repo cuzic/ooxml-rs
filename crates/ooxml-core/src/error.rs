@@ -147,7 +147,7 @@ pub enum Error {
     /// A leaf-text target contains an element, comment or processing instruction.
     #[error("the leaf-text target contains non-text children")]
     NotLeaf,
-    /// A leaf-text path enters a namespace reserved for typed editing.
+    /// A leaf-text path enters a namespace reserved for structured editing.
     #[error("the leaf-text path contains a typed namespace")]
     TypedNamespace,
     /// A leaf-text target has an `xsi:nil` value that is true or invalid.

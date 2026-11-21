@@ -33,7 +33,7 @@ pub const VML_O_NS: &str = "urn:schemas-microsoft-com:office:office";
 pub const RELATIONSHIP_ATTRIBUTES: &[(&str, Option<&str>)] =
     &[(R_NS, None), (R_NS_STRICT, None), (VML_O_NS, Some("relid"))];
 
-// Namespaces with generated ElementSpec markers (ADR-0015 §6.2).
+// Vendored schema namespaces reserved by ADR-0015 §6.2.
 include!("generated/typed_element_namespaces.rs");
 
 /// OPC package relationships (`_rels/*.rels` root namespace).

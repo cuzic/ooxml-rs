@@ -32,6 +32,19 @@ fn replaces_text_without_changing_tags_or_siblings() {
 }
 
 #[test]
+fn writing_the_same_value_preserves_source_spelling() {
+    let xml = "<root><a><![CDATA[<x>]]>\r\n&amp;lt;&#x41;</a></root>";
+    let mut doc = XmlDocument::parse(xml.as_bytes()).unwrap();
+    let path = [step("", "root", 0), step("", "a", 0)];
+    let value = "<x>\n&lt;A";
+
+    doc.check_set_leaf_text(&path, value).unwrap();
+    doc.set_leaf_text(&path, value).unwrap();
+    assert!(!doc.is_dirty());
+    assert_eq!(doc.serialize().as_bytes(), xml.as_bytes());
+}
+
+#[test]
 fn expands_only_the_self_closing_target() {
     let xml = "<root xmlns='urn:x'><a>old</a><b  key = '&#x41;' /></root>";
     let mut doc = XmlDocument::parse(xml.as_bytes()).unwrap();
@@ -82,6 +95,7 @@ fn edits_custom_stores_without_generated_element_types() {
         ("http://schemas.openxmlformats.org/officeDocument/2006/bibliography", "Sources", "Source"),
         ("http://schemas.microsoft.com/office/2006/metadata/contentType", "contentType", "name"),
         ("http://schemas.microsoft.com/office/2006/metadata/customXsn", "customXsn", "xsnLocation"),
+        ("http://schemas.microsoft.com/office/2006/metadata/longProperties", "LongProperties", "LongProp"),
     ] {
         let xml = format!("<{root} xmlns='{ns}'><{leaf}>old</{leaf}></{root}>");
         let mut doc = XmlDocument::parse(xml.as_bytes()).unwrap();
@@ -199,5 +213,20 @@ fn refuses_typed_intermediates_and_targets_inside_custom_xml() {
             Error::TypedNamespace,
         );
         refuses(&xml, &[root, step(ns, "a", 0)], "new", Error::TypedNamespace);
+    }
+}
+
+#[test]
+fn refuses_vendored_schemas_and_strict_without_mutation() {
+    for (ns, leaf) in [
+        ("urn:schemas-microsoft-com:vml", "shape"),
+        ("http://schemas.microsoft.com/office/word/2010/wordml", "checked"),
+        ("http://schemas.openxmlformats.org/drawingml/2006/chart", "autoTitleDeleted"),
+        ("http://schemas.microsoft.com/office/drawing/2010/main", "hiddenFill"),
+        ("http://schemas.openxmlformats.org/officeDocument/2006/customXml", "schemaRefs"),
+        ("http://purl.oclc.org/ooxml/wordprocessingml/main", "b"),
+    ] {
+        let xml = format!("<root xmlns:t='{ns}'><t:{leaf}/></root>");
+        refuses(&xml, &[step("", "root", 0), step(ns, leaf, 0)], "new", Error::TypedNamespace);
     }
 }
