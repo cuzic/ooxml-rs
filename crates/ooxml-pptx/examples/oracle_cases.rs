@@ -18,6 +18,8 @@ mod notes_creation_case;
 mod shape_properties_case;
 #[path = "../tests/oracle/links_case.rs"]
 mod links_case;
+#[path = "../tests/oracle/styles_theme_case.rs"]
+mod styles_theme_case;
 
 use std::path::PathBuf;
 
@@ -46,6 +48,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut links = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(links_case::FIXTURE))?;
     links_case::edit(&mut links)?;
     links.save(out.join(format!("{}.pptx", links_case::NAME)))?;
+    use styles_theme_case::{TABLE_FIXTURE, TABLE_NAME, THEME_FIXTURE, THEME_NAME, edit_table, edit_theme};
+    for (fixture, name, edit) in [
+        (TABLE_FIXTURE, TABLE_NAME, edit_table as fn(&mut _) -> _),
+        (THEME_FIXTURE, THEME_NAME, edit_theme),
+    ] {
+        let mut deck = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(fixture))?;
+        edit(&mut deck)?;
+        deck.save(out.join(format!("{name}.pptx")))?;
+    }
     let edits: usize = cases.iter().map(|c| c.edits.len()).sum();
     println!("{} cases, {edits} edits written to {}", cases.len(), out.display());
     Ok(())

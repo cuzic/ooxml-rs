@@ -145,6 +145,8 @@ macro_rules! with_body {
 }
 
 mod formatting;
+pub(crate) mod table_style;
+mod theme;
 pub use formatting::{AutoFitMode, BulletSize, BulletSpec, ColorSpec, ColorTransform, FontRef, FormatChange, LineEnd, LineSpec, PresetColor, RunFill, RunFormat, SchemeColor, Script, SystemColor, TabStop, ThemeFont, UnderlineFill, UnderlineLine, WriteColor};
 
 /// The cursor at the root of a part this crate edits text in: a slide, a
@@ -1134,3 +1136,9 @@ impl RunMut<'_> {
         Ok(())
     }
 }
+
+pub use table_style::{
+    StyleId, TablePartStyle, TableStyleBorders, TableStyleCell, TableStyleDef, TableStyleParts,
+    TableStyleText,
+};
+pub use theme::{ThemeColor, ThemeColorSlot, ThemeFonts, ThemeMut, ThemeOptions};

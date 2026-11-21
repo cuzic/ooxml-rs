@@ -218,6 +218,20 @@
       ["ppt/notesMasters/notesMaster1.xml", "./p:cSld/p:spTree/p:sp[3]/p:spPr/a:xfrm/a:ext[@cx='5773680'][@cy='3608550']", 1]
     ]
   },
+  "pptx/34-p3e-custom-table-style.pptx": {
+    "text": ["Header2"],
+    "xml": [
+      ["ppt/tableStyles.xml", "./a:tblStyle[@styleName='Teal header'][@styleId='{A1C820EB-1611-8080-9B81-2AE89D8640BA}']", 1],
+      ["ppt/slides/slide1.xml", ".//a:tblPr/a:tableStyleId[.='{A1C820EB-1611-8080-9B81-2AE89D8640BA}']", 1]
+    ]
+  },
+  "pptx/35-p3e-edit-master-theme.pptx": {
+    "text": ["Lorem ipsum dolor sit amet"],
+    "xml": [
+      ["ppt/theme/theme1.xml", "./a:themeElements/a:clrScheme/a:accent1/a:srgbClr[@val='1C8494']", 1],
+      ["ppt/theme/theme1.xml", "./a:themeElements/a:fontScheme/a:majorFont/a:latin[@typeface='Georgia']", 1]
+    ]
+  },
   "pptx/SA1-smartart-data-and-cache.pptx": {"text": ["Smart Art", "Secon d line"]},
   "pptx/SA2-smartart-fake-cache.pptx": {"text": ["CACH EONLY"]},
   "pptx/SA3-smartart-cache-dropped.pptx": {"text": ["No cache"]},

@@ -913,3 +913,33 @@ Absent or unusable dimensions use the template dimensions for that size.
 Each new notes slide uses the master's placeholder order and inherits its
 geometry. A master without a body placeholder still gets an editable body
 on the new notes slide. Manual case 33 uses an A4 page and a 16:10 slide.
+
+### Post-acceptance note — P3e table styles and master theme edits
+
+`Presentation::add_table_style` appends the definition via the presentation's
+`tableStyles` relationship. New lists use the §9 default and the exact OPC
+part name. A dangling internal relationship reserves its target name, so
+allocation returns `Core(RegistryRefused { reason: NameInUse, .. })`. An
+external or unresolvable target is refused as `UnsupportedContent`.
+The UUID v8 seed uses the UTF-8 name followed by existing style IDs in document
+order, each preceded by its byte length in big-endian form. The hash includes
+an incrementing attempt counter starting at zero. Comparison with existing
+and built-in IDs trims whitespace and ignores ASCII case.
+
+`master_theme_mut` uses the zero-based index in `p:sldMasterIdLst`.
+`master_theme_mut_with` takes `ThemeOptions { allow_shared: true }` to permit
+editing a theme shared by slide masters or a slide master and a notes master.
+Each setter stages one cloned theme in a registry transaction. A font setter
+changes the three typeface attributes atomically and preserves supplemental
+script fonts. Missing required theme elements are refused with
+`UnsupportedContent`. Theme provenance is reported by the existing resolver
+as `Source`, `Font::theme_ref` and the resolved `Font::typeface`, and
+`Color::theme_slot` / `Color::base_rgb`. Manual cases 34 and 35 cover the two
+edits.
+
+PR #102 follow-up (m1–m3, n1–n2). Notes creation refuses a dangling or external
+`notesSlide` relationship with `UnsupportedContent`. The same error names the
+`notesMasterIdLst` when it occurs inside `mc:AlternateContent`. The fallback
+body for a notes master without a body placeholder has no inherited position
+or size. `notes_mut_or_create` validates the notes master root even when
+reusing an existing notes slide.

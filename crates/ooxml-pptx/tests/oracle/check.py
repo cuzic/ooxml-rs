@@ -527,6 +527,37 @@ def check_notes_creation(outdir):
     print('P3d python-pptx: notes text and scaled notes master read back')
 
 
+def check_styles_and_theme(outdir):
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+
+    deck = Presentation(os.path.join(outdir, '34-p3e-custom-table-style.pptx'))
+    table = next(shape.table for shape in deck.slides[0].shapes
+                 if shape.has_table and shape.shape_id == 4)
+    style_id = table._tbl.find(qn('a:tblPr')).findtext(qn('a:tableStyleId'))
+    styles = deck.part.part_related_by(
+        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles'
+    )
+    from lxml import etree
+    root = etree.fromstring(styles.blob, etree.XMLParser(resolve_entities=False, load_dtd=False))
+    assert not root.getroottree().docinfo.doctype
+    definition = next(s for s in root.findall(qn('a:tblStyle')) if s.get('styleName') == 'Teal header')
+    assert style_id and style_id == definition.get('styleId')
+
+    theme_deck = Presentation(os.path.join(outdir, '35-p3e-edit-master-theme.pptx'))
+    theme = theme_deck.slide_masters[0].part.part_related_by(
+        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme'
+    )
+    root = etree.fromstring(theme.blob, etree.XMLParser(resolve_entities=False, load_dtd=False))
+    assert not root.getroottree().docinfo.doctype
+    elements = root.find(qn('a:themeElements'))
+    accent = elements.find(qn('a:clrScheme')).find(qn('a:accent1'))
+    assert accent.find(qn('a:srgbClr')).get('val') == '1C8494'
+    font = elements.find(qn('a:fontScheme')).find(qn('a:majorFont'))
+    assert font.find(qn('a:latin')).get('typeface') == 'Georgia'
+    print('P3e python-pptx: custom table style and master theme read back')
+
+
 def main():
     args = sys.argv[1:]
     site = None
@@ -560,6 +591,7 @@ def main():
     check_shape_properties(outdir)
     check_links(outdir)
     check_notes_creation(outdir)
+    check_styles_and_theme(outdir)
     sys.exit(1 if failures else 0)
 
 
