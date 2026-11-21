@@ -438,7 +438,8 @@ notes slides, connectors.
 
 Scope (each likely its own ADR): charts (chart part + embedded workbook via
 `ooxml-xlsx`, caches), transitions/animations editing (AC rank rule),
-modern comment writes (author registry, GUIDs), media, extended charts.
+modern comment writes (author registry, GUIDs; Phase 4a,
+[ADR-0019](../adr/0019-pptx-phase4a-modern-comments.md)), media, extended charts.
 SmartArt and embedded-font **writes** are not planned (render caches /
 obfuscated fonts); they stay Layer 1 passthrough.
 
