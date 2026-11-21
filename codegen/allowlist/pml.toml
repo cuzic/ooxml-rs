@@ -44,6 +44,15 @@ names = [
     "xsd:int/ap:HiddenSlides",
     # Phase 1b (ADR-0013 §2): the frame size follows row heights and widths.
     "a:CT_Transform2D/p:xfrm",
+    # ADR-0019: modern comments.
+    "p188:CT_CommentList/p188:cmLst",
+    "p188:CT_Comment/p188:cm",
+    "a:CT_TextBody/p188:txBody",
+    "p188:CT_CommentReplyList/p188:replyLst",
+    "p188:CT_CommentReply/p188:reply",
+    "p188:CT_AuthorList/p188:authorLst",
+    "p188:CT_Author/p188:author",
+    "p188:CT_CommentRelationship/p188:commentRel",
 ]
 
 # Phase0 read-only: slide list, shape tree, shape ids/names, placeholders.
@@ -81,14 +90,7 @@ names = [
     "xsd:string/p:text",
     "p:CT_CommentAuthorList/p:cmAuthorLst",
     "p:CT_CommentAuthor/p:cmAuthor",
-    "p188:CT_CommentList/p188:cmLst",
-    "p188:CT_Comment/p188:cm",
     "a:CT_Point2D/p188:pos",
-    "a:CT_TextBody/p188:txBody",
-    "p188:CT_CommentReplyList/p188:replyLst",
-    "p188:CT_CommentReply/p188:reply",
-    "p188:CT_AuthorList/p188:authorLst",
-    "p188:CT_Author/p188:author",
     "p:CT_GroupShape/p:spTree",
     "p:CT_GroupShape/p:grpSp",
     "p:CT_GroupShapeNonVisual/p:nvGrpSpPr",

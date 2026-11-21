@@ -15,6 +15,7 @@ use crate::error::{Error, Result};
 use crate::names::*;
 use crate::write::SlideMut;
 mod notes;
+pub(crate) mod comments;
 
 /// Largest `p:sldId@id` (`ST_SlideId`: 256 ≤ id < 2³¹).
 const MAX_SLIDE_ID: u32 = 2_147_483_647;
@@ -671,7 +672,11 @@ impl crate::Presentation {
         })? {
             plan.stage_part(&self.pkg, &app, adoc)?;
         }
+        let reserved = set.iter().any(|part| {
+            self.pkg.content_type(part) == Some(comments::COMMENTS_CT)
+        }).then(|| comments::reserve_ids_before_delete(&mut self.pkg));
         self.finish(plan)?;
+        self.comment_ids.extend(reserved.into_iter().flatten());
         self.slide_id_high_water = self.slide_id_high_water.max(id);
         Ok(())
     }

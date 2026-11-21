@@ -198,8 +198,35 @@ def check_xml(source, expected):
             require(actual == count, f"{part} {xpath}: expected {count} matches, got {actual}")
 
 
+def odp_annotations(path):
+    preflight(path)
+    with zipfile.ZipFile(path) as archive:
+        root = ET.fromstring(archive.read("content.xml"))
+    ns = {
+        "draw": "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0",
+        "officeooo": "http://openoffice.org/2009/office",
+        "dc": "http://purl.org/dc/elements/1.1/",
+        "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+    }
+    return [
+        [
+            {
+                "creator": annotation.findtext("dc:creator", default="", namespaces=ns),
+                "text": "\n".join("".join(p.itertext()) for p in annotation.findall(".//text:p", ns)),
+            }
+            for annotation in page.findall(".//officeooo:annotation", ns)
+        ]
+        for page in root.findall(".//draw:page", ns)
+    ]
+
+
 def check_content(source, expected, profile, scratch, resaved):
     check_xml(source, expected.get("xml", []))
+    if "odp_annotations" in expected:
+        odp = convert(profile, source, scratch / "odp", "odp:impress8")
+        actual = odp_annotations(odp)
+        require(actual == expected["odp_annotations"], f"ODP annotations: {actual!r}")
+
     if any(key in expected for key in ("resaved_text", "notes", "comments")):
         require(resaved is not None, "resaved document unavailable")
         check_resaved_content(resaved, expected)

@@ -7155,6 +7155,8 @@ impl ooxml_core::ChildOf<GraphicData> for super::pml::AuthorList {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::P188CommentList {}
 #[cfg(all(feature = "dml", feature = "pml"))]
+impl ooxml_core::ChildOf<GraphicData> for super::pml::CommentRelationship {}
+#[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::CommentAuthorList {}
 #[cfg(all(feature = "dml", feature = "pml"))]
 impl ooxml_core::ChildOf<GraphicData> for super::pml::PCommentList {}
@@ -7290,6 +7292,15 @@ impl<'a> GraphicDataView<'a> {
         self.0
             .children::<super::pml::P188CommentList>()
             .map(super::pml::P188CommentListView)
+    }
+    #[cfg(feature = "pml")]
+    /// `p188:commentRel` children in document order.
+    pub fn comment_relationship_iter(
+        &self,
+    ) -> impl Iterator<Item = super::pml::CommentRelationshipView<'a>> {
+        self.0
+            .children::<super::pml::CommentRelationship>()
+            .map(super::pml::CommentRelationshipView)
     }
     #[cfg(feature = "pml")]
     /// `p:cmAuthorLst` children in document order.
@@ -7616,6 +7627,51 @@ impl<'a> GraphicDataViewMut<'a> {
     /// Removes the first `p14:sectionLst` child.
     pub fn remove_section_list(&mut self) -> bool {
         self.0.remove::<super::pml::SectionList>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p188:authorLst` child matching `pred`, mutably.
+    pub fn author_list_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::AuthorListViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::AuthorList>(pred)
+            .map(super::pml::AuthorListViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p188:authorLst` child.
+    pub fn remove_author_list(&mut self) -> bool {
+        self.0.remove::<super::pml::AuthorList>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p188:cmLst` child matching `pred`, mutably.
+    pub fn comment_list_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::P188CommentListViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::P188CommentList>(pred)
+            .map(super::pml::P188CommentListViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p188:cmLst` child.
+    pub fn remove_comment_list(&mut self) -> bool {
+        self.0.remove::<super::pml::P188CommentList>()
+    }
+    #[cfg(feature = "pml")]
+    /// First `p188:commentRel` child matching `pred`, mutably.
+    pub fn comment_relationship_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::pml::CommentRelationshipViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::pml::CommentRelationship>(pred)
+            .map(super::pml::CommentRelationshipViewMut)
+    }
+    #[cfg(feature = "pml")]
+    /// Removes the first `p188:commentRel` child.
+    pub fn remove_comment_relationship(&mut self) -> bool {
+        self.0.remove::<super::pml::CommentRelationship>()
     }
     #[cfg(feature = "pml")]
     /// First `p:notes` child matching `pred`, mutably.
@@ -36450,6 +36506,11 @@ const _: () = ooxml_core::schema::assert_child::<GraphicData, super::pml::Author
 const _: () = ooxml_core::schema::assert_child::<
     GraphicData,
     super::pml::P188CommentList,
+>();
+#[cfg(all(feature = "dml", feature = "pml"))]
+const _: () = ooxml_core::schema::assert_child::<
+    GraphicData,
+    super::pml::CommentRelationship,
 >();
 #[cfg(all(feature = "dml", feature = "pml"))]
 const _: () = ooxml_core::schema::assert_child::<

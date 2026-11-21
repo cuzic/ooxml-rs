@@ -2044,6 +2044,87 @@ impl<'a> TextBodyTypeView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`TextBodyType`]. Reads go through [`TextBodyTypeViewMut::as_view`].
+#[derive(Debug)]
+pub struct TextBodyTypeViewMut<'a>(pub ooxml_core::LensMut<'a, TextBodyType>);
+impl<'a> TextBodyTypeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> TextBodyTypeView<'_> {
+        TextBodyTypeView(self.0.as_lens())
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:bodyPr` child, mutably.
+    pub fn body_properties_mut(
+        &mut self,
+    ) -> Option<super::dml::BodyPropertiesViewMut<'_>> {
+        self.0
+            .child_mut::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:bodyPr` child, or a new one in schema position.
+    pub fn get_or_insert_body_properties(
+        &mut self,
+    ) -> Result<super::dml::BodyPropertiesViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .get_or_insert::<super::dml::BodyProperties>()
+            .map(super::dml::BodyPropertiesViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:bodyPr` child.
+    pub fn remove_body_properties(&mut self) -> bool {
+        self.0.remove::<super::dml::BodyProperties>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:lstStyle` child, mutably.
+    pub fn list_style_mut(&mut self) -> Option<super::dml::ListStyleViewMut<'_>> {
+        self.0.child_mut::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Existing `a:lstStyle` child, or a new one in schema position.
+    pub fn get_or_insert_list_style(
+        &mut self,
+    ) -> Result<super::dml::ListStyleViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<super::dml::ListStyle>().map(super::dml::ListStyleViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:lstStyle` child.
+    pub fn remove_list_style(&mut self) -> bool {
+        self.0.remove::<super::dml::ListStyle>()
+    }
+    #[cfg(feature = "dml")]
+    /// First `a:p` child matching `pred`, mutably.
+    pub fn paragraph_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<super::dml::ParagraphViewMut<'_>> {
+        self.0
+            .child_mut_by::<super::dml::Paragraph>(pred)
+            .map(super::dml::ParagraphViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Inserts a `a:p` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_paragraph_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<super::dml::ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0
+            .insert_by::<super::dml::Paragraph>(before)
+            .map(super::dml::ParagraphViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Appends a `a:p` at the end of its slot.
+    pub fn insert_paragraph(
+        &mut self,
+    ) -> Result<super::dml::ParagraphViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<super::dml::Paragraph>().map(super::dml::ParagraphViewMut)
+    }
+    #[cfg(feature = "dml")]
+    /// Removes the first `a:p` child.
+    pub fn remove_paragraph(&mut self) -> bool {
+        self.0.remove::<super::dml::Paragraph>()
+    }
+}
 /// `a:CT_TextBody/p:txBody` — Shape Text Body.
 #[derive(Debug)]
 pub enum TextBody {}
@@ -3982,6 +4063,55 @@ impl<'a> AuthorView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`Author`]. Reads go through [`AuthorViewMut::as_view`].
+#[derive(Debug)]
+pub struct AuthorViewMut<'a>(pub ooxml_core::LensMut<'a, Author>);
+impl<'a> AuthorViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AuthorView<'_> {
+        AuthorView(self.0.as_lens())
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Author::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Author::ATTR_ID)
+    }
+    /// Sets `name` — name
+    pub fn set_name(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Author::ATTR_NAME, v)
+    }
+    /// Removes `name`.
+    pub fn remove_name(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Author::ATTR_NAME)
+    }
+    /// Sets `initials` — initials
+    pub fn set_initials(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Author::ATTR_INITIALS, v)
+    }
+    /// Removes `initials`.
+    pub fn remove_initials(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Author::ATTR_INITIALS)
+    }
+    /// Sets `userId` — userId
+    pub fn set_user_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Author::ATTR_USER_ID, v)
+    }
+    /// Removes `userId`.
+    pub fn remove_user_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Author::ATTR_USER_ID)
+    }
+    /// Sets `providerId` — providerId
+    pub fn set_provider_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(Author::ATTR_PROVIDER_ID, v)
+    }
+    /// Removes `providerId`.
+    pub fn remove_provider_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(Author::ATTR_PROVIDER_ID)
+    }
+}
 /// `p188:CT_AuthorList/p188:authorLst` — Defines the AuthorList Class.
 #[derive(Debug)]
 pub enum AuthorList {}
@@ -4012,6 +4142,37 @@ impl<'a> AuthorListView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`AuthorList`]. Reads go through [`AuthorListViewMut::as_view`].
+#[derive(Debug)]
+pub struct AuthorListViewMut<'a>(pub ooxml_core::LensMut<'a, AuthorList>);
+impl<'a> AuthorListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> AuthorListView<'_> {
+        AuthorListView(self.0.as_lens())
+    }
+    /// First `p188:author` child matching `pred`, mutably.
+    pub fn author_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<AuthorViewMut<'_>> {
+        self.0.child_mut_by::<Author>(pred).map(AuthorViewMut)
+    }
+    /// Inserts a `p188:author` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_author_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<AuthorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<Author>(before).map(AuthorViewMut)
+    }
+    /// Appends a `p188:author` at the end of its slot.
+    pub fn insert_author(&mut self) -> Result<AuthorViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<Author>().map(AuthorViewMut)
+    }
+    /// Removes the first `p188:author` child.
+    pub fn remove_author(&mut self) -> bool {
+        self.0.remove::<Author>()
     }
 }
 /// `p188:CT_Comment/p188:cm` — Defines the Comment Class.
@@ -4211,6 +4372,139 @@ impl<'a> P188CommentView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`P188Comment`]. Reads go through [`P188CommentViewMut::as_view`].
+#[derive(Debug)]
+pub struct P188CommentViewMut<'a>(pub ooxml_core::LensMut<'a, P188Comment>);
+impl<'a> P188CommentViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> P188CommentView<'_> {
+        P188CommentView(self.0.as_lens())
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_ID)
+    }
+    /// Sets `authorId` — authorId
+    pub fn set_author_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_AUTHOR_ID, v)
+    }
+    /// Removes `authorId`.
+    pub fn remove_author_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_AUTHOR_ID)
+    }
+    /// Sets `status` — status
+    pub fn set_status(&mut self, v: CommentStatus) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_STATUS, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `status`.
+    pub fn remove_status(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_STATUS)
+    }
+    /// Sets `created` — created
+    pub fn set_created(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_CREATED, v)
+    }
+    /// Removes `created`.
+    pub fn remove_created(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_CREATED)
+    }
+    /// Sets `tags` — tags
+    pub fn set_tags(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_TAGS, v)
+    }
+    /// Removes `tags`.
+    pub fn remove_tags(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_TAGS)
+    }
+    /// Sets `likes` — likes
+    pub fn set_likes(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_LIKES, v)
+    }
+    /// Removes `likes`.
+    pub fn remove_likes(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_LIKES)
+    }
+    /// Sets `startDate` — startDate
+    pub fn set_start_date(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_START_DATE, v)
+    }
+    /// Removes `startDate`.
+    pub fn remove_start_date(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_START_DATE)
+    }
+    /// Sets `dueDate` — dueDate
+    pub fn set_due_date(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_DUE_DATE, v)
+    }
+    /// Removes `dueDate`.
+    pub fn remove_due_date(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_DUE_DATE)
+    }
+    /// Sets `assignedTo` — assignedTo
+    pub fn set_assigned_to(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_ASSIGNED_TO, v)
+    }
+    /// Removes `assignedTo`.
+    pub fn remove_assigned_to(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_ASSIGNED_TO)
+    }
+    /// Sets `complete` — complete
+    pub fn set_complete(&mut self, v: i32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_i32(
+            v,
+            |s| self.0.set_attr(P188Comment::ATTR_COMPLETE, s),
+        )
+    }
+    /// Removes `complete`.
+    pub fn remove_complete(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_COMPLETE)
+    }
+    /// Sets `priority` — priority
+    pub fn set_priority(&mut self, v: u32) -> Result<(), ooxml_core::Error> {
+        ooxml_core::value::with_u32(
+            v,
+            |s| self.0.set_attr(P188Comment::ATTR_PRIORITY, s),
+        )
+    }
+    /// Removes `priority`.
+    pub fn remove_priority(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_PRIORITY)
+    }
+    /// Sets `title` — title
+    pub fn set_title(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(P188Comment::ATTR_TITLE, v)
+    }
+    /// Removes `title`.
+    pub fn remove_title(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(P188Comment::ATTR_TITLE)
+    }
+    /// First `p188:txBody` child matching `pred`, mutably.
+    pub fn text_body_type_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<TextBodyTypeViewMut<'_>> {
+        self.0.child_mut_by::<TextBodyType>(pred).map(TextBodyTypeViewMut)
+    }
+    /// Removes the first `p188:txBody` child.
+    pub fn remove_text_body_type(&mut self) -> bool {
+        self.0.remove::<TextBodyType>()
+    }
+    /// First `p188:replyLst` child matching `pred`, mutably.
+    pub fn comment_reply_list_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentReplyListViewMut<'_>> {
+        self.0.child_mut_by::<CommentReplyList>(pred).map(CommentReplyListViewMut)
+    }
+    /// Removes the first `p188:replyLst` child.
+    pub fn remove_comment_reply_list(&mut self) -> bool {
+        self.0.remove::<CommentReplyList>()
+    }
+}
 /// `p188:CT_CommentList/p188:cmLst` — Defines the CommentList Class.
 #[derive(Debug)]
 pub enum P188CommentList {}
@@ -4241,6 +4535,90 @@ impl<'a> P188CommentListView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`P188CommentList`]. Reads go through [`P188CommentListViewMut::as_view`].
+#[derive(Debug)]
+pub struct P188CommentListViewMut<'a>(pub ooxml_core::LensMut<'a, P188CommentList>);
+impl<'a> P188CommentListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> P188CommentListView<'_> {
+        P188CommentListView(self.0.as_lens())
+    }
+    /// First `p188:cm` child matching `pred`, mutably.
+    pub fn comment_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<P188CommentViewMut<'_>> {
+        self.0.child_mut_by::<P188Comment>(pred).map(P188CommentViewMut)
+    }
+    /// Inserts a `p188:cm` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<P188CommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<P188Comment>(before).map(P188CommentViewMut)
+    }
+    /// Appends a `p188:cm` at the end of its slot.
+    pub fn insert_comment(
+        &mut self,
+    ) -> Result<P188CommentViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<P188Comment>().map(P188CommentViewMut)
+    }
+    /// Removes the first `p188:cm` child.
+    pub fn remove_comment(&mut self) -> bool {
+        self.0.remove::<P188Comment>()
+    }
+}
+/// `p188:CT_CommentRelationship/p188:commentRel` — Defines the CommentRelationship Class.
+#[derive(Debug)]
+pub enum CommentRelationship {}
+impl CommentRelationship {
+    /// `r:id`
+    pub const ATTR_R_ID: ooxml_core::QName = ooxml_core::QName::new(NS_R, "id");
+}
+impl ooxml_core::ElementSpec for CommentRelationship {
+    const QNAME: ooxml_core::QName = ooxml_core::QName::new(NS_P188, "commentRel");
+    const SDK_NAME: &'static str = "p188:CT_CommentRelationship/p188:commentRel";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[
+        ooxml_core::AttrSpec {
+            name: CommentRelationship::ATTR_R_ID,
+            ty: ooxml_core::SimpleType::String,
+            default: None,
+        },
+    ];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+/// Read-only view of [`CommentRelationship`].
+#[derive(Clone, Debug)]
+pub struct CommentRelationshipView<'a>(pub ooxml_core::Lens<'a, CommentRelationship>);
+impl<'a> CommentRelationshipView<'a> {
+    /// `r:id` — id
+    pub fn id(&self) -> Option<&'a str> {
+        self.0.attr(CommentRelationship::ATTR_R_ID)
+    }
+    /// The underlying raw node.
+    pub fn raw(&self) -> &'a ooxml_core::RawNode {
+        self.0.raw()
+    }
+}
+/// Mutable view of [`CommentRelationship`]. Reads go through [`CommentRelationshipViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentRelationshipViewMut<'a>(
+    pub ooxml_core::LensMut<'a, CommentRelationship>,
+);
+impl<'a> CommentRelationshipViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentRelationshipView<'_> {
+        CommentRelationshipView(self.0.as_lens())
+    }
+    /// Sets `r:id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentRelationship::ATTR_R_ID, v)
+    }
+    /// Removes `r:id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentRelationship::ATTR_R_ID)
     }
 }
 /// `p188:CT_CommentReply/p188:reply` — Defines the CommentReply Class.
@@ -4352,6 +4730,77 @@ impl<'a> CommentReplyView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`CommentReply`]. Reads go through [`CommentReplyViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentReplyViewMut<'a>(pub ooxml_core::LensMut<'a, CommentReply>);
+impl<'a> CommentReplyViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentReplyView<'_> {
+        CommentReplyView(self.0.as_lens())
+    }
+    /// Sets `id` — id
+    pub fn set_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReply::ATTR_ID, v)
+    }
+    /// Removes `id`.
+    pub fn remove_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReply::ATTR_ID)
+    }
+    /// Sets `authorId` — authorId
+    pub fn set_author_id(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReply::ATTR_AUTHOR_ID, v)
+    }
+    /// Removes `authorId`.
+    pub fn remove_author_id(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReply::ATTR_AUTHOR_ID)
+    }
+    /// Sets `status` — status
+    pub fn set_status(&mut self, v: CommentStatus) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReply::ATTR_STATUS, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `status`.
+    pub fn remove_status(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReply::ATTR_STATUS)
+    }
+    /// Sets `created` — created
+    pub fn set_created(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReply::ATTR_CREATED, v)
+    }
+    /// Removes `created`.
+    pub fn remove_created(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReply::ATTR_CREATED)
+    }
+    /// Sets `tags` — tags
+    pub fn set_tags(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReply::ATTR_TAGS, v)
+    }
+    /// Removes `tags`.
+    pub fn remove_tags(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReply::ATTR_TAGS)
+    }
+    /// Sets `likes` — likes
+    pub fn set_likes(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(CommentReply::ATTR_LIKES, v)
+    }
+    /// Removes `likes`.
+    pub fn remove_likes(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(CommentReply::ATTR_LIKES)
+    }
+    /// First `p188:txBody` child, mutably.
+    pub fn text_body_type_mut(&mut self) -> Option<TextBodyTypeViewMut<'_>> {
+        self.0.child_mut::<TextBodyType>().map(TextBodyTypeViewMut)
+    }
+    /// Existing `p188:txBody` child, or a new one in schema position.
+    pub fn get_or_insert_text_body_type(
+        &mut self,
+    ) -> Result<TextBodyTypeViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<TextBodyType>().map(TextBodyTypeViewMut)
+    }
+    /// Removes the first `p188:txBody` child.
+    pub fn remove_text_body_type(&mut self) -> bool {
+        self.0.remove::<TextBodyType>()
+    }
+}
 /// `p188:CT_CommentReplyList/p188:replyLst` — Defines the CommentReplyList Class.
 #[derive(Debug)]
 pub enum CommentReplyList {}
@@ -4382,6 +4831,39 @@ impl<'a> CommentReplyListView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`CommentReplyList`]. Reads go through [`CommentReplyListViewMut::as_view`].
+#[derive(Debug)]
+pub struct CommentReplyListViewMut<'a>(pub ooxml_core::LensMut<'a, CommentReplyList>);
+impl<'a> CommentReplyListViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> CommentReplyListView<'_> {
+        CommentReplyListView(self.0.as_lens())
+    }
+    /// First `p188:reply` child matching `pred`, mutably.
+    pub fn comment_reply_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<CommentReplyViewMut<'_>> {
+        self.0.child_mut_by::<CommentReply>(pred).map(CommentReplyViewMut)
+    }
+    /// Inserts a `p188:reply` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_comment_reply_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<CommentReplyViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<CommentReply>(before).map(CommentReplyViewMut)
+    }
+    /// Appends a `p188:reply` at the end of its slot.
+    pub fn insert_comment_reply(
+        &mut self,
+    ) -> Result<CommentReplyViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<CommentReply>().map(CommentReplyViewMut)
+    }
+    /// Removes the first `p188:reply` child.
+    pub fn remove_comment_reply(&mut self) -> bool {
+        self.0.remove::<CommentReply>()
     }
 }
 /// `p:CT_ApplicationNonVisualDrawingProps/p:nvPr` — Application Non-Visual Drawing Properties.
@@ -7579,6 +8061,7 @@ impl ooxml_core::ElementSpec for SlideExtension {
         ],
     );
 }
+impl ooxml_core::ChildOf<SlideExtension> for CommentRelationship {}
 /// Read-only view of [`SlideExtension`].
 #[derive(Clone, Debug)]
 pub struct SlideExtensionView<'a>(pub ooxml_core::Lens<'a, SlideExtension>);
@@ -7586,6 +8069,10 @@ impl<'a> SlideExtensionView<'a> {
     /// `uri` — URI
     pub fn uri(&self) -> Option<&'a str> {
         self.0.attr(SlideExtension::ATTR_URI)
+    }
+    /// First `p188:commentRel` child.
+    pub fn comment_relationship(&self) -> Option<CommentRelationshipView<'a>> {
+        self.0.child::<CommentRelationship>().map(CommentRelationshipView)
     }
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
@@ -7607,6 +8094,22 @@ impl<'a> SlideExtensionViewMut<'a> {
     /// Removes `uri`.
     pub fn remove_uri(&mut self) -> Result<bool, ooxml_core::Error> {
         self.0.remove_attr(SlideExtension::ATTR_URI)
+    }
+    /// First `p188:commentRel` child, mutably.
+    pub fn comment_relationship_mut(
+        &mut self,
+    ) -> Option<CommentRelationshipViewMut<'_>> {
+        self.0.child_mut::<CommentRelationship>().map(CommentRelationshipViewMut)
+    }
+    /// Existing `p188:commentRel` child, or a new one in schema position.
+    pub fn get_or_insert_comment_relationship(
+        &mut self,
+    ) -> Result<CommentRelationshipViewMut<'_>, ooxml_core::Error> {
+        self.0.get_or_insert::<CommentRelationship>().map(CommentRelationshipViewMut)
+    }
+    /// Removes the first `p188:commentRel` child.
+    pub fn remove_comment_relationship(&mut self) -> bool {
+        self.0.remove::<CommentRelationship>()
     }
 }
 /// `p:CT_SlideExtensionList/p:extLst` — Defines the SlideExtensionList Class.
@@ -9789,6 +10292,7 @@ const _: () = ooxml_core::schema::assert_child::<P188Comment, TextBodyType>();
 const _: () = ooxml_core::schema::assert_child::<P188Comment, CommentReplyList>();
 const _: () = ooxml_core::schema::assert_spec::<P188CommentList>();
 const _: () = ooxml_core::schema::assert_child::<P188CommentList, P188Comment>();
+const _: () = ooxml_core::schema::assert_spec::<CommentRelationship>();
 const _: () = ooxml_core::schema::assert_spec::<CommentReply>();
 const _: () = ooxml_core::schema::assert_child::<CommentReply, TextBodyType>();
 const _: () = ooxml_core::schema::assert_spec::<CommentReplyList>();
@@ -9962,6 +10466,7 @@ const _: () = ooxml_core::schema::assert_child::<Slide, SlideExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<Slide, Timing>();
 const _: () = ooxml_core::schema::assert_child::<Slide, Transition>();
 const _: () = ooxml_core::schema::assert_spec::<SlideExtension>();
+const _: () = ooxml_core::schema::assert_child::<SlideExtension, CommentRelationship>();
 const _: () = ooxml_core::schema::assert_spec::<SlideExtensionList>();
 const _: () = ooxml_core::schema::assert_child::<SlideExtensionList, SlideExtension>();
 const _: () = ooxml_core::schema::assert_spec::<SlideIdList>();

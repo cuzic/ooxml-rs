@@ -72,6 +72,7 @@ pub struct Presentation {
     /// Table edit state that outlives one `SlideMut` (deleted `a16` ids),
     /// by slide part (ADR-0013 §2: the session is the `Presentation`).
     tables: std::collections::BTreeMap<String, crate::write::TableSession>,
+    pub(crate) comment_ids: std::collections::HashSet<String>,
 }
 
 impl Presentation {
@@ -92,7 +93,7 @@ impl Presentation {
         }
         let slides = scan_slides(&mut pkg, &main)?;
         let slide_id_high_water = slides.iter().map(|e| e.slide_id).max().unwrap_or(0);
-        Ok(Presentation { pkg, link_identity: Default::default(), slides, main, slide_id_high_water, tables: Default::default() })
+        Ok(Presentation { pkg, link_identity: Default::default(), slides, main, slide_id_high_water, tables: Default::default(), comment_ids: Default::default() })
     }
 
     /// Re-reads the slide list after a structural edit.
