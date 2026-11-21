@@ -1060,12 +1060,17 @@ struct CustomProperties {
     names: fields::CustomNames,
     /// `_MarkAsFinal` is true.
     marked_final: bool,
+    field_value: Option<(String, bool)>,
 }
 
 impl CustomProperties {
     /// Reads every part named by a package-level custom-properties
     /// relationship, transiently (they stay raw copies on save).
     fn read(pkg: &Package) -> Result<Self> {
+        Self::read_for_field(pkg, None)
+    }
+
+    fn read_for_field(pkg: &Package, field_name: Option<&str>) -> Result<Self> {
         let rels = pkg.package_relationships();
         let mut out = Self::default();
         for name in rels.by_type(CUSTOM_PROPERTIES_RELATIONSHIP).filter_map(|r| rels.resolve(r)).filter(|n| pkg.contains(n)) {
@@ -1073,10 +1078,23 @@ impl CustomProperties {
             let attr = |e: &RawNode, local| e.attr(QName::new("", local)).map(str::to_owned);
             for prop in doc.root().elements().filter(|e| e.is(QName::new(CUSTOM_PROPERTIES_NS, "property"))) {
                 let name = attr(prop, "name").unwrap_or_default();
+                let normalized = fields::normalize_name(&name);
                 if attr(prop, "linkTarget").is_some() {
-                    out.names.linked.push(fields::normalize_name(&name));
+                    out.names.linked.push(normalized.clone());
                 }
-                out.names.all.push(fields::normalize_name(&name));
+                if field_name == Some(normalized.as_str()) && out.field_value.is_none() {
+                    out.field_value = Some(prop.elements().next().map_or_default(|value| {
+                        if value.is(QName::new(
+                            "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes",
+                            "filetime",
+                        )) {
+                            (String::new(), true)
+                        } else {
+                            (value.text().into_owned(), false)
+                        }
+                    }));
+                }
+                out.names.all.push(normalized);
                 if name == "_MarkAsFinal" {
                     let value = prop.elements().next().map(|v| v.text().into_owned()).unwrap_or_default();
                     out.marked_final |= ooxml_core::value::parse_on_off(&value) == Some(true);
@@ -1088,6 +1106,15 @@ impl CustomProperties {
 }
 
 impl Document {
+    pub(crate) fn custom_field_property(&self, instruction: &str, name: &str) -> Result<Option<(String, bool)>> {
+        let custom = CustomProperties::read_for_field(&self.pkg, Some(name))?;
+        let codes = fields::refused([fields::field_key(instruction)], &custom.names, &Default::default());
+        if !codes.is_empty() {
+            return Err(Error::StaleFieldRisk { codes });
+        }
+        Ok(custom.field_value)
+    }
+
     /// Parts to scan for registry references. Content types also find glossary
     /// and auxiliary parts that are outside the public story index.
     pub(crate) fn registry_parts(&self, additional: &[&str]) -> Result<Vec<String>> {

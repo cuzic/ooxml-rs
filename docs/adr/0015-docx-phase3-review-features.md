@@ -1198,7 +1198,8 @@ Acceptance tests cover byte-local edits and byte-identical refusals.
 - For §6.1 and Open question 6, `set_date` accepts the Gregorian calendar variants
   and rejects other calendar values with `UnsupportedDateFormat`. Use
   `set_date_with_display` to supply the formatted value. Non-ASCII picture
-  characters such as `年`, `月`, and `日` are literals.
+  characters, including full-width letters such as `ｙｙｙｙ` and the date
+  separators `年`, `月`, and `日`, are literals.
 - The wrapper takes a same-paragraph `TextRange` or adjacent sibling paragraphs. It
   moves the selected elements within their existing part, preserving their spans.
   Checkbox wrapping (§6.3) preserves the selected text. Callers can select a run
@@ -1211,3 +1212,33 @@ Acceptance tests cover byte-local edits and byte-identical refusals.
   when an untracked deletion would have to promote a surviving continuation to
   the start of its vertical merge. This preserves the existing merge in the
   rejected view and avoids an orphaned continuation in the accepted view (#99 m1).
+
+### D3e implementation note (Issue #107)
+
+- §7 emits five runs in the target paragraph. All five copy the direct
+  anchor's run properties so Word has the same formatting on the field code
+  and result when it updates the field. At paragraph end, the final element
+  supplies the properties when it is a direct, unrevised run. For a standalone
+  TOC placeholder, pass the end of an empty paragraph. Paragraphs inside
+  block-level w:sdt or w:customXml are refused with UnsupportedContext.
+- The default pagination cache is 1. The caller can set a numeric cache
+  with the pagination-only insertion method. Date and time caches use the
+  local clock and the shared Gregorian picture formatter with English
+  month names.
+- DOCPROPERTY reads matching custom values first, then built-in values
+  through the package's core/extended relationships. A permitted but absent
+  built-in property has an empty cache. The built-in CREATETIME,
+  LASTSAVEDTIME, and LASTPRINTED properties and custom vt:filetime values
+  get an empty cache and a dirty begin marker for Word to format on update.
+  These properties remain W2-safe and require no session opt-in.
+- REF caches the matched bookmark's current text and refuses insertion
+  inside that bookmark with InvalidValue. PAGEREF has a question-mark
+  cache until pagination. SEQ identifiers begin with an ASCII letter and
+  contain only ASCII letters, digits, and underscores. Invalid identifiers
+  return InvalidValue. The cache counts prior completed simple and complex
+  fields with the same normalized identifier in the current story, ignoring
+  switches such as \r, \c, and \h until the field is updated.
+- Content-dependent insertion requires the session opt-in from ADR-0007
+  even when the input settings already request updates. Those fields carry
+  the dirty flag on the begin marker. Word's treatment of that flag and
+  full-width date picture letters remains unverified *(u)*.

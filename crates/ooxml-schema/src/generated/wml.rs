@@ -6297,6 +6297,42 @@ impl<'a> FieldCharView<'a> {
         self.0.raw()
     }
 }
+/// Mutable view of [`FieldChar`]. Reads go through [`FieldCharViewMut::as_view`].
+#[derive(Debug)]
+pub struct FieldCharViewMut<'a>(pub ooxml_core::LensMut<'a, FieldChar>);
+impl<'a> FieldCharViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FieldCharView<'_> {
+        FieldCharView(self.0.as_lens())
+    }
+    /// Sets `w:fldCharType` — Field Character Type
+    pub fn set_field_char_type(
+        &mut self,
+        v: FieldCharValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FieldChar::ATTR_W_FLD_CHAR_TYPE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `w:fldCharType`.
+    pub fn remove_field_char_type(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FieldChar::ATTR_W_FLD_CHAR_TYPE)
+    }
+    /// Sets `w:fldLock` — Field Should Not Be Recalculated
+    pub fn set_field_lock(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FieldChar::ATTR_W_FLD_LOCK, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:fldLock`.
+    pub fn remove_field_lock(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FieldChar::ATTR_W_FLD_LOCK)
+    }
+    /// Sets `w:dirty` — Field Result Invalidated
+    pub fn set_dirty(&mut self, v: bool) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FieldChar::ATTR_W_DIRTY, ooxml_core::value::format_bool(v))
+    }
+    /// Removes `w:dirty`.
+    pub fn remove_dirty(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FieldChar::ATTR_W_DIRTY)
+    }
+}
 /// `w:CT_Fonts/w:rFonts` — Defines the RunFonts Class.
 #[derive(Debug)]
 pub enum RunFonts {}
@@ -14229,6 +14265,30 @@ impl<'a> RunViewMut<'a> {
     pub fn remove_tab_char(&mut self) -> bool {
         self.0.remove::<TabChar>()
     }
+    /// First `w:fldChar` child matching `pred`, mutably.
+    pub fn field_char_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FieldCharViewMut<'_>> {
+        self.0.child_mut_by::<FieldChar>(pred).map(FieldCharViewMut)
+    }
+    /// Inserts a `w:fldChar` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_field_char_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FieldCharViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FieldChar>(before).map(FieldCharViewMut)
+    }
+    /// Appends a `w:fldChar` at the end of its slot.
+    pub fn insert_field_char(
+        &mut self,
+    ) -> Result<FieldCharViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FieldChar>().map(FieldCharViewMut)
+    }
+    /// Removes the first `w:fldChar` child.
+    pub fn remove_field_char(&mut self) -> bool {
+        self.0.remove::<FieldChar>()
+    }
     /// First `w:commentReference` child matching `pred`, mutably.
     pub fn comment_reference_mut_by(
         &mut self,
@@ -14300,6 +14360,30 @@ impl<'a> RunViewMut<'a> {
     /// Removes the first `w:delText` child.
     pub fn remove_deleted_text(&mut self) -> bool {
         self.0.remove::<DeletedText>()
+    }
+    /// First `w:instrText` child matching `pred`, mutably.
+    pub fn field_code_mut_by(
+        &mut self,
+        pred: impl FnMut(&ooxml_core::RawNode) -> bool,
+    ) -> Option<FieldCodeViewMut<'_>> {
+        self.0.child_mut_by::<FieldCode>(pred).map(FieldCodeViewMut)
+    }
+    /// Inserts a `w:instrText` before the first slot sibling for which `before` is true (see `LensMut::insert_by`).
+    pub fn insert_field_code_by(
+        &mut self,
+        before: impl FnMut(usize, &ooxml_core::RawNode) -> bool,
+    ) -> Result<FieldCodeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert_by::<FieldCode>(before).map(FieldCodeViewMut)
+    }
+    /// Appends a `w:instrText` at the end of its slot.
+    pub fn insert_field_code(
+        &mut self,
+    ) -> Result<FieldCodeViewMut<'_>, ooxml_core::Error> {
+        self.0.insert::<FieldCode>().map(FieldCodeViewMut)
+    }
+    /// Removes the first `w:instrText` child.
+    pub fn remove_field_code(&mut self) -> bool {
+        self.0.remove::<FieldCode>()
     }
     /// First `w:t` child matching `pred`, mutably.
     pub fn text_mut_by(
@@ -23331,6 +23415,30 @@ impl<'a> FieldCodeView<'a> {
     /// The underlying raw node.
     pub fn raw(&self) -> &'a ooxml_core::RawNode {
         self.0.raw()
+    }
+}
+/// Mutable view of [`FieldCode`]. Reads go through [`FieldCodeViewMut::as_view`].
+#[derive(Debug)]
+pub struct FieldCodeViewMut<'a>(pub ooxml_core::LensMut<'a, FieldCode>);
+impl<'a> FieldCodeViewMut<'a> {
+    /// Read-only view of the same node.
+    pub fn as_view(&self) -> FieldCodeView<'_> {
+        FieldCodeView(self.0.as_lens())
+    }
+    /// Sets `xml:space` — space
+    pub fn set_space(
+        &mut self,
+        v: SpaceProcessingModeValues,
+    ) -> Result<(), ooxml_core::Error> {
+        self.0.set_attr(FieldCode::ATTR_XML_SPACE, ooxml_core::EnumType::as_str(v))
+    }
+    /// Removes `xml:space`.
+    pub fn remove_space(&mut self) -> Result<bool, ooxml_core::Error> {
+        self.0.remove_attr(FieldCode::ATTR_XML_SPACE)
+    }
+    /// Replaces the text (sets `xml:space="preserve"` when needed).
+    pub fn set_text(&mut self, v: &str) -> Result<(), ooxml_core::Error> {
+        self.0.set_text(v)
     }
 }
 /// `w:CT_Text/w:t` — Text.

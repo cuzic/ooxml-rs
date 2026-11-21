@@ -4,6 +4,7 @@ Run with python -I and pass the manual-check output directory.
 """
 
 from pathlib import Path
+import re
 from sys import argv
 from zipfile import ZipFile
 
@@ -25,6 +26,7 @@ def check(directory):
     print("python-docx paragraph-local mc:Ignorable read-back passed")
 
     check_controls(Path(directory))
+    check_fields(Path(directory))
 
 
 def check_controls(directory):
@@ -41,6 +43,25 @@ def check_controls(directory):
         paragraphs = doc.element.xpath(".//w:p[ancestor::w:sdt or w:sdt]")
         assert ["".join(p.xpath(".//w:t/text()")) for p in paragraphs] == values, name
     print("python-docx content control read-back passed")
+
+
+def check_fields(directory):
+    cases = {
+        "43-field-page.docx": r"Page: 1",
+        "44-field-numpages.docx": r"Pages: 1",
+        "45-field-sectionpages.docx": r"Section pages: 1",
+        "46-field-date.docx": r"\(\d{4}-\d{2}-\d{2}\)",
+        "47-field-time.docx": r"\(\d{2}:\d{2}\)",
+        "48-field-docproperty.docx": r"Field property value",
+        "49-field-ref.docx": r"Reference: Reference target",
+        "50-field-pageref.docx": r"Reference page: \?",
+        "51-field-seq.docx": r"Sequence: 1",
+        "52-field-toc.docx": r"Table of contents — update this field\.",
+    }
+    for name, text in cases.items():
+        doc = read(directory / name)
+        assert re.fullmatch(text, doc.paragraphs[-1].text), name
+    print("python-docx complex field cache read-back passed")
 
 
 def read(path):

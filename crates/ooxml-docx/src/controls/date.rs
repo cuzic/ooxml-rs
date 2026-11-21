@@ -22,7 +22,7 @@ pub(super) fn format_in_calendar(
     format(date, picture, language)
 }
 
-pub(super) fn format(date: NaiveDateTime, picture: &str, language: &str) -> Result<String> {
+pub(crate) fn format(date: NaiveDateTime, picture: &str, language: &str) -> Result<String> {
     let mut remaining = picture;
     let mut display = String::new();
     while let Some(first) = remaining.chars().next() {
