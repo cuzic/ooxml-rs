@@ -114,6 +114,7 @@
   "pptx/05-group-member.pptx": {"text": ["Edited inside a group"]},
   "pptx/06-slide-outside-sections.pptx": {"text": ["(edited)"]},
   "pptx/07-stale-app-xml.pptx": {"text": ["A different title than app.xml says", "Added paragraph 0"]},
+  "pptx/08-modern-comment-shape-anchor.pptx": {"text": ["Hello, edited"]},
   "pptx/09-animated-paragraph-run-edit.pptx": {"text": ["Edited animated"]},
   "pptx/10-field-removed.pptx": {"text": ["Static text instead of the"]},
   "pptx/11-formatted-new-lines.pptx": {"text": ["Title line one", "after a line break", "Second title paragraph"]},

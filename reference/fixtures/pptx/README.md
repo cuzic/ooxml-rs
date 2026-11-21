@@ -1,9 +1,10 @@
-# PowerPoint fixtures (third-party, unmodified)
+# PowerPoint fixtures
 
-23 real `.pptx` files (2,048,535 bytes in total) used by
+24 real `.pptx` files (2,082,646 bytes in total) used by
 [ADR-0005](../../../docs/adr/0005-pptx-phase0.md) and the
-[PowerPoint roadmap](../../../docs/roadmap/pptx.md). All are copied
-**unmodified** from public test corpora; none was authored by this project.
+[PowerPoint roadmap](../../../docs/roadmap/pptx.md). The collection includes
+23 files copied **unmodified** from public test corpora and one
+[project-made file](#project-made-file-project).
 Treat them as untrusted input: inspect with `python3 -I` scripts from
 `spikes/pptx/`, never open them with a macro-capable application.
 
@@ -16,7 +17,7 @@ Licences (full texts in [`LICENSES/`](LICENSES/)):
 | `open-xml-sdk/` | [dotnet/Open-XML-SDK](https://github.com/dotnet/Open-XML-SDK) `test/DocumentFormat.OpenXml.Tests.Assets/assets/TestFiles/` (main `431ab05cf160`) | MIT, `LICENSES/open-xml-sdk-LICENSE.txt` |
 | `libreoffice/` | [LibreOffice/core](https://github.com/LibreOffice/core) `sd/qa/unit/data/pptx/` (master `2e885d0bda9b`) | MPL-2.0 (the repository's licence for these files), `LICENSES/libreoffice-MPL-2.0.txt`; the files are unmodified, so their source form is the file itself |
 
-The original authorship of individual test files (many are attachments to
+The original authorship of individual third-party test files (many are attachments to
 bug reports) was not traced beyond the repository that distributes them.
 The POI files were cross-checked against the git blob SHA-1 that the GitHub
 API reported for `test-data/slideshow/` (all 15 match).
@@ -51,6 +52,7 @@ from `spikes/pptx/survey.py` (slide parts only).
 | `libreoffice/modern-comments.pptx` | 29,789 | PowerPoint 16 | modern (p188) comments, `authors.xml`, anchors `pc:sldMk@sldId` and `ac:spMk@id`. Does not open in PowerPoint 365 16.0.20326 ("file is corrupt", unedited; issue #114) |
 | `libreoffice/airplane-transition.pptx` | 29,755 | PowerPoint 16 | `p15:prstTrans` in AC; only slide part is `slide2.xml` (part names are not `1..N`) |
 | `libreoffice/slide-sections.pptx` | 138,108 | PowerPoint 16 | 2 sections, 7 notes slides, 18 groups, 36 custom geometries, `sldId` gaps (309…404) |
+| `project/powerpoint-shape-comment.pptx` | 34,111 | PowerPoint 16 | modern comment attached to the title shape (manual check 08) |
 
 ## Checksums (SHA-256)
 
@@ -78,6 +80,7 @@ b81bda36d34258d78329187df6beb99d12bba5a3bd25e7a51506ede016a72191  open-xml-sdk/a
 0450cf856d80ea8826540cceadb2c4b13fef28b7c613fd4db657611fa804c600  libreoffice/modern-comments.pptx
 27eed094a47dfe56617061987b81520b1ae6af73f5702fd05cf656a9da64707c  libreoffice/airplane-transition.pptx
 2e2d1a6cfa6c282a2c81f92c74c704716357155741c9ed0abd9815aeac684369  libreoffice/slide-sections.pptx
+af9e92f61c8418360a97b214ba3aa914bfe8f326cfd08d983e7aa1588a2d6d01  project/powerpoint-shape-comment.pptx
 ```
 
 Verify with `sha256sum -c` after extracting the block above, run from this

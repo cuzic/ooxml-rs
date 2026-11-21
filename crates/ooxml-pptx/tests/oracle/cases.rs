@@ -20,7 +20,7 @@ pub fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../reference/fixtures/pptx")
 }
 
-/// The 23 committed fixtures (reference/fixtures/pptx/README.md).
+/// The 24 committed fixtures (reference/fixtures/pptx/README.md).
 pub const FIXTURES: &[&str] = &[
     "poi/sample.pptx",
     "poi/layouts.pptx",
@@ -45,6 +45,7 @@ pub const FIXTURES: &[&str] = &[
     "libreoffice/modern-comments.pptx",
     "libreoffice/airplane-transition.pptx",
     "libreoffice/slide-sections.pptx",
+    "project/powerpoint-shape-comment.pptx",
 ];
 
 pub fn read_fixture(rel: &str) -> Vec<u8> {
