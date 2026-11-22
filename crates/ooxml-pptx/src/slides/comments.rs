@@ -769,6 +769,98 @@ mod tests {
         assert_eq!(deck.to_bytes().unwrap(), before);
     }
 
+    fn patch_xml(deck: &mut Presentation, part: &str, old: &str, new: &str) {
+        let xml = String::from_utf8(deck.pkg.read_part(part).unwrap()).unwrap();
+        assert!(xml.contains(old), "{part} is missing {old}");
+        deck.pkg
+            .set_part(part, xml.replacen(old, new, 1).into_bytes())
+            .unwrap();
+        *deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn local_author_reused_with_different_user_id() {
+        // SYNTHETIC: signed-out author stored with a different userId.
+        let mut deck = open("project/powerpoint-shape-comment.pptx");
+        let part = "ppt/authors.xml";
+        patch_xml(
+            &mut deck,
+            part,
+            r#"userId="Ada Lovelace""#,
+            r#"userId="Anonymous_X""#,
+        );
+        let before = deck.pkg.read_part(part).unwrap();
+
+        deck.add_comment(0, CommentAnchor::Slide, comment())
+            .unwrap();
+
+        assert_eq!(deck.pkg.read_part(part).unwrap(), before);
+        let view = deck.deck().unwrap();
+        let comments = view.slide(0).unwrap().comments().unwrap();
+        assert_eq!(comments[0].author, comments[1].author);
+    }
+
+    #[test]
+    fn author_without_provider_is_never_reused() {
+        // SYNTHETIC: an existing author in LibreOffice's provider-less form.
+        for identity in [
+            AuthorIdentity::Local,
+            AuthorIdentity::Account {
+                user_id: "Ada Lovelace".into(),
+                provider_id: "AD".into(),
+            },
+        ] {
+            let mut deck = open("project/powerpoint-shape-comment.pptx");
+            patch_xml(&mut deck, "ppt/authors.xml", r#" providerId="None""#, "");
+            let mut new = comment();
+            new.author.identity = identity;
+            deck.add_comment(0, CommentAnchor::Slide, new).unwrap();
+
+            let view = deck.deck().unwrap();
+            let comments = view.slide(0).unwrap().comments().unwrap();
+            assert_ne!(
+                comments[0].author.as_ref().unwrap().id,
+                comments[1].author.as_ref().unwrap().id,
+            );
+        }
+    }
+
+    #[test]
+    fn new_part_name_uses_uppercase_hex_for_both_ids() {
+        let mut deck = open("poi/sample.pptx");
+        let main = deck.main.clone();
+        patch_xml(
+            &mut deck,
+            &main,
+            r#"<p:sldId id="256""#,
+            r#"<p:sldId id="431""#,
+        );
+        let source = deck.slides[0].part.clone().unwrap();
+        patch_xml(
+            &mut deck,
+            &source,
+            "</p:cSld>",
+            &format!(
+                r#"<p:extLst><p:ext uri="{CREATION_EXT}"><p14:creationId xmlns:p14="{P14_NS}" val="2748"/></p:ext></p:extLst></p:cSld>"#
+            ),
+        );
+
+        deck.add_comment(0, CommentAnchor::Slide, comment())
+            .unwrap();
+
+        assert_eq!(
+            target(
+                &deck.pkg,
+                &source,
+                MODERN_COMMENTS_REL,
+                CommentPart::Threads
+            )
+            .unwrap()
+            .as_deref(),
+            Some("ppt/comments/modernComment_1AF_ABC.xml"),
+        );
+    }
+
     #[test]
     fn new_comment_round_trip_and_locality() {
         let mut deck = open("poi/sample.pptx");
@@ -793,6 +885,21 @@ mod tests {
         assert_eq!(entry.author.unwrap().initials, Some("AL"));
         let input = Presentation::from_bytes(before).unwrap();
         let source = input.slides[0].part.as_deref().unwrap();
+        let slide_xml = output.pkg.read_part(source).unwrap();
+        let declaration = format!(r#"xmlns:p14="{P14_NS}""#);
+        let creation = format!("<p14:creationId {declaration} val=\"");
+        assert!(
+            slide_xml
+                .windows(creation.len())
+                .any(|bytes| bytes == creation.as_bytes())
+        );
+        assert_eq!(
+            slide_xml
+                .windows(declaration.len())
+                .filter(|bytes| *bytes == declaration.as_bytes())
+                .count(),
+            1,
+        );
         let rels = ooxml_core::opc::rels_part_name(Some(source));
         let main_rels = ooxml_core::opc::rels_part_name(Some(&input.main));
         for part in input.pkg.part_names() {
@@ -947,6 +1054,11 @@ mod tests {
         let mut deck = open("poi/sample.pptx");
         refuses(
             &mut deck,
+            |e| assert_matches!(e, Error::SlideIndexOutOfRange { index: 2, count: 2 }),
+            |d| d.add_comment(2, CommentAnchor::Slide, comment()),
+        );
+        refuses(
+            &mut deck,
             |e| assert_matches!(e, Error::ShapeNotFound),
             |d| d.add_comment(0, CommentAnchor::Shape(u32::MAX), comment()),
         );
@@ -955,7 +1067,7 @@ mod tests {
             |e| assert_matches!(e, Error::Random(_)),
             |d| d.add_comment_with_random(0, CommentAnchor::Slide, comment(), |_| Ok(())),
         );
-        let invalid: [(NewComment, fn(Error)); 5] = [
+        let invalid: [(NewComment, fn(Error)); 6] = [
             (
                 NewComment {
                     text: "".into(),
@@ -980,6 +1092,14 @@ mod tests {
             (
                 NewComment {
                     created: Some(UNIX_EPOCH - Duration::from_secs(1)),
+                    ..comment()
+                },
+                |e| assert_matches!(e, Error::InvalidCommentTime),
+            ),
+            (
+                NewComment {
+                    // 10000-01-01T00:00:00Z.
+                    created: Some(UNIX_EPOCH + Duration::from_secs(253_402_300_800)),
                     ..comment()
                 },
                 |e| assert_matches!(e, Error::InvalidCommentTime),
@@ -1069,6 +1189,252 @@ mod tests {
             |e| assert_matches!(e, Error::UnsupportedContent(_)),
             |d| d.add_comment(0, CommentAnchor::Slide, comment()),
         );
+    }
+
+    #[test]
+    fn invalid_slide_creation_ids_are_refused_atomically() {
+        let mut converted = open("project/powerpoint-mixed-deck-resaved.pptx");
+        refuses(
+            &mut converted,
+            |e| assert_matches!(e, Error::UnsupportedContent(reason) if reason == "missing slide p14:creationId for existing comments part"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+
+        let mut misplaced = open("poi/sample.pptx");
+        let source = misplaced.slides[0].part.clone().unwrap();
+        patch_xml(
+            &mut misplaced,
+            &source,
+            "</p:cSld>",
+            &format!(r#"<p14:creationId xmlns:p14="{P14_NS}" val="1"/></p:cSld>"#),
+        );
+        refuses(
+            &mut misplaced,
+            |e| assert_matches!(e, Error::UnsupportedContent(reason) if reason == "invalid slide p14:creationId extension"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+
+        let mut exhausted = open("poi/sample.pptx");
+        let other = exhausted.slides[1].part.clone().unwrap();
+        patch_xml(
+            &mut exhausted,
+            &other,
+            "</p:cSld>",
+            &format!(
+                r#"<p:extLst><p:ext uri="{CREATION_EXT}"><p14:creationId xmlns:p14="{P14_NS}" val="4294967295"/></p:ext></p:extLst></p:cSld>"#
+            ),
+        );
+        refuses(
+            &mut exhausted,
+            |e| assert_matches!(e, Error::CreationIdsExhausted),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+    }
+
+    #[test]
+    fn comment_relationship_refusals_are_atomic() {
+        let mut orphan_extension = open("poi/sample.pptx");
+        let source = orphan_extension.slides[0].part.clone().unwrap();
+        patch_xml(
+            &mut orphan_extension,
+            &source,
+            "</p:sld>",
+            &format!(r#"<p:extLst><p:ext uri="{COMMENT_EXT}"/></p:extLst></p:sld>"#),
+        );
+        refuses(
+            &mut orphan_extension,
+            |e| assert_matches!(e, Error::CommentPartNotEditable { reason, .. } if reason == "comment extension without a relationship"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+
+        for (link_slide, reason) in [
+            (1, "ambiguous part ownership"),
+            (0, "multiple relationships"),
+        ] {
+            let mut deck = open("poi/sample.pptx");
+            deck.add_comment(0, CommentAnchor::Slide, comment())
+                .unwrap();
+            let source = deck.slides[0].part.as_deref().unwrap();
+            let part = target(&deck.pkg, source, MODERN_COMMENTS_REL, CommentPart::Threads)
+                .unwrap()
+                .unwrap();
+            deck.pkg
+                .add_relationship(
+                    deck.slides[link_slide].part.as_deref(),
+                    MODERN_COMMENTS_REL,
+                    Target::Part(part),
+                )
+                .unwrap();
+            refuses(
+                &mut deck,
+                |e| assert_matches!(e, Error::CommentPartNotEditable { reason: actual, .. } if actual == reason),
+                |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+            );
+        }
+    }
+
+    #[test]
+    fn occupied_comment_part_name_is_refused_atomically() {
+        // SYNTHETIC: a preexisting unrelated part has the selected OPC name.
+        let mut deck = open("poi/sample.pptx");
+        deck.pkg
+            .add_part(
+                PartNameRequest::Exact("ppt/comments/modernComment_100_1.xml".into()),
+                "application/xml",
+                b"<unrelated/>".to_vec(),
+            )
+            .unwrap();
+        refuses(
+            &mut deck,
+            |e| {
+                assert_matches!(
+                    e,
+                    Error::Core(ooxml_core::Error::RegistryRefused {
+                        reason: ooxml_core::RegistryRefusal::NameInUse { .. },
+                        ..
+                    })
+                )
+            },
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+    }
+
+    #[test]
+    fn invalid_comment_namespace_is_refused_atomically() {
+        let mut deck = open("project/powerpoint-shape-comment.pptx");
+        let source = deck.slides[0].part.as_deref().unwrap();
+        let part = target(&deck.pkg, source, MODERN_COMMENTS_REL, CommentPart::Threads)
+            .unwrap()
+            .unwrap();
+        patch_xml(
+            &mut deck,
+            &part,
+            "<p188:cmLst ",
+            r#"<p188:cmLst xmlns:ac="urn:conflict" "#,
+        );
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::CommentPartNotEditable { reason, .. } if reason == "conflicting namespace prefix ac"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+    }
+
+    #[test]
+    fn authors_part_refusals_are_atomic() {
+        let part = "ppt/authors.xml";
+        let mut deck = open("project/powerpoint-shape-comment.pptx");
+        patch_xml(
+            &mut deck,
+            part,
+            "/></p188:authorLst>",
+            &format!(
+                r#"><mc:AlternateContent xmlns:mc="{MC_NS}"/></p188:author></p188:authorLst>"#
+            ),
+        );
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::AuthorsPartNotEditable { reason, .. } if reason == "AlternateContent in list"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+
+        let mut deck = open("project/powerpoint-shape-comment.pptx");
+        deck.pkg.set_part(part, b"<".to_vec()).unwrap();
+        let mut deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::AuthorsPartNotEditable { reason, .. } if reason.starts_with("id scan:")),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+
+        let mut deck = open("project/powerpoint-shape-comment.pptx");
+        deck.pkg
+            .add_relationship(Some(&deck.main), AUTHORS_REL, Target::Part(part.into()))
+            .unwrap();
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::AuthorsPartNotEditable { reason, .. } if reason == "multiple relationships"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+    }
+
+    #[test]
+    fn invalid_shape_anchors_are_refused_atomically() {
+        let cases: [(&str, fn(Error)); 3] = [
+            (
+                r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="p"><p:sp><p:nvSpPr><p:cNvPr id="42" name="Wrapped"/></p:nvSpPr></p:sp></mc:Choice></mc:AlternateContent>"#,
+                |e| assert_matches!(e, Error::InsideAlternateContent),
+            ),
+            (
+                r#"<p:sp><p:nvSpPr><p:cNvPr id="42" name="First"/></p:nvSpPr></p:sp><p:sp><p:nvSpPr><p:cNvPr id="42" name="Second"/></p:nvSpPr></p:sp>"#,
+                |e| assert_matches!(e, Error::AmbiguousShapeId { id: 42 }),
+            ),
+            (
+                r#"<p:contentPart r:id="rId99"><p:nvContentPartPr><p:cNvPr id="42" name="Unsupported"/></p:nvContentPartPr></p:contentPart>"#,
+                |e| assert_matches!(e, Error::UnsupportedCommentAnchor(kind) if kind == "contentPart"),
+            ),
+        ];
+        for (fragment, check) in cases {
+            let mut deck = open("poi/sample.pptx");
+            let source = deck.slides[0].part.clone().unwrap();
+            patch_xml(
+                &mut deck,
+                &source,
+                "</p:spTree>",
+                &format!("{fragment}</p:spTree>"),
+            );
+            refuses(&mut deck, check, |d| {
+                d.add_comment(0, CommentAnchor::Shape(42), comment())
+            });
+        }
+    }
+
+    #[test]
+    fn delete_slide_skips_unreadable_comment_parts_and_reserves_removed_ids() {
+        let mut deck = open("poi/sample.pptx");
+        let mut draw = 0;
+        let removed_id = deck
+            .add_comment_with_random(0, CommentAnchor::Slide, comment(), |bytes| {
+                draw += 1;
+                bytes.fill(draw);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            removed_id.as_str(),
+            "{02020202-0202-4202-8202-020202020202}"
+        );
+        let first = deck.slides[0].part.as_deref().unwrap();
+        let removed_part = target(&deck.pkg, first, MODERN_COMMENTS_REL, CommentPart::Threads)
+            .unwrap()
+            .unwrap();
+
+        deck.add_comment(1, CommentAnchor::Slide, comment())
+            .unwrap();
+        let second = deck.slides[1].part.as_deref().unwrap();
+        let unreadable = target(&deck.pkg, second, MODERN_COMMENTS_REL, CommentPart::Threads)
+            .unwrap()
+            .unwrap();
+        let valid = deck.pkg.xml_part(&unreadable).unwrap().clone();
+        deck.pkg.set_part(&unreadable, b"<".to_vec()).unwrap();
+        // Reopen so the removed GUID is only present in the part on disk.
+        let mut deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+
+        deck.delete_slide(0).unwrap();
+
+        assert_eq!(deck.slide_count(), 1);
+        assert!(!deck.pkg.part_names().any(|part| part == removed_part));
+        assert_eq!(deck.pkg.read_part(&unreadable).unwrap(), b"<");
+        let mut plan = RegistryPlan::new(&deck.pkg);
+        plan.stage_part(&deck.pkg, &unreadable, valid).unwrap();
+        deck.pkg.apply(plan).unwrap();
+        let new_id = deck
+            .add_comment_with_random(0, CommentAnchor::Slide, comment(), |bytes| {
+                bytes.fill(draw);
+                draw += 1;
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(new_id.as_str(), "{03030303-0303-4303-8303-030303030303}");
     }
 
     #[test]
