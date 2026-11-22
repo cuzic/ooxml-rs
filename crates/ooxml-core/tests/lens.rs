@@ -117,11 +117,11 @@ fn unlisted_children_never_decide_position_and_wildcards_rank() {
 }
 
 #[test]
-fn alternate_content_sibling_refuses_insertion() {
-    let mut d = doc(
-        r#"<p xmlns="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:AlternateContent/></p>"#,
-    );
+fn malformed_alternate_content_sibling_refuses_insertion() {
+    let source = r#"<p xmlns="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:AlternateContent/></p>"#;
+    let mut d = doc(source);
     assert_matches!(d.lens_mut::<P>().unwrap().insert::<Item>(), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), source);
 }
 
 #[test]
@@ -330,7 +330,9 @@ fn insert_at_places_at_the_index_with_local_checks() {
     assert!(!d.is_dirty());
     let mut d = doc(r#"<p xmlns="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><item/><mc:AlternateContent/></p>"#);
     assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Item>(1), Err(Error::UnresolvedSibling(_)));
-    assert!(d.lens_mut::<P>().unwrap().insert_at::<Item>(0).is_ok(), "the nearest listed neighbour of index 0 is the item, not the AC");
+    let before = d.serialize();
+    assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Item>(0), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), before);
     let mut d = doc(r#"<p xmlns="urn:t"><head/></p>"#);
     assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Head>(1), Err(Error::AlreadyPresent(_)));
     assert!(!d.is_dirty());
@@ -350,6 +352,7 @@ impl ElementSpec for W {
     const CONTENT: Content = Content::Empty;
 }
 impl ChildOf<Q> for W {}
+impl ChildOf<P> for W {}
 
 /// Review F1: ambiguous neighbours (a QName in two slots) are accepted only
 /// if every reading is in order; review F4 (M16): the inserted QName itself
@@ -372,9 +375,8 @@ fn insert_at_with_ambiguous_neighbours() {
     assert_matches!(d.lens_mut::<Tbl>().unwrap().check_insert_at::<Mark>(0), Err(Error::AmbiguousSlot(_)));
 }
 
-/// Review F2/F3, F4 (M6, M7, M15): limits are counted like `insert_by`
-/// (greedy assignment, AC anywhere refuses), each limit separately; an AC
-/// beyond the nearest preceding listed neighbour is not a neighbour.
+/// Limits use the greedy assignment. Malformed ACs anywhere in the parent
+/// prevent placement, including in unlimited slots (ADR-0020 §4.3).
 #[test]
 fn insert_at_limits_and_far_alternate_content() {
     let mc = r#"xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006""#;
@@ -389,10 +391,11 @@ fn insert_at_limits_and_far_alternate_content() {
     let src = format!(r#"<p xmlns="urn:t" {mc}><a/><mc:AlternateContent/><item/></p>"#);
     let mut d = doc(&src);
     assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<A>(0), Err(Error::UnresolvedSibling(_)));
-    // ... but an unlimited slot only looks at its nearest listed neighbours
+    assert_eq!(d.serialize(), src);
     let src = format!(r#"<p xmlns="urn:t" {mc}><mc:AlternateContent/><item/></p>"#);
     let mut d = doc(&src);
-    d.lens_mut::<P>().unwrap().insert_at::<Item>(2).unwrap();
+    assert_matches!(d.lens_mut::<P>().unwrap().insert_at::<Item>(2), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), src);
 }
 
 /// Review F4 (M8, M11, M12, M13): dirty duties, depth limit and namespace
@@ -521,4 +524,247 @@ fn bulk_removal_preserves_surrounding_spans() {
 
     assert!(doc.lens_mut::<P>().unwrap().remove_range(1..6));
     assert_eq!(doc.serialize().as_bytes(), b"<p xmlns='urn:t'><head/><!-- keep --><item k='7'/></p>");
+}
+
+const AC_OPEN: &str = r#"<p xmlns="urn:t" xmlns:t="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">"#;
+
+fn ac_doc(body: &str) -> (XmlDocument, String) {
+    let source = format!("{AC_OPEN}{body}</p>");
+    (doc(&source), source)
+}
+
+fn wrapping(choice: &str, fallback: Option<&str>) -> String {
+    let fallback = fallback.map_or_default(|body| format!("<mc:Fallback>{body}</mc:Fallback>"));
+    format!(r#"<mc:AlternateContent><mc:Choice Requires="t">{choice}</mc:Choice>{fallback}</mc:AlternateContent>"#)
+}
+
+#[test]
+fn alternate_content_interval_boundaries_and_locality() {
+    // Both configurations occupy [1, 3]; inserting in 0, at 1, or after 3
+    // preserves the AC's exact bytes, including the whitespace after it.
+    for ac in [wrapping("<a/><ext/>", Some("")), wrapping("<a/>", Some("<ext/>"))] {
+        let (mut d, _) = ac_doc(&format!("{ac}<!--keep-->"));
+        d.lens_mut::<P>().unwrap().insert::<Head>().unwrap();
+        assert_eq!(d.serialize(), format!("{AC_OPEN}<head/>{ac}<!--keep--></p>"));
+        let (mut d, _) = ac_doc(&format!("{ac}<!--keep-->"));
+        d.lens_mut::<P>().unwrap().insert::<B>().unwrap();
+        assert_eq!(d.serialize(), format!("{AC_OPEN}<b/>{ac}<!--keep--></p>"));
+        let (mut d, before) = ac_doc(&ac);
+        let mut p = d.lens_mut::<P>().unwrap();
+        assert_matches!(p.check_insert::<Item>(), Err(Error::UnresolvedSibling(_)));
+        assert_matches!(p.insert::<Item>(), Err(Error::UnresolvedSibling(_)));
+        assert_eq!(d.serialize(), before);
+        let (mut d, _) = ac_doc(&ac);
+        d.lens_mut::<P>().unwrap().insert_with_ns::<W>(&[ooxml_core::NsDecl::new("o", "urn:o")]).unwrap();
+        assert_eq!(names(&d), ["AlternateContent", "w"]);
+    }
+}
+
+#[test]
+fn alternate_content_leading_unlisted_extends_interval_to_previous_sibling() {
+    let ac = wrapping("<unknown/><ext/>", None);
+    let (mut d, source) = ac_doc(&format!("<head/>{ac}"));
+    assert_matches!(d.lens_mut::<P>().unwrap().insert::<Item>(), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), source);
+
+    let (mut d, source) = ac_doc(&ac);
+    assert_matches!(d.lens_mut::<P>().unwrap().insert::<Head>(), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), source);
+}
+
+#[test]
+fn alternate_content_position_modes() {
+    for ac in [wrapping("<item/>", None), wrapping("", Some(""))] {
+        let (mut d, source) = ac_doc(&format!("<item/>{ac}<item/>"));
+        let mut p = d.lens_mut::<P>().unwrap();
+        assert_matches!(p.check_insert_by::<Item>(|_, _| true), Err(Error::UnresolvedSibling(_)));
+        assert_matches!(p.insert_by::<Item>(|_, _| true), Err(Error::UnresolvedSibling(_)));
+        assert_matches!(p.check_insert_in_slot::<Item>(2, |_, _| false), Err(Error::UnresolvedSibling(_)));
+        assert_matches!(p.insert_in_slot::<Item>(2, |_, _| false), Err(Error::UnresolvedSibling(_)));
+        for index in 0..=3 {
+            assert_matches!(p.check_insert_at::<Item>(index), Err(Error::UnresolvedSibling(_)));
+            assert_matches!(p.insert_at::<Item>(index), Err(Error::UnresolvedSibling(_)));
+        }
+        assert_eq!(d.serialize(), source);
+        let mut p = d.lens_mut::<P>().unwrap();
+        p.check_insert::<Item>().unwrap();
+        p.insert::<Item>().unwrap();
+        assert_eq!(d.serialize(), format!("{AC_OPEN}<item/>{ac}<item/><item/></p>"));
+    }
+
+    let ac = wrapping("<head/>", None);
+    let (mut d, _) = ac_doc(&format!("{ac}<item/>"));
+    let mut p = d.lens_mut::<P>().unwrap();
+    p.check_insert_at::<Item>(1).unwrap();
+    p.insert_at::<Item>(1).unwrap();
+    p.insert_by::<Item>(|i, _| i == 0).unwrap();
+    assert_eq!(d.serialize(), format!("{AC_OPEN}{ac}<item/><item/><item/></p>"));
+}
+
+#[test]
+fn alternate_content_limits_use_each_branches_maximum_recursively() {
+    let nested = wrapping("<a/><b/>", None);
+    let ac = wrapping("<a/>", Some(&nested));
+    let (mut d, source) = ac_doc(&ac);
+    let mut p = d.lens_mut::<P>().unwrap();
+    assert_matches!(p.check_get_or_insert::<B>(), Err(Error::AlreadyPresent(_)));
+    assert_matches!(p.get_or_insert::<B>(), Err(Error::AlreadyPresent(_)));
+    assert_eq!(d.serialize(), source);
+
+    let ac = wrapping("<a/>", Some("<b/>"));
+    let (mut d, _) = ac_doc(&ac);
+    d.lens_mut::<P>().unwrap().insert::<A>().unwrap();
+    assert_eq!(d.serialize(), format!("{AC_OPEN}{ac}<a/></p>"));
+
+    let ac = wrapping("", Some("<head/>"));
+    let (mut d, source) = ac_doc(&ac);
+    assert_matches!(d.lens_mut::<P>().unwrap().get_or_insert::<Head>(), Err(Error::AlreadyPresent(_)));
+    assert_eq!(d.serialize(), source);
+}
+
+#[test]
+fn alternate_content_validates_every_choice_and_branch() {
+    let empty_ac = wrapping("", None);
+    for branches in [
+        String::new(),
+        "<mc:Fallback/>".into(),
+        r#"<mc:Choice Requires="t"/><mc:Fallback/><mc:Fallback/>"#.into(),
+        r#"<mc:Fallback/><mc:Choice Requires="t"/>"#.into(),
+        r#"<mc:Choice Requires="t"/><item/>"#.into(),
+        r#"<mc:Choice><item/></mc:Choice>"#.into(),
+        r#"<mc:Choice Requires="   "><item/></mc:Choice>"#.into(),
+        r#"<mc:Choice Requires="t missing"><item/></mc:Choice>"#.into(),
+        r#"<mc:Choice Requires="t" xmlns:sibling="urn:s"/><mc:Choice Requires="sibling"/>"#.into(),
+        r#"<mc:Choice Requires="t"><unknown/></mc:Choice>"#.into(),
+        format!(r#"<mc:Choice Requires="t">{empty_ac}</mc:Choice>"#),
+        r#"<mc:Choice Requires="t"><ext/><a/></mc:Choice>"#.into(),
+    ] {
+        let ac = format!("<mc:AlternateContent>{branches}</mc:AlternateContent>");
+        let (mut d, before) = ac_doc(&ac);
+        let mut p = d.lens_mut::<P>().unwrap();
+        assert_matches!(p.insert::<Head>(), Err(Error::UnresolvedSibling(_)), "{branches}");
+        assert_matches!(p.insert_by::<Head>(|_, _| false), Err(Error::UnresolvedSibling(_)), "{branches}");
+        // Positional insertion checks branch shape and also the greedy order.
+        assert_matches!(p.insert_at::<Head>(0), Err(Error::UnresolvedSibling(_)), "{branches}");
+        assert_eq!(d.serialize(), before);
+    }
+
+    let ac = r#"<mc:AlternateContent xmlns:outer="urn:outer"><mc:Choice Requires="outer local" xmlns:local="urn:local"><item/></mc:Choice></mc:AlternateContent>"#;
+    let (mut d, _) = ac_doc(ac);
+    d.lens_mut::<P>().unwrap().insert::<Head>().unwrap();
+    assert_eq!(d.serialize(), format!("{AC_OPEN}<head/>{ac}</p>"));
+}
+
+#[test]
+fn alternate_content_greedy_slots_and_conservative_positional_neighbours() {
+    let ac = wrapping("<mark/>", None);
+    let mc = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+    let before = format!(r#"<tbl xmlns="urn:t" xmlns:t="urn:t" xmlns:mc="{mc}">{ac}<pr/></tbl>"#);
+    let mut d = doc(&before);
+    let mut t = d.lens_mut::<Tbl>().unwrap();
+    // The greedy rank is 0, but the candidates for the AC are 0 and 2.
+    assert_matches!(t.insert_at::<Row>(2), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), before);
+    d.lens_mut::<Tbl>().unwrap().insert::<Row>().unwrap();
+    assert_eq!(names(&d), ["AlternateContent", "pr", "row"]);
+
+    let (mut d, before) = ac_doc(&format!("{}{}", wrapping("<ext/>", Some("")), wrapping("", Some("<a/>"))));
+    assert_matches!(d.lens_mut::<P>().unwrap().insert::<Head>(), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), before);
+}
+
+#[test]
+fn alternate_content_placement_agrees_with_expanding_each_branch() {
+    // Independent schema model for the test sequences below. This checks the
+    // actual output (including the placement chosen by the lens) after
+    // substituting each possible Choice or Fallback, recursively.
+    fn valid(parent: &ooxml_core::RawNode) -> bool {
+        fn expand(parent: &ooxml_core::RawNode) -> Vec<Vec<usize>> {
+            let mut prefixes = vec![vec![]];
+            for member in parent.elements() {
+                let alternatives = if member.is(ooxml_core::name::MC_ALTERNATE_CONTENT) {
+                    let mut branches: Vec<_> = member.elements().flat_map(expand).collect();
+                    if member.elements().all(|branch| branch.name().local() != "Fallback") {
+                        branches.push(vec![]);
+                    }
+                    branches
+                } else {
+                    let rank = match member.name().local() {
+                        "head" => 0,
+                        "a" | "b" => 1,
+                        "item" => 2,
+                        "ext" => 3,
+                        name => panic!("unexpected member {name}"),
+                    };
+                    vec![vec![rank]]
+                };
+                prefixes = prefixes.into_iter().flat_map(|prefix| {
+                    alternatives.iter().map(move |branch| [prefix.as_slice(), branch].concat())
+                }).collect();
+            }
+            prefixes
+        }
+        expand(parent).iter().all(|ranks| {
+            ranks.is_sorted() && [(0, 1), (1, 2), (3, 1)].iter().all(|&(slot, max)| {
+                ranks.iter().filter(|&&r| r == slot).count() <= max
+            })
+        })
+    }
+
+    fn exercise<C: ChildOf<P>>(parts: &[&str], new: &str, positional_refused: bool) {
+        let (_, source) = ac_doc(&parts.concat());
+        let possible_at: Vec<_> = (0..=parts.len()).filter(|&index| {
+            let (expanded, _) = ac_doc(&format!("{}{new}{}", parts[..index].concat(), parts[index..].concat()));
+            valid(expanded.root())
+        }).collect();
+
+        let mut d = doc(&source);
+        let mut parent = d.lens_mut::<P>().unwrap();
+        let preflight = parent.check_insert::<C>();
+        assert_eq!(parent.insert::<C>().is_ok(), preflight.is_ok());
+        assert_eq!(preflight.is_ok(), !possible_at.is_empty(), "{source}");
+        if preflight.is_ok() {
+            assert!(valid(d.root()), "{}", d.serialize());
+        } else {
+            assert_eq!(d.serialize(), source);
+        }
+
+        for index in 0..=parts.len() {
+            let mut d = doc(&source);
+            let mut parent = d.lens_mut::<P>().unwrap();
+            let preflight = parent.check_insert_at::<C>(index);
+            let result = parent.insert_at::<C>(index);
+            assert_eq!(result.is_ok(), preflight.is_ok());
+            assert_eq!(result.is_ok(), !positional_refused && possible_at.contains(&index));
+            if result.is_ok() {
+                assert!(valid(d.root()), "{}", d.serialize());
+            } else {
+                assert_eq!(d.serialize(), source);
+            }
+        }
+
+        let mut d = doc(&source);
+        let mut parent = d.lens_mut::<P>().unwrap();
+        let preflight = parent.check_insert_by::<C>(|_, _| true);
+        assert_eq!(parent.insert_by::<C>(|_, _| true).is_ok(), preflight.is_ok());
+        assert_eq!(preflight.is_ok(), !positional_refused && !possible_at.is_empty());
+        if preflight.is_ok() {
+            assert!(valid(d.root()), "{}", d.serialize());
+        } else {
+            assert_eq!(d.serialize(), source);
+        }
+    }
+
+    let spanning = wrapping("<a/><item/>", Some(""));
+    let split = wrapping("<a/>", Some("<ext/>"));
+    let nested = wrapping(&wrapping("<item/>", Some("")), None);
+    let empty = wrapping("", Some(""));
+    exercise::<Head>(&[&spanning], "<head/>", false);
+    exercise::<B>(&[&spanning], "<b/>", true); // lo
+    exercise::<Item>(&[&spanning], "<item/>", true); // hi
+    exercise::<Ext>(&[&spanning], "<ext/>", false);
+    exercise::<Item>(&[&split], "<item/>", true); // straddle
+    exercise::<Item>(&["<head/>", &nested, "<ext/>"], "<item/>", true);
+    exercise::<Item>(&["<head/>", &empty, "<ext/>"], "<item/>", true);
+    exercise::<Head>(&["<head/>", &nested], "<head/>", false);
 }

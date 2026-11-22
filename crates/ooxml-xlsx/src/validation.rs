@@ -230,7 +230,7 @@ impl Workbook {
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             match ws.child_mut::<sml::DataValidations>() {
                 Some(d) => d.check_insert::<sml::DataValidation>()?,
-                None => ws.check_insert_by::<sml::DataValidations>(|_, _| false)?,
+                None => ws.check_insert::<sml::DataValidations>()?,
             }
         }
         let v = v.clone();

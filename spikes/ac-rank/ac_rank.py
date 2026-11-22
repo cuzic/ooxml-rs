@@ -356,11 +356,11 @@ class Stats:
         self.files[key].add(f)
 
 
-def walk(root, fmt, fname, st, G, scope):
+def walk(root, fmt, fname, st, G, scope, check_pair=None):
     specs, childof, _, prefix_of = G
     sh = lambda q: short(q, prefix_of)
 
-    def visit(el, spec):
+    def visit(el, spec, path):
         acs = [ch for ch in el if isinstance(ch.tag, str) and ch.tag == AC]
         if acs:
             pq = sh(el.tag)
@@ -376,23 +376,24 @@ def walk(root, fmt, fname, st, G, scope):
             for a in acs:
                 ac_stats(a, fmt, fname, pq, slots, st, sh, scope, el)
             if slots is not None:
-                pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs)
-        for ch in el:
-            if isinstance(ch.tag, str):
-                if ch.tag == AC:
-                    visit_branches(ch, spec)
-                else:
-                    visit(ch, resolve(G, ch.tag, spec))
+                pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs, path, check_pair)
+        for i, child in enumerate(elements(el)):
+            child_path = (*path, i)
+            if child.tag == AC:
+                visit_branches(child, spec, child_path)
+            else:
+                visit(child, resolve(G, child.tag, spec), child_path)
 
-    def visit_branches(ac, spec):
-        for b in elements(ac):
-            for m in elements(b):
-                if m.tag == AC:
-                    visit_branches(m, spec)
+    def visit_branches(ac, spec, path):
+        for i, branch in enumerate(elements(ac)):
+            for j, member in enumerate(elements(branch)):
+                member_path = (*path, i, j)
+                if member.tag == AC:
+                    visit_branches(member, spec, member_path)
                 else:
-                    visit(m, resolve(G, m.tag, spec))
+                    visit(member, resolve(G, member.tag, spec), member_path)
 
-    visit(root, resolve(G, root.tag, None))
+    visit(root, resolve(G, root.tag, None), ())
 
 
 def cur_before(parent, a, slots, scope):
@@ -469,7 +470,7 @@ def ac_stats(a, fmt, fname, pq, slots, st, sh, scope, parent):
         st.add("%s ac_single_rank" % fmt, fname)
 
 
-def pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs):
+def pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs, path, check_pair):
     specs, childof, _, _ = G
     slots = specs[spec]["slots"]
     reqs = [frozenset((c.get("Requires") or "").split()) for a in acs for c in elements(a) if c.tag == CHOICE]
@@ -491,6 +492,8 @@ def pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs):
             st.add("%s wildcard_parent_pair_%s" % (fmt, out), fname)
             st.pairs[(fmt, pq, "(any typed child)")][out] += 1
             continue
+        if check_pair is not None:
+            check_pair(path, spec, c, out, same_slot_ac)
         st.add("%s pair_total" % fmt, fname)
         st.add("%s pair_%s" % (fmt, out), fname)
         st.pairs[(fmt, pq, sh(q))][out] += 1
@@ -528,7 +531,7 @@ def parse_with_scope(data):
     return root, scope
 
 
-def scan(path, fmt, st, G, seen):
+def scan(path, fmt, st, G, seen, part_checker=None):
     try:
         raw = open(path, "rb").read()
     except OSError:
@@ -568,7 +571,8 @@ def scan(path, fmt, st, G, seen):
         if not any(e.tag == AC for e in root.iter()):
             continue
         st.add("%s packages_with_ac" % fmt, fname)
-        walk(root, fmt, fname, st, G, scope)
+        check_pair = part_checker(data, fmt, fname, n) if part_checker is not None else None
+        walk(root, fmt, fname, st, G, scope, check_pair)
 
 
 def main():

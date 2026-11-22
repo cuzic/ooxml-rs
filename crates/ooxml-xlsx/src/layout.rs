@@ -10,7 +10,7 @@ use ooxml_schema::sml;
 use crate::error::{Error, Result};
 use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
 use crate::workbook::Workbook;
-use crate::worksheet::Worksheet;
+use crate::worksheet::{Worksheet, refuse_alternate_content};
 
 const fn q(local: &'static str) -> QName {
     QName::new("", local)
@@ -206,7 +206,7 @@ impl Workbook {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             match (has_views, item) {
-                (false, _) => ws.check_insert_by::<sml::SheetViews>(|_, _| false)?,
+                (false, _) => ws.check_insert::<sml::SheetViews>()?,
                 (true, None) => ws.child_mut::<sml::SheetViews>().expect("present").check_insert::<sml::SheetViewElement>()?,
                 (true, Some(_)) => {}
             }
@@ -563,6 +563,12 @@ impl Workbook {
                 None => Op::Append(col),
             });
         }
+        // A split or insertion depends on the positions of every column.
+        if let Some(cols) = ws.child::<sml::Columns>()
+            && ops.iter().any(|op| !matches!(op, Op::Edit(_)))
+        {
+            refuse_alternate_content(cols.raw(), sml::Columns::QNAME)?;
+        }
         let outline = match edit {
             ColEdit::Outline(l) => Some(l),
             _ => None,
@@ -571,10 +577,10 @@ impl Workbook {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if ws.child_mut::<sml::Columns>().is_none() {
-                ws.check_insert_by::<sml::Columns>(|_, _| false)?;
+                ws.check_insert::<sml::Columns>()?;
             }
             if outline.is_some_and(|l| l > 0) && ws.child_mut::<sml::SheetFormatProperties>().is_none() {
-                ws.check_insert_by::<sml::SheetFormatProperties>(|_, _| false)?;
+                ws.check_insert::<sml::SheetFormatProperties>()?;
             }
         }
         // ---- apply ----
@@ -641,12 +647,12 @@ impl Workbook {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if !has_sd {
-                ws.check_insert_by::<sml::SheetData>(|_, _| false)?;
+                ws.check_insert::<sml::SheetData>()?;
             } else if loc.row.is_none() {
                 ws.child_mut::<sml::SheetData>().expect("indexed").check_insert_at::<sml::Row>(loc.row_insert_at)?;
             }
             if matches!(edit, RowEdit::Outline(l) if l > 0) && ws.child_mut::<sml::SheetFormatProperties>().is_none() {
-                ws.check_insert_by::<sml::SheetFormatProperties>(|_, _| false)?;
+                ws.check_insert::<sml::SheetFormatProperties>()?;
             }
         }
         self.poisoning(|wb| {
@@ -790,7 +796,7 @@ impl Workbook {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if ws.child_mut::<E>().is_none() {
-                ws.check_insert_by::<E>(|_, _| false)?;
+                ws.check_insert::<E>()?;
             }
         }
         self.poisoning(|wb| {
@@ -820,10 +826,10 @@ impl Worksheet<'_> {
             match ws.child_mut::<sml::SheetProperties>() {
                 Some(mut pr) => {
                     if pr.child_mut::<sml::PageSetupProperties>().is_none() && fit {
-                        pr.check_insert_by::<sml::PageSetupProperties>(|_, _| false)?;
+                        pr.check_insert::<sml::PageSetupProperties>()?;
                     }
                 }
-                None if fit => ws.check_insert_by::<sml::SheetProperties>(|_, _| false)?,
+                None if fit => ws.check_insert::<sml::SheetProperties>()?,
                 None => {}
             }
         }
@@ -960,14 +966,21 @@ impl Worksheet<'_> {
         sml::Break: ooxml_core::ChildOf<E>,
     {
         let part = self.wb.sheet_part_of(self.sheet);
-        let exists = {
+        {
             let doc = self.wb.pkg.xml_part(&part)?;
             let ws = doc.lens::<sml::Worksheet>()?;
-            ws.raw().elements().filter(|e| e.is(E::QNAME)).flat_map(|c| c.elements()).any(|b| b.is(sml::Break::QNAME) && b.attr(q("id")).and_then(|v| v.trim().parse::<u32>().ok()) == Some(id))
-        };
-        if exists {
-            self.wb.check_editable()?;
-            return Ok(false);
+            let groups = || ws.raw().elements().filter(|e| e.is(E::QNAME));
+            let exists = groups().flat_map(|c| c.elements()).any(|b| {
+                b.is(sml::Break::QNAME) && b.attr(q("id")).and_then(|v| v.trim().parse::<u32>().ok()) == Some(id)
+            });
+            if exists {
+                self.wb.check_editable()?;
+                return Ok(false);
+            }
+            if let Some(group) = groups().next() {
+                // The insertion index and counts are computed from direct breaks.
+                refuse_alternate_content(group, E::QNAME)?;
+            }
         }
         self.wb.edit_sheet_child::<E>(self.sheet, |c| {
             let pos = c

@@ -188,7 +188,7 @@ impl<E: ElementSpec> LensMut<'_, E> {
         from: &MoveSource<impl SameType<C>>,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<()> {
-        self.plan_move::<C>(from.path(), before).map(|_| ())
+        self.plan_move::<C>(from.path(), super::InsertPosition::Before(before)).map(|_| ())
     }
 
     /// Moves the element `from` (and its subtree) into this element, in
@@ -236,7 +236,15 @@ impl<E: ElementSpec> LensMut<'_, E> {
         from: &MoveSource<impl SameType<C>>,
         before: impl FnMut(usize, &RawNode) -> bool,
     ) -> Result<LensMut<'_, C>> {
-        let plan = self.plan_move::<C>(from.path(), before)?;
+        self.move_with_placement::<C>(from.path(), super::InsertPosition::Before(before))
+    }
+
+    fn move_with_placement<C: ChildOf<E>>(
+        &mut self,
+        from: &[usize],
+        position: super::InsertPosition<impl FnMut(usize, &RawNode) -> bool>,
+    ) -> Result<LensMut<'_, C>> {
+        let plan = self.plan_move::<C>(from, position)?;
         let parent = super::node_at_mut(self.root, &plan.src_parent);
         let RawItem::Element(node) = parent.remove_child(plan.src_index) else { unreachable!("validated element") };
         mark(self.root, &plan.src_parent);
@@ -252,10 +260,10 @@ impl<E: ElementSpec> LensMut<'_, E> {
 
     /// [`Self::move_in_by`] to the end of `C`'s slot.
     pub fn move_in<C: ChildOf<E>>(&mut self, from: &MoveSource<impl SameType<C>>) -> Result<LensMut<'_, C>> {
-        self.move_in_by::<C>(from, |_, _| false)
+        self.move_with_placement::<C>(from.path(), super::APPEND)
     }
 
-    fn plan_move<C: ChildOf<E>>(&self, from: &[usize], before: impl FnMut(usize, &RawNode) -> bool) -> Result<MovePlan> {
+    fn plan_move<C: ChildOf<E>>(&self, from: &[usize], position: super::InsertPosition<impl FnMut(usize, &RawNode) -> bool>) -> Result<MovePlan> {
         let Some((&src_index, src_parent)) = from.split_last() else {
             return Err(refused(MoveRefusal::Root, &C::QNAME.to_string()));
         };
@@ -288,7 +296,7 @@ impl<E: ElementSpec> LensMut<'_, E> {
         };
         let same_parent = src_parent == self.path.as_slice();
         let skip = same_parent.then_some(src_index);
-        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, before, skip)?;
+        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, position, skip)?;
         let dst_index = match skip {
             Some(s) if s < index => index - 1,
             _ => index,

@@ -435,6 +435,7 @@ impl<'a> Model<'a> {
         };
         // ---- overrides ----
         let mut set_content: Option<&Vec<SlotOverride>> = None;
+        let mut wrapped = BTreeSet::new();
         for o in self.overrides_for(name) {
             match o {
                 Override::AddAttribute { name: q, ty, default, .. } => {
@@ -500,9 +501,8 @@ impl<'a> Model<'a> {
                     }
                 }
                 Override::MceWrapped { children, .. } => {
-                    if let Some(p) = particle.as_mut() {
-                        remove_elements(p, children);
-                    }
+                    // The raw QName stays in the slot so it can rank an AC.
+                    wrapped.extend(children.iter());
                 }
                 Override::SetContent { slots, .. } => set_content = Some(slots),
                 Override::AddEnumValue { .. } => {}
@@ -554,6 +554,7 @@ impl<'a> Model<'a> {
                 }
             }
         }
+        child_names.retain(|child| !wrapped.contains(child));
         Some(Entry {
             name: name.to_owned(),
             file: at.0,
@@ -579,13 +580,6 @@ fn names_of(p: &Particle) -> BTreeSet<String> {
     let mut s = BTreeSet::new();
     lower::all_names(p, &mut s);
     s
-}
-
-fn remove_elements(p: &mut Particle, names: &[String]) {
-    p.items.retain(|i| !(i.kind.as_deref().unwrap_or("Element") == "Element" && i.name.as_ref().is_some_and(|n| names.contains(n))));
-    for i in &mut p.items {
-        remove_elements(i, names);
-    }
 }
 
 fn slot_from_override(s: &SlotOverride) -> LSlot {
@@ -681,8 +675,8 @@ mod tests {
 
             [[override]]
             op = "mce_wrapped"
-            parent = "x:CT_Worksheet/x:worksheet"
-            children = ["x:CT_LegacyDrawing/x:legacyDrawing"]
+            parent = "x:CT_Workbook/x:workbook"
+            children = ["x15ac:CT_AbsolutePath/x15ac:absPath"]
             reason = "only seen inside mc:AlternateContent"
             evidence = "test"
             "#,
@@ -700,8 +694,10 @@ mod tests {
         assert!(row.attrs.iter().any(|a| a.local == "uid" && a.prefix == "xr"));
         let at = m.enums_by_type["x:ST_CellType"];
         assert!(m.enum_values(at).iter().any(|(v, _)| v == "future"));
-        let ws = m.resolve("x:CT_Worksheet/x:worksheet", &mut d).unwrap();
-        assert!(!ws.child_names.contains("x:CT_LegacyDrawing/x:legacyDrawing"));
+        let wb = m.resolve("x:CT_Workbook/x:workbook", &mut d).unwrap();
+        assert!(!wb.child_names.contains("x15ac:CT_AbsolutePath/x15ac:absPath"));
+        let ContentModel::Slots(slots) = &wb.content else { panic!("expected workbook slots") };
+        assert!(slots.iter().any(|slot| slot.names.iter().any(|(name, _)| name == "x15ac:absPath")));
         assert!(d.lines.iter().all(|l| !l.starts_with("OverrideError")), "{:?}", d.lines);
     }
 

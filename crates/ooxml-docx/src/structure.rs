@@ -621,6 +621,10 @@ impl Document {
         // index the new run will have among the paragraph's runs
         let (slot_k, new_run) = {
             let p_node = p.raw();
+            // The position counts element children across slots (ADR-0020 §4.4).
+            if p_node.elements().any(|n| n.is(ooxml_core::name::MC_ALTERNATE_CONTENT)) {
+                return Err(ooxml_core::Error::UnresolvedSibling(P::QNAME).into());
+            }
             let k = after_item.map(|a| p_node.indexed_elements().filter(|(i, e)| *i <= a && !is::<ParagraphProperties>(e)).count());
             let runs_before = p
                 .runs()

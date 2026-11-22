@@ -379,7 +379,7 @@ impl<E: ElementSpec> LensMut<'_, E> {
         if self.path.len() + 1 + d.height > self.max_depth {
             return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
-        let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
+        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, super::InsertPosition::Before(before), None)?;
         d.check_destination(self.root, &self.path)?;
         let node = d.root.clone();
         let parent = self.node_mut();

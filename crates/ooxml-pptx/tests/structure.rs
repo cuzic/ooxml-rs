@@ -1166,3 +1166,18 @@ fn custom_shows_naming_the_slide_by_another_rid_refuse() {
     assert_matches!(p.delete_slide(0), Err(Error::SlideInCustomShow));
     assert_eq!(p.to_bytes().unwrap(), unchanged(&src));
 }
+
+#[test]
+fn positioned_slide_add_and_move_refuse_same_slot_alternate_content() {
+    const PART: &str = "ppt/presentation.xml";
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="p"><p:sldId id="999"/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let src = patch(&fixture("poi/sample.pptx"), PART, |xml| xml.replacen("</p:sldIdLst>", &format!("{ac}</p:sldIdLst>"), 1));
+    let before = unchanged(&src);
+    let mut p = Presentation::from_bytes(src).unwrap();
+    let layout = layout(&mut p, "Title and Content");
+    assert_matches!(p.add_slide(&layout, Some(1)), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(p.to_bytes().unwrap(), before);
+    assert_matches!(p.move_slide(0, 1), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(p.to_bytes().unwrap(), before);
+}

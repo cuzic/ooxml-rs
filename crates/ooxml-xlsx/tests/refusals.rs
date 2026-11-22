@@ -102,7 +102,8 @@ fn with_sheet(xml: &str) -> Vec<u8> {
 /// P0-R9 (adapted: a missing `dimension` is never inserted, coordinator
 /// default): a worksheet with an `mc:AlternateContent` child and no
 /// `dimension` is writable; one that also lacks `sheetData` needs an
-/// insertion next to the AC → `UnresolvedSibling`, nothing changed.
+/// insertion next to the AC. The Choice's unbound Requires prefix
+/// makes that insertion fail with `UnresolvedSibling`.
 #[test]
 fn r9_alternate_content_sibling() {
     let ac = "<mc:AlternateContent><mc:Choice Requires=\"x14\"><controls/></mc:Choice></mc:AlternateContent>";
@@ -114,6 +115,7 @@ fn r9_alternate_content_sibling() {
     let bad = with_sheet(&format!("{WS_OPEN}{ac}</worksheet>"));
     let (wb, r) = apply(&bad, a1("B2"), &W::Num(1.0));
     assert_matches!(r, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(bad).unwrap().to_bytes().unwrap());
     assert_eq!(wb.package().state("xl/worksheets/sheet1.xml"), Some(PartStateKind::Parsed { dirty: false }));
 }
 

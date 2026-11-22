@@ -641,3 +641,38 @@ fn insert_column_copies_width_and_format_from_the_left() {
     assert_eq!(w_new, w1, "width from the left column");
     assert!(grid(&s1)[6][2].1.contains("<a:tcPr marL=\"12345\"/>"), "{}", grid(&s1)[6][2].1);
 }
+
+#[test]
+fn indexed_table_edits_refuse_same_slot_alternate_content() {
+    let ac = |child: &str| {
+        format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a">{child}</mc:Choice></mc:AlternateContent>"#,
+                ooxml_core::name::MC_NS)
+    };
+    type Edit = fn(&mut TableMut<'_>) -> Result<(), Error>;
+    let cases: [(&str, &str, Edit); 3] = [
+        ("</a:tbl>", r#"<a:tr h="10"/>"#, |t| t.insert_row(0)),
+        ("</a:tblGrid>", r#"<a:gridCol w="10"/>"#, |t| t.insert_column(0)),
+        ("</a:tr>", "<a:tc/>", |t| t.insert_column(0)),
+    ];
+    for (close, child, op) in cases {
+        let input = patch(&fixture(TT2), SLIDE, |xml| xml.replacen(close, &format!("{}{close}", ac(child)), 1));
+        let (result, output) = edit(&input, op);
+        assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))), "{close}");
+        assert_eq!(output, unchanged(&input));
+    }
+}
+
+#[test]
+fn table_merge_move_dry_run_refuses_same_slot_alternate_content() {
+    let input = patch(&fixture(TT2), SLIDE, |xml| {
+        let i = xml.find("<a:tbl>").unwrap();
+        let j = i + xml[i..].find("</a:tbl>").unwrap() + 8;
+        let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a"><a:p/></mc:Choice></mc:AlternateContent>"#,
+                         ooxml_core::name::MC_NS);
+        format!(r#"{}<a:tbl><a:tblGrid><a:gridCol w="100"/><a:gridCol w="100"/></a:tblGrid><a:tr h="10"><a:tc><a:txBody><a:bodyPr/><a:p/>{ac}</a:txBody></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>moved</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl>{}"#,
+                &xml[..i], &xml[j..])
+    });
+    let (result, output) = edit(&input, |t| t.merge(0, 0, 0, 1));
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(output, unchanged(&input));
+}

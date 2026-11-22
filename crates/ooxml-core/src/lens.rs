@@ -22,6 +22,9 @@ use std::marker::PhantomData;
 
 use std::sync::Arc;
 
+mod alternate_content;
+use alternate_content::{AlternateRanks, Interval, RankAssignment, candidate_interval};
+
 mod move_subtree;
 
 pub use move_subtree::MoveSource;
@@ -465,6 +468,15 @@ struct Placement {
     index: usize,
 }
 
+enum InsertPosition<F> {
+    Append,
+    Before(F),
+    At(usize),
+}
+
+type BeforeSibling = fn(usize, &RawNode) -> bool;
+const APPEND: InsertPosition<BeforeSibling> = InsertPosition::Append;
+
 /// A namespace declaration requested for an element created by one of the
 /// `*_with_ns` inserts (ADR-0002 post-acceptance note, "namespace
 /// declarations on created elements").
@@ -705,31 +717,35 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             .collect()
     }
 
-    /// Greedy left-to-right slot assignment of the existing children
-    /// (ADR-0002 §4.1) and the insertion point for a `q` child in `slot`.
-    fn place(
-        &self,
-        slots: &[Slot],
-        slot: usize,
-        q: QName,
-        before: impl FnMut(usize, &RawNode) -> bool,
-    ) -> Result<Placement> {
-        self.place_skipping(slots, slot, q, before, None)
-    }
-
-    /// [`Self::place`] as if the child item at `skip` were absent (a child
-    /// being moved within the same parent); the returned index is still in
-    /// the current coordinates.
+    /// Greedy slot assignment with the moved child at `skip` omitted.
+    /// The insertion index uses the original child coordinates.
     fn place_skipping(
         &self,
         slots: &[Slot],
         slot: usize,
         q: QName,
-        mut before: impl FnMut(usize, &RawNode) -> bool,
+        mut position: InsertPosition<impl FnMut(usize, &RawNode) -> bool>,
         skip: Option<usize>,
     ) -> Result<Placement> {
         let node = self.node();
-        let mut cur = 0usize;
+        let mut cur = None;
+        let ranks = AlternateRanks { root: self.root, slots, target: slot, name: q, parent: E::QNAME };
+        let mut path = None;
+        let mut left: Option<Interval> = None;
+        let mut right: Option<Interval> = None;
+        let requested_index = match position {
+            InsertPosition::At(index) => Some(index),
+            _ => None,
+        };
+        let mut record_neighbour = |i, interval| {
+            if let (Some(index), Some(interval)) = (requested_index, interval) {
+                if i < index {
+                    left = Some(interval);
+                } else {
+                    right.get_or_insert(interval);
+                }
+            }
+        };
         let (mut same_q, mut same_slot, mut k) = (0u32, 0u32, 0usize);
         let mut at = None;
         for (i, child) in node.indexed_elements() {
@@ -737,20 +753,50 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 continue;
             }
             if child.is(MC_ALTERNATE_CONTENT) {
-                return Err(Error::UnresolvedSibling(E::QNAME));
+                let path = path.get_or_insert_with(|| self.path.clone());
+                path.push(i);
+                let interval = ranks.read::<E>(child, path, RankAssignment::Greedy(cur))?;
+                let positional_interval = if requested_index.is_some() {
+                    ranks.read::<E>(child, path, RankAssignment::AllCandidates)?
+                } else {
+                    interval
+                };
+                path.pop();
+                if !matches!(position, InsertPosition::Append) && positional_interval.is_none_or(|r| r.contains(slot)) {
+                    return Err(Error::UnresolvedSibling(E::QNAME));
+                }
+                record_neighbour(i, positional_interval);
+                if let Some(r) = interval {
+                    if r.hi > slot {
+                        if r.lo < Some(slot) {
+                            return Err(Error::UnresolvedSibling(E::QNAME));
+                        }
+                        at.get_or_insert(i);
+                    }
+                    cur = Some(r.hi);
+                    same_q += r.same_q;
+                    same_slot += r.same_slot;
+                }
+                continue;
             }
             let cands = Self::candidates(slots, &child.name);
+            if requested_index.is_some() {
+                record_neighbour(i, candidate_interval(&cands));
+            }
             if cands.is_empty() {
                 continue; // unlisted: attached to the listed sibling before it
             }
-            let Some(&rank) = cands.iter().find(|&&r| r >= cur) else {
+            let Some(&rank) = cands.iter().find(|&&r| Some(r) >= cur) else {
                 return Err(Error::UnresolvedSibling(E::QNAME));
             };
-            cur = rank;
+            cur = Some(rank);
             if rank == slot {
                 same_slot += 1;
                 same_q += u32::from(child.is(q));
-                if at.is_none() && before(k, child) {
+                if at.is_none()
+                    && let InsertPosition::Before(before) = &mut position
+                    && before(k, child)
+                {
                     at = Some(i);
                 }
                 k += 1;
@@ -758,11 +804,14 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 at = Some(i);
             }
         }
+        if left.is_some_and(|r| r.hi > slot) || right.is_some_and(|r| r.lo < Some(slot)) {
+            return Err(Error::UnresolvedSibling(E::QNAME));
+        }
         let s = slots[slot];
         if s.max_each.is_some_and(|m| same_q >= m) || s.max_total.is_some_and(|m| same_slot >= m) {
             return Err(Error::AlreadyPresent(q));
         }
-        Ok(Placement { index: at.unwrap_or(node.children().len()) })
+        Ok(Placement { index: requested_index.or(at).unwrap_or(node.children().len()) })
     }
 
     /// The bindings `decls` add under this node: (prefix, uri) for every
@@ -792,7 +841,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     fn plan_insert<C: ElementSpec>(
         &self,
         slot: usize,
-        before: impl FnMut(usize, &RawNode) -> bool,
+        position: InsertPosition<impl FnMut(usize, &RawNode) -> bool>,
         decls: &[NsDecl<'_>],
     ) -> Result<InsertPlan> {
         // The request is checked first, so a bad `NsDecl` fails whatever the
@@ -805,7 +854,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
         let slots = self.slots()?;
-        let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
+        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, position, None)?;
         let (name, declarations) = self.plan_name::<C>(decls)?;
         Ok(InsertPlan { index, name, declarations })
     }
@@ -832,10 +881,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     fn insert_at_slot<C: ElementSpec>(
         &mut self,
         slot: usize,
-        before: impl FnMut(usize, &RawNode) -> bool,
+        position: InsertPosition<impl FnMut(usize, &RawNode) -> bool>,
         decls: &[NsDecl<'_>],
     ) -> Result<LensMut<'_, C>> {
-        let InsertPlan { index, name, declarations } = self.plan_insert::<C>(slot, before, decls)?;
+        let InsertPlan { index, name, declarations } = self.plan_insert::<C>(slot, position, decls)?;
         let parent = self.node_mut();
         if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
             parent.mark_own_dirty(); // self-closing parent gains its first child
@@ -870,12 +919,14 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     /// Inserts a new `C` into its slot. `before(index_in_slot, existing)` is
     /// called on the slot's existing children in document order; the new node
     /// goes before the first one for which it returns `true`, else before the
-    /// first child of a higher-ranked slot, else at the end.
+    /// first child of a higher-ranked slot, else at the end. An
+    /// `mc:AlternateContent` sibling in the target slot, including one
+    /// whose branches are all empty, prevents positional placement.
     ///
     /// Errors: [`Error::AlreadyPresent`] (slot limit),
     /// [`Error::AmbiguousSlot`] (QName in two slots — use
     /// [`Self::insert_in_slot`]), [`Error::UnresolvedSibling`]
-    /// (`mc:AlternateContent` sibling or out-of-order children),
+    /// (unsafe placement next to `mc:AlternateContent` or out-of-order children),
     /// [`Error::UnsupportedContentModel`], [`Error::NamespaceNotInScope`]
     /// (use [`Self::insert_by_with_ns`] to declare it), [`Error::TooDeep`].
     pub fn insert_by<C: ChildOf<E>>(&mut self, before: impl FnMut(usize, &RawNode) -> bool) -> Result<LensMut<'_, C>> {
@@ -893,32 +944,27 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         decls: &[NsDecl<'_>],
     ) -> Result<LensMut<'_, C>> {
         let slot = self.unique_slot::<C>()?;
-        self.insert_at_slot::<C>(slot, before, decls)
+        self.insert_at_slot::<C>(slot, InsertPosition::Before(before), decls)
     }
 
     /// Inserts a new `C` child at child item index `index` (an index into
     /// [`RawNode::children`], `0..=len`), for callers that already know the
     /// position among same-slot siblings (e.g. from their own row index).
-    /// For a slot **without limits** the checks look only at the nearest
-    /// listed neighbours (plus any unlisted children between them), so the
-    /// cost is O(1) apart from the `Vec` insertion — where [`Self::insert_by`]
-    /// scans every child. A slot with limits is counted over all children,
-    /// as `insert_by` does.
+    /// With an unlimited slot and no AlternateContent, only the nearest
+    /// listed neighbours are checked, skipping unlisted children. Every
+    /// candidate slot of the preceding neighbour must be at or below
+    /// `C`'s slot, and every candidate of the following one at or above it.
+    /// Limited slots also check the order and counts across the parent.
     ///
-    /// Schema order is checked **locally**: every slot the nearest listed
-    /// element before `index` could belong to must not come after `C`'s, every
-    /// slot of the nearest listed element after it must not come before
-    /// `C`'s (so an ambiguous neighbour such as a name listed in two slots is
-    /// refused unless every reading is in order: use `insert_by` or
-    /// `insert_in_slot` there), and neither may be an `mc:AlternateContent`
-    /// ([`Error::UnresolvedSibling`]). Disorder elsewhere in the parent is not
-    /// examined (where `insert_by` refuses the whole parent). Slot limits are
-    /// enforced exactly as by `insert_by` ([`Error::AlreadyPresent`]; an
-    /// `mc:AlternateContent` anywhere then refuses). Unlisted
-    /// children are skipped, as in `insert_by`. The caller owns the order
-    /// within the slot. Dirty duties, depth limit and prefix choice are those
-    /// of `insert_by`. [`Self::check_insert_at`] runs the same checks without
-    /// changing anything.
+    /// A parent with AlternateContent is scanned in full. A malformed
+    /// or unranked sibling, one that can be in the target slot, or an
+    /// all-empty one yields [`Error::UnresolvedSibling`]. An
+    /// AlternateContent neighbour contributes the bounds across all
+    /// candidate slots of its branches.
+    ///
+    /// The caller owns the order within the slot. Dirty duties, depth
+    /// limit and prefix choice are those of `insert_by`.
+    /// [`Self::check_insert_at`] runs the same checks without changing anything.
     pub fn insert_at<C: ChildOf<E>>(&mut self, index: usize) -> Result<LensMut<'_, C>> {
         self.insert_at_with_ns::<C>(index, &[])
     }
@@ -969,55 +1015,42 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
             [] => return Err(Error::NotAllowed { parent: E::QNAME, child: C::QNAME }),
             _ => return Err(Error::AmbiguousSlot(C::QNAME)),
         };
-        let children = self.node().children();
-        let listed = |n: &RawNode| -> Result<Option<Vec<usize>>> {
-            if n.is(MC_ALTERNATE_CONTENT) {
+        let parent = self.node();
+        let children = parent.children();
+        let has_ac = parent.may_have_alternate_content();
+        debug_assert!(has_ac || !parent.elements().any(|n| n.is(MC_ALTERNATE_CONTENT)));
+
+        if has_ac {
+            // Validate the entire parent and its conservative nearest ranks in
+            // a single walk. Even a distant malformed or same-slot AC refuses.
+            self.place_skipping(slots, slot, C::QNAME, InsertPosition::<BeforeSibling>::At(index), None)?;
+        } else {
+            let listed = |item: &RawItem| {
+                let n = item.as_element()?;
+                candidate_interval(&Self::candidates(slots, &n.name))
+            };
+            let left = children[..index].iter().rev().find_map(listed);
+            let right = children[index..].iter().find_map(listed);
+            if left.is_some_and(|r| r.hi > slot) || right.is_some_and(|r| r.lo < Some(slot)) {
                 return Err(Error::UnresolvedSibling(E::QNAME));
             }
-            let c = Self::candidates(slots, &n.name);
-            Ok((!c.is_empty()).then_some(c))
-        };
-        for item in children[..index].iter().rev() {
-            if let Some(n) = item.as_element()
-                && let Some(c) = listed(n)?
-            {
-                // every candidate: an ambiguous neighbour's actual slot depends
-                // on the greedy assignment of the children before it (review F1)
-                if !c.iter().all(|&r| r <= slot) {
-                    return Err(Error::UnresolvedSibling(E::QNAME));
-                }
-                break;
+            // Unlimited slots keep the local check. Limited slots count all children.
+            let s = slots[slot];
+            if s.max_each.is_some() || s.max_total.is_some() {
+                self.place_skipping(slots, slot, C::QNAME, APPEND, None)?;
             }
-        }
-        for item in &children[index..] {
-            if let Some(n) = item.as_element()
-                && let Some(c) = listed(n)?
-            {
-                if !c.iter().all(|&r| r >= slot) {
-                    return Err(Error::UnresolvedSibling(E::QNAME));
-                }
-                break;
-            }
-        }
-        // A slot with limits is counted exactly as `insert_by` counts it: the
-        // full greedy assignment, which also refuses an `mc:AlternateContent`
-        // anywhere in the parent (reviews F2, F3). O(children); unlimited
-        // slots (rows, cells) never take this path.
-        let s = slots[slot];
-        if s.max_each.is_some() || s.max_total.is_some() {
-            self.place(slots, slot, C::QNAME, |_, _| false)?;
         }
         self.plan_name::<C>(decls)
     }
 
-    /// `insert_by` that never returns `true`: append at the end of the slot.
+    /// Append at the end of the slot.
     pub fn insert<C: ChildOf<E>>(&mut self) -> Result<LensMut<'_, C>> {
-        self.insert_by::<C>(|_, _| false)
+        self.insert_with_ns::<C>(&[])
     }
 
     /// [`Self::insert`] with namespace declarations ([`Self::insert_by_with_ns`]).
     pub fn insert_with_ns<C: ChildOf<E>>(&mut self, decls: &[NsDecl<'_>]) -> Result<LensMut<'_, C>> {
-        self.insert_by_with_ns::<C>(|_, _| false, decls)
+        self.insert_at_slot::<C>(self.unique_slot::<C>()?, APPEND, decls)
     }
 
     /// As [`Self::insert_by`], with the slot index given explicitly (needed
@@ -1038,7 +1071,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         decls: &[NsDecl<'_>],
     ) -> Result<LensMut<'_, C>> {
         let slot = self.given_slot::<C>(slot)?;
-        self.insert_at_slot::<C>(slot, before, decls)
+        self.insert_at_slot::<C>(slot, InsertPosition::Before(before), decls)
     }
 
     /// The first existing `C` child, or a newly inserted one. The normal path
@@ -1084,18 +1117,18 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         decls: &[NsDecl<'_>],
     ) -> Result<Vec<(String, String)>> {
         let slot = self.unique_slot::<C>()?;
-        self.plan_insert::<C>(slot, before, decls).map(|p| plain(p.declarations))
+        self.plan_insert::<C>(slot, InsertPosition::Before(before), decls).map(|p| plain(p.declarations))
     }
 
     /// `Ok(())` exactly when [`Self::insert`] would succeed.
     pub fn check_insert<C: ChildOf<E>>(&self) -> Result<()> {
-        self.check_insert_by::<C>(|_, _| false)
+        self.check_insert_with_ns::<C>(&[]).map(drop)
     }
 
     /// `Ok` exactly when [`Self::insert_with_ns`] would succeed, with the
     /// declarations it would write ([`Self::check_insert_by_with_ns`]).
     pub fn check_insert_with_ns<C: ChildOf<E>>(&self, decls: &[NsDecl<'_>]) -> Result<Vec<(String, String)>> {
-        self.check_insert_by_with_ns::<C>(|_, _| false, decls)
+        self.plan_insert::<C>(self.unique_slot::<C>()?, APPEND, decls).map(|p| plain(p.declarations))
     }
 
     /// `Ok(())` exactly when [`Self::insert_in_slot`] would succeed.
@@ -1112,7 +1145,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         decls: &[NsDecl<'_>],
     ) -> Result<Vec<(String, String)>> {
         let slot = self.given_slot::<C>(slot)?;
-        self.plan_insert::<C>(slot, before, decls).map(|p| plain(p.declarations))
+        self.plan_insert::<C>(slot, InsertPosition::Before(before), decls).map(|p| plain(p.declarations))
     }
 
     /// `Ok(())` exactly when [`Self::get_or_insert`] would succeed.
@@ -1156,7 +1189,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         if self.path.len() + 1 + d.height() > self.max_depth {
             return Err(Error::TooDeep { limit: self.max_depth, position: self.node().span().map_or(0, |s| s.start) });
         }
-        let Placement { index } = self.place(slots, slot, C::QNAME, before)?;
+        let Placement { index } = self.place_skipping(slots, slot, C::QNAME, InsertPosition::Before(before), None)?;
         check_destination(&d.root, d.text_inherits_space, self.root, &self.path)?;
         let decls = declarations(self.root, &self.path);
         let parent_prefix = self.node().name.prefix();
