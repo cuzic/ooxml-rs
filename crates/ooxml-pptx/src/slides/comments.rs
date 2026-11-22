@@ -215,7 +215,7 @@ fn insert_creation_id(doc: &mut XmlDocument, id: u32) -> Result<()> {
     let mut ext = list.insert::<pml::CommonSlideDataExtension>()?;
     ext.set_attr(q("", "uri"), CREATION_EXT)?;
     let mut creation = ext.insert_with_ns::<pml::CreationId>(&[NsDecl::new("p14", P14_NS)])?;
-    creation.set_attr(pml::CreationId::ATTR_VAL, &id.to_string())?;
+    ooxml_core::value::with_u32(id, |value| creation.set_attr(pml::CreationId::ATTR_VAL, value))?;
     Ok(())
 }
 
