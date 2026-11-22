@@ -336,6 +336,20 @@ fn sequence_identifier_requires_a_unicode_letter_then_word_characters() {
 }
 
 #[test]
+fn sequence_identifier_is_limited_to_40_unicode_characters() {
+    let input = common::docx(PLAIN, Some(""), None);
+    let at_limit = "図".repeat(40);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    doc.enable_update_fields_on_open().unwrap();
+    doc.insert_field(end(0), sequence(&at_limit)).unwrap();
+
+    let over_limit = "図".repeat(41);
+    assert_refusal(&input, true, end(0), sequence(&over_limit), |error| {
+        std::assert_matches!(error, Error::InvalidValue { what: "SEQ identifier", value } if value == over_limit);
+    });
+}
+
+#[test]
 fn ref_refuses_insertion_inside_the_bookmark_range() {
     let input = common::docx(
         concat!(
