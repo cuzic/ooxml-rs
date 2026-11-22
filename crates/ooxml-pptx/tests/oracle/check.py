@@ -558,6 +558,41 @@ def check_styles_and_theme(outdir):
     print('P3e python-pptx: custom table style and master theme read back')
 
 
+def check_alternate_table_style(outdir):
+    from io import BytesIO
+    from lxml import etree
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+
+    def read_style(deck):
+        table = next(shape.table for shape in deck.slides[0].shapes
+                     if shape.has_table and shape.shape_id == 4)
+        style_id = table._tbl.find(qn('a:tblPr')).findtext(qn('a:tableStyleId'))
+        part = deck.part.part_related_by(
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles'
+        )
+        root = etree.fromstring(part.blob, etree.XMLParser(resolve_entities=False, load_dtd=False))
+        assert not root.getroottree().docinfo.doctype
+        wrapper = root.find('{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent')
+        assert wrapper is not None
+        reserved = [style.get('styleId') for style in wrapper.iter(qn('a:tblStyle'))]
+        assert len(reserved) == 2 and all(reserved)
+        assert style_id and style_id.lower() not in [value.lower() for value in reserved]
+        definition = next(style for style in root.findall(qn('a:tblStyle'))
+                          if style.get('styleId') == style_id)
+        assert definition.get('styleName') == 'Teal header'
+        assert wrapper.getnext() is definition
+        return style_id, part.blob
+
+    deck = Presentation(os.path.join(outdir, 'u4-alternate-table-style.pptx'))
+    original = read_style(deck)
+    saved = BytesIO()
+    deck.save(saved)
+    saved.seek(0)
+    assert read_style(Presentation(saved)) == original
+    print('U4 python-pptx: appended style and alternate branches read back after round-trip')
+
+
 def main():
     args = sys.argv[1:]
     site = None
@@ -592,6 +627,7 @@ def main():
     check_links(outdir)
     check_notes_creation(outdir)
     check_styles_and_theme(outdir)
+    check_alternate_table_style(outdir)
     sys.exit(1 if failures else 0)
 
 

@@ -536,3 +536,25 @@ fn assert_anchor_blocks_links(anchor: &str) {
         .set_action(LinkEvent::Click, Some(&new))
         .unwrap();
 }
+
+#[test]
+fn wrapped_run_link_cannot_be_cleared_or_replaced() {
+    let mut deck = open();
+    run(&mut deck, LinkEvent::Click, Some(&url("https://example.com/original"))).unwrap();
+    let bytes = deck.to_bytes().unwrap();
+    let xml = String::from_utf8(deck.package().read_part(PART).unwrap()).unwrap();
+    let start = xml.find("<a:hlinkClick").unwrap();
+    let end = start + xml[start..].find("/>").unwrap() + 2;
+    let link = &xml[start..end];
+    let wrapped = format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a">{link}</mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    let mut deck = patch(bytes, PART, link, &wrapped);
+    for replacement in [None, Some(url("https://example.com/replacement"))] {
+        assert_matches!(
+            refused(&mut deck, |deck| run(deck, LinkEvent::Click, replacement.as_ref())),
+            Error::InsideAlternateContent
+        );
+    }
+}

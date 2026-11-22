@@ -192,6 +192,13 @@ where
     l.into_child_at::<Paragraph>(child).ok_or(Error::ShapeNotFound)
 }
 
+fn insert_cache_run<'d>(
+    paragraph: &'d mut LensMut<'_, Paragraph>,
+    pos: usize,
+) -> Result<LensMut<'d, Run>> {
+    Ok(paragraph.insert_by::<Run>(|index, _| index == pos)?)
+}
+
 /// A new `a:p` before the `at`-th existing paragraph (at the end when
 /// `at` is the paragraph count).
 fn insert_paragraph_at<'d, B: ElementSpec>(l: &'d mut LensMut<'_, B>, at: usize) -> Result<LensMut<'d, Paragraph>>
@@ -1076,7 +1083,7 @@ impl ParagraphMut<'_> {
         check_depth(&self.doc, &path, 2)?;
         check_copies(&self.doc, &path, 1, fmt.iter().map(|d| d as &dyn CheckInsert))?;
         let mut p = self.lens()?;
-        let mut r = p.insert_by::<Run>(|k, _| k == pos)?;
+        let mut r = insert_cache_run(&mut p, pos)?;
         if let Some(f) = &fmt {
             r.insert_detached(f)?;
         }
@@ -1142,3 +1149,30 @@ pub use table_style::{
     TableStyleText,
 };
 pub use theme::{ThemeColor, ThemeColorSlot, ThemeFonts, ThemeMut, ThemeOptions};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cache_run_insert_refuses_same_slot_alternate_content_after_planning() {
+        // SmartArt's paragraph validation rejects AC before computing the
+        // run position. Check the production insertion step with that position.
+        let source = format!(
+            r#"<a:p xmlns:a="{}" xmlns:mc="{}"><a:r><a:t>Before</a:t></a:r>
+                <mc:AlternateContent><mc:Choice Requires="a">
+                    <a:r><a:t>Choice</a:t></a:r>
+                </mc:Choice></mc:AlternateContent>
+            </a:p>"#,
+            crate::names::A_NS,
+            ooxml_core::name::MC_NS
+        );
+        let mut doc = XmlDocument::parse(source.as_bytes()).unwrap();
+        let mut paragraph = doc.lens_mut::<Paragraph>().unwrap();
+        std::assert_matches!(
+            insert_cache_run(&mut paragraph, 1),
+            Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+        );
+        assert_eq!(doc.serialize(), source);
+    }
+}

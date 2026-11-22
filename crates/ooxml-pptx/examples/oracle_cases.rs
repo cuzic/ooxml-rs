@@ -57,8 +57,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         edit(&mut deck)?;
         deck.save(out.join(format!("{name}.pptx")))?;
     }
+    alternate_table_style_case(&out)?;
     let edits: usize = cases.iter().map(|c| c.edits.len()).sum();
     println!("{} cases, {edits} edits written to {}", cases.len(), out.display());
+    Ok(())
+}
+
+fn alternate_table_style_case(out: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    use ooxml_core::{Package, XmlDocument};
+    use ooxml_pptx::Presentation;
+
+    let mut pkg = Package::from_bytes(cases::read_fixture(styles_theme_case::TABLE_FIXTURE))?;
+    let part = "ppt/tableStyles.xml";
+    let source = String::from_utf8(pkg.read_part(part)?)?;
+    let doc = XmlDocument::parse(source.as_bytes())?;
+    let span = doc.root().elements().next().and_then(|node| node.span())
+        .ok_or("table style fixture has no existing style")?;
+    let style = &source[span.start..span.end()];
+    let wrapped = format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a">{style}</mc:Choice><mc:Fallback>{style}</mc:Fallback></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    pkg.set_part(part, source.replacen(style, &wrapped, 1).into_bytes())?;
+    let mut deck = Presentation::from_bytes(pkg.to_bytes()?)?;
+    styles_theme_case::edit_table(&mut deck)?;
+    deck.save(out.join("u4-alternate-table-style.pptx"))?;
     Ok(())
 }
 

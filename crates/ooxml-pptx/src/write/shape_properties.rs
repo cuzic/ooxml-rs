@@ -925,3 +925,29 @@ fn complete_adjustments(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completing_adjustments_refuses_same_slot_alternate_content_after_planning() {
+        // The public preset lookup rejects any AC within a:prstGeom.
+        let source = format!(
+            r#"<a:avLst xmlns:a="{}" xmlns:mc="{}">
+                <mc:AlternateContent><mc:Choice Requires="a">
+                    <a:gd name="adj1" fmla="val 50000"/>
+                </mc:Choice></mc:AlternateContent>
+            </a:avLst>"#,
+            crate::names::A_NS,
+            ooxml_core::name::MC_NS
+        );
+        let mut doc = ooxml_core::XmlDocument::parse(source.as_bytes()).unwrap();
+        let mut list = doc.lens_mut::<AdjustValueList>().unwrap();
+        std::assert_matches!(
+            complete_adjustments(&mut list, &[("adj1", 50_000), ("adj2", 25_000)]),
+            Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+        );
+        assert_eq!(doc.serialize(), source);
+    }
+}

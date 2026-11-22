@@ -1,15 +1,14 @@
 //! Table style definitions (ADR-0016 §9).
 
-use ooxml_core::name::MC_ALTERNATE_CONTENT;
+use ooxml_core::name::{MC_ALTERNATE_CONTENT, MC_NS, QName};
 use ooxml_core::{
-    ChildOf, ElementSpec, LensMut, Package, PartNameRequest, RegistryPlan, Target, XmlDocument,
+    ChildOf, ElementSpec, LensMut, Package, PartNameRequest, RawNode, RegistryPlan, Target, XmlDocument,
 };
 use ooxml_schema::dml;
 use sha2::{Digest, Sha256};
 
 use super::{ColorSpec, LineSpec, RunFill, ThemeFont};
 use crate::builtin_styles::builtin;
-use crate::deck::child;
 use crate::error::{Error, Result};
 use crate::names::A_NS;
 
@@ -120,7 +119,23 @@ pub(crate) fn existing_part(pkg: &Package, main: &str) -> Result<Option<String>>
         .find(|part| pkg.contains(part)))
 }
 
-fn style_id(name: &str, ids: &[String]) -> StyleId {
+/// Reserve IDs in every choice and fallback, descending only through MC wrappers.
+fn branch_style_ids<'a>(parent: &'a RawNode, ids: &mut Vec<&'a str>) {
+    for wrapper in parent.elements().filter(|node| node.is(MC_ALTERNATE_CONTENT)) {
+        for branch in wrapper.elements().filter(|node| {
+            node.is(QName::new(MC_NS, "Choice")) || node.is(QName::new(MC_NS, "Fallback"))
+        }) {
+            ids.extend(
+                branch.elements()
+                    .filter(|node| node.is(dml::TableStyleEntry::QNAME))
+                    .filter_map(|node| node.attr(dml::TableStyleEntry::ATTR_STYLE_ID)),
+            );
+            branch_style_ids(branch, ids);
+        }
+    }
+}
+
+fn style_id(name: &str, ids: &[String], branch_ids: &[&str]) -> StyleId {
     let mut seed = Sha256::new();
     for value in std::iter::once(name).chain(ids.iter().map(String::as_str)) {
         seed.update((value.len() as u64).to_be_bytes());
@@ -140,15 +155,19 @@ fn style_id(name: &str, ids: &[String]) -> StyleId {
             u32::from_be_bytes(digest[12..16].try_into().unwrap()),
         )
     });
-    available_style_id(ids, candidates).expect("unbounded candidate sequence")
+    available_style_id(
+        ids.iter().map(String::as_str).chain(branch_ids.iter().copied()),
+        candidates,
+    )
+    .expect("unbounded candidate sequence")
 }
 
-fn available_style_id(
-    ids: &[String],
+fn available_style_id<'a>(
+    ids: impl Iterator<Item = &'a str> + Clone,
     mut candidates: impl Iterator<Item = StyleId>,
 ) -> Option<StyleId> {
     candidates.find(|id| {
-        builtin(id).is_none() && !ids.iter().any(|old| old.trim().eq_ignore_ascii_case(id))
+        builtin(id).is_none() && !ids.clone().any(|old| old.trim().eq_ignore_ascii_case(id))
     })
 }
 
@@ -178,12 +197,9 @@ impl crate::Presentation {
                 .as_bytes(),
             )?
         };
-        if child(doc.root(), MC_ALTERNATE_CONTENT).is_some() {
-            return Err(Error::UnsupportedContent(
-                "a:tblStyleLst contains mc:AlternateContent".into(),
-            ));
-        }
-        let id = style_id(&definition.name, &style_ids(&doc)?);
+        let mut branch_ids = Vec::new();
+        branch_style_ids(doc.root(), &mut branch_ids);
+        let id = style_id(&definition.name, &style_ids(&doc)?, &branch_ids);
         let mut list = doc.lens_mut::<dml::TableStyleList>()?;
         let mut entry = dml::TableStyleEntryViewMut(list.insert::<dml::TableStyleEntry>()?);
         entry.set_style_id(&id)?;
@@ -314,13 +330,16 @@ mod tests {
         .unwrap();
         let existing = "{01234567-89AB-8CDE-8F00-0123456789AB}";
         let ids = vec![existing.to_ascii_lowercase()];
-        let id = style_id("Accent", &ids);
+        let id = style_id("Accent", &ids, &[]);
         assert!(shape.is_match(&id), "{id}");
-        assert_eq!(id, style_id("Accent", &ids));
+        assert_eq!(id, style_id("Accent", &ids, &[]));
         assert_eq!(builtin(&id), None);
         assert!(!existing.eq_ignore_ascii_case(&id));
 
         let collisions = [DEFAULT_STYLE.to_owned(), existing.to_owned(), id.clone()];
-        assert_eq!(available_style_id(&ids, collisions.into_iter()), Some(id));
+        assert_eq!(
+            available_style_id(ids.iter().map(String::as_str), collisions.into_iter()),
+            Some(id)
+        );
     }
 }

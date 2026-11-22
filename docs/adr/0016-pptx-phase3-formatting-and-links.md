@@ -956,3 +956,12 @@ PR #102 follow-up (m1–m3, n1–n2). Notes creation refuses a dangling or exter
 body for a notes master without a body placeholder has no inherited position
 or size. `notes_mut_or_create` validates the notes master root even when
 reusing an existing notes slide.
+
+### Post-acceptance note — table style append beside AlternateContent
+
+ADR-0020 §9 allows a plain append to `a:tblStyleLst` when the core can
+place it alongside `mc:AlternateContent`. The UUID seed uses direct style
+IDs in document order. The collision check also reserves IDs from every
+Choice and Fallback, including nested wrappers, with the same whitespace
+and case handling as direct IDs. Branch bytes are preserved. A malformed
+wrapper is refused by the core before changes are committed.
