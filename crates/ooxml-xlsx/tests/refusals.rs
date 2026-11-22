@@ -259,9 +259,14 @@ fn f6_alternate_content_around_rows_and_cells() {
         }
     }
     // (c) a worksheet with an AC and no sheetData: sheetData may be inside it
-    let bytes = with_sheet(&format!("{WS_OPEN}<mc:AlternateContent><mc:Fallback><sheetData/></mc:Fallback></mc:AlternateContent></worksheet>"));
+    let bytes = with_sheet(&format!(r#"{WS_OPEN}<mc:AlternateContent><mc:Choice Requires="mc"><sheetData/></mc:Choice></mc:AlternateContent></worksheet>"#));
     let mut wb = Workbook::from_bytes(bytes).unwrap();
-    assert_matches!(wb.worksheet().unwrap().cell(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    let before = wb.to_bytes().unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert_matches!(ws.cell(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_matches!(ws.set_row_height(0, 18.0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_matches!(ws.cell_mut(0, 0).unwrap().set_number(1.0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), before);
 }
 
 /// F7: a `dimension` whose `ref` is missing or not a cell range refuses

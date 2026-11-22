@@ -527,3 +527,16 @@ fn drop_keeps_other_extensions_and_removes_drawing_only_parts() {
     let d = part(&out, DATA);
     assert!(d.contains("<dgm:extLst><a:ext uri=\"{OTHER}\">") && !d.contains("dataModelExt"), "{}", &d[d.find("<dgm:extLst").unwrap()..]);
 }
+
+#[test]
+fn cache_run_insertion_refuses_same_slot_alternate_content() {
+    let input = patch(&a_then(EMPTY_RUN, None), DRAWING, |xml| {
+        let shape = shape_xml(&xml, SHAPE);
+        let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a"><a:r/></mc:Choice></mc:AlternateContent>"#,
+                         ooxml_core::name::MC_NS);
+        xml.replace(&shape, &shape.replacen("</a:r>", &format!("</a:r>{ac}"), 1))
+    });
+    let (result, output) = edit(&input, |sa| sa.set_run_text(NODE, 0, 1, "new"));
+    assert_matches!(result, Err(Error::UnsupportedContent(_) | Error::SmartArtCacheInconsistent(_)));
+    assert_eq!(output, unchanged(&input));
+}

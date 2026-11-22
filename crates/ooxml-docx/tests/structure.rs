@@ -511,6 +511,11 @@ fn positioned_run_insertion_refuses_same_slot_alternate_content() {
         refused(&mut doc, |doc| doc.add_bookmark("mark", BookmarkRange::Paragraphs { first: p(0), last: p(0) })),
         Error::Core(CoreError::UnresolvedSibling(_))
     );
+    let matched = doc.find("cho", &ReplaceOptions::default()).unwrap().remove(0);
+    assert_matches!(
+        refused(&mut doc, |doc| doc.add_bookmark("partial", BookmarkRange::Match(&matched))),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
     assert_matches!(
         refused(&mut doc, |doc| doc.wrap_in_control(WrapTarget::Inline(TextRange::new(anchor, anchor)), ControlSpec::default())),
         Error::Core(CoreError::UnresolvedSibling(_))
@@ -527,7 +532,7 @@ fn section_break_refuses_same_slot_alternate_content_in_paragraph_properties() {
         wrap("<w:pPr/>"),
         format!("<w:pPr>{}</w:pPr>", wrap("<w:sectPr/>")),
     ] {
-        let mut doc = open(&format!("<w:p>{properties}<w:r><w:t>anchor</w:t></w:r></w:p><w:sectPr/>"));
+        let mut doc = open(&format!("<w:p>{properties}<w:r><w:t>anchor</w:t></w:r></w:p><w:p/><w:sectPr/>"));
         assert_matches!(
             refused(&mut doc, |doc| doc.insert_section_break(p(0), SectionBreak::Continuous)),
             Error::Core(CoreError::UnresolvedSibling(_))
@@ -546,4 +551,19 @@ fn block_wrap_refuses_same_slot_alternate_content() {
         )),
         Error::Core(CoreError::UnresolvedSibling(_))
     );
+}
+
+#[test]
+fn run_piece_replacement_refuses_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w"><w:t>hidden</w:t></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let mut doc = open(&format!("<w:p><w:r><w:t>anchor</w:t>{ac}</w:r></w:p>"));
+    let before = doc.to_bytes().unwrap();
+    let matches = doc.find("anchor", &ReplaceOptions::default()).unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_matches!(
+        doc.replace_at(&matches[0], "left\tright\nend", &ReplaceOptions::default()),
+        Err(Error::ReplaceRefused { .. })
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
 }

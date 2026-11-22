@@ -1181,3 +1181,21 @@ fn positioned_slide_add_and_move_refuse_same_slot_alternate_content() {
     assert_matches!(p.move_slide(0, 1), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
     assert_eq!(p.to_bytes().unwrap(), before);
 }
+
+#[test]
+fn slide_sections_refuse_wrapped_slide_id_without_changes() {
+    const PART: &str = "ppt/presentation.xml";
+    let ac = format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="p14"><p14:sldId id="999"/></mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    let src = patch(&fixture("libreoffice/slide-sections.pptx"), PART, |xml| {
+        assert!(xml.contains("</p14:sldIdLst>"));
+        xml.replacen("</p14:sldIdLst>", &format!("{ac}</p14:sldIdLst>"), 1)
+    });
+    let before = unchanged(&src);
+    let mut p = Presentation::from_bytes(src).unwrap();
+    let layout = p.layouts().unwrap().remove(0);
+    assert_matches!(p.add_slide(&layout, Some(1)), Err(Error::SectionsInconsistent));
+    assert_eq!(p.to_bytes().unwrap(), before);
+}

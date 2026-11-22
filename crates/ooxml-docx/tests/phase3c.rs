@@ -986,3 +986,19 @@ fn tracked_insertions_refuse_same_slot_alternate_content() {
     );
     assert_eq!(doc.to_bytes().unwrap(), before);
 }
+
+#[test]
+fn tracked_paragraph_mark_refuses_same_slot_alternate_content() {
+    let input = docx(
+        r#"<w:p><w:pPr><w:rPr><mc:AlternateContent><mc:Choice Requires="w"/></mc:AlternateContent></w:rPr></w:pPr><w:r><w:t>anchor</w:t></w:r></w:p><w:p/>"#,
+        None,
+        None,
+    );
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let before = doc.to_bytes().unwrap();
+    assert_matches!(
+        doc.track_changes(author(), None).unwrap().delete_paragraph(p(0)),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
+}
