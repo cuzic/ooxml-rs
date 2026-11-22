@@ -454,7 +454,11 @@ fn shared_workbooks_refuse() {
     assert!(matches!(wb.add_sheet("C", 0), Err(Error::SharedWorkbook)));
     assert!(matches!(wb.rename_sheet("A", "Z"), Err(Error::SharedWorkbook)));
     assert!(matches!(wb.delete_sheet("B"), Err(Error::SharedWorkbook)));
-    assert_l1_except(&input, &wb.to_bytes().unwrap(), &[]);
+    std::assert_matches!(
+        wb.worksheet_mut("A").unwrap().insert_rows(0, 1),
+        Err(Error::SharedWorkbook)
+    );
+    assert_eq!(wb.to_bytes().unwrap(), input);
 }
 
 /// A delete removes `calcChain.xml` (the set of formula cells changes).

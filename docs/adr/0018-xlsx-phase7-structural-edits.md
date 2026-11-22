@@ -1819,3 +1819,38 @@ Core exposes `LensMut::remove_range` over child-item indices (including text and
 markup). Invalid ranges return false and empty ranges succeed without dirtying
 the tree. The fuzz oracle compares the bulk operation with descending
 `remove_at` calls.
+
+### P7a implementation note — worksheet grid edits
+
+The four worksheet methods use zero-based coordinates and return a
+`StructuralEditReport`. Its `rewritten` list covers formulas and range
+features, and its `removed` list identifies deleted elements. Routine row
+and cell renumbering is represented by the requested band rather than
+reported once per address. `Workbook::worksheet_mut` is a mutable named
+lookup with the existing `worksheet_by_name` semantics.
+
+A fully deleted dimension is reset to `A1`. G1 protection follows the
+worksheet's operation flag (§2.4). The workbook `lockStructure` flag
+applies to sheet operations and copying. Content at the grid boundary can
+cause `ShiftOffSheet`. Column formatting shifted entirely beyond XFD is
+clipped away, and a rewritten one-cell selection is written as a cell
+reference. A protected range or an object requiring P7b adjustment can
+cause `StructureBlocked`. A dependency on a deleted required target causes
+`ReferenceDeleted`. A partial edit of an array or data-table range causes
+`ArrayFormulaSplit`.
+
+The formula census rebuild scans dirty worksheets in their existing XML
+trees. The initial scan still streams worksheet bytes. A run of deleted
+rows and the indentation between them are removed with one
+`LensMut::remove_range` call. Comments, processing instructions, CDATA
+and whitespace at the ends of the run delimit the spans removed.
+
+The survey's 813 worksheets include two calamine fixtures and ten POI
+worksheets in seven packages the runtime workbook loader refused. The
+edit run exercised the remaining 801 POI worksheets and ten other sheet
+entries, which returned `NotAWorksheet`. Both runs count 26 worksheets
+with position-independent structural blockers: 15 with missing
+coordinates, six with OLE objects, two with direct controls, two with
+top-level `mc:AlternateContent`, and one with data consolidation. The
+earlier subtotal of eight for OLE, controls and AlternateContent missed
+the two direct controls that the survey counts separately.

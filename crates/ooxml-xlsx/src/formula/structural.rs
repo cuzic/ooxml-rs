@@ -1,6 +1,6 @@
 //! Structural reference adjustment (ADR-0018 §§2.3 and 3.2).
 
-use super::lexer::{Area, Comp, LexError, Prefix, TokKind, lex, render_area};
+use super::lexer::{Area, Comp, LexError, Prefix, RefTok, TokKind, Token, lex, render_area};
 use crate::reference::{MAX_COLS, MAX_ROWS};
 
 #[derive(Clone, Copy)]
@@ -185,6 +185,23 @@ impl From<ShiftOffSheet> for RewriteError {
     }
 }
 
+/// The Phase1 lexer models a spill as opaque because its extent is
+/// unknown. A structural edit still shifts the spelled anchor.
+pub(crate) fn reference_token(text: &str, token: &Token) -> Option<(RefTok, bool)> {
+    match &token.kind {
+        TokKind::Ref(reference) => Some((reference.clone(), false)),
+        TokKind::Opaque => {
+            let anchor = text[token.start..token.end].strip_suffix('#')?;
+            let tokens = lex(anchor).ok()?;
+            match tokens.as_slice() {
+                [Token { kind: TokKind::Ref(reference), .. }] => Some((reference.clone(), true)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Adjust only the reference tokens selected by the operation's sheet
 /// and anchor context. Copy the spelling of everything else.
 pub(crate) fn rewrite_formula(
@@ -197,7 +214,7 @@ pub(crate) fn rewrite_formula(
     let mut rewritten = String::new();
     let mut last = 0;
     for token in tokens {
-        let TokKind::Ref(reference) = token.kind else {
+        let Some((reference, spill)) = reference_token(text, &token) else {
             continue;
         };
         if matches!(reference.prefix, Prefix::External) || !refers_to_sheet(&reference.prefix) {
@@ -212,6 +229,9 @@ pub(crate) fn rewrite_formula(
             AreaOutcome::Moved(area) | AreaOutcome::Resized(area) => {
                 rewritten.push_str(&text[last..token.start + reference.area_offset]);
                 rewritten.push_str(&render_area(&area));
+                if spill {
+                    rewritten.push('#');
+                }
             }
         }
         last = token.end;

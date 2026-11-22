@@ -5,6 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use ooxml_core::{QName, RawItem, RawNode};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::name::ResolveResult;
 use quick_xml::{NsReader, XmlVersion};
@@ -223,124 +224,38 @@ pub(crate) fn scan_sheet(
     }
     let mut reader = NsReader::from_reader(xml);
     let mut stack: Vec<String> = Vec::new(); // SML local names (others as "")
-    let mut cell: Option<CellScan> = None;
-    let mut sink = TextSink::None;
-    let mut missing_r = false;
-    let mut formula_without_r = false;
-    let mut found: Vec<FCell> = Vec::new();
-    let mut vm_cells = Vec::new();
-    let mut unknown_cm: Option<String> = None;
-    let mut bx = false;
-    // The number of the row being read (`row/@r`), and the first cell
-    // naming another row (F-8).
-    let mut row_number: Option<u32> = None;
-    let mut row_mismatch: Option<(String, u32)> = None;
+    let mut scan = SheetScan::new(sheet, dynamic_cm);
     loop {
         let pos = reader.buffer_position();
-        let (ns, ev) = reader.read_resolved_event().map_err(|e| format!("XML error after byte {pos}: {e}"))?;
+        let (ns, ev) = reader
+            .read_resolved_event()
+            .map_err(|e| format!("XML error after byte {pos}: {e}"))?;
         let sml = matches!(ns, ResolveResult::Bound(n) if n.into_inner() == SML_NS);
         match ev {
             Event::Start(ref e) | Event::Empty(ref e) => {
                 let empty = matches!(ev, Event::Empty(_));
-                let local = if sml { e.local_name().into_inner().to_owned() } else { String::new() };
-                let parent = stack.last().map(String::as_str);
-                match local.as_str() {
-                    "row" if parent == Some("sheetData") => {
-                        let r = attr(e, "r")?;
-                        if r.is_none() {
-                            missing_r = true;
-                        }
-                        // Read exactly as the row index reads it (XML whitespace
-                        // trimmed, row 0 invalid), or the two disagree again
-                        // (review of PR #67, M1/m1). A row the index cannot read
-                        // is its own refusal (`BadRowR`), not a mismatch.
-                        if !empty {
-                            row_number = r.as_deref().and_then(ooxml_core::value::parse_u32).filter(|r| *r >= 1);
-                        }
-                    }
-                    "c" if parent == Some("row") => {
-                        let mut c = CellScan { r: attr(e, "r")?, t: attr(e, "t")?, cm: attr(e, "cm")?, ..Default::default() };
-                        c.vm = attr(e, "vm")?.is_some();
-                        c.at = c.r.as_deref().map(CellIndex::parse);
-                        if c.r.is_none() {
-                            missing_r = true;
-                        }
-                        if row_mismatch.is_none()
-                            && let (Some(row), Some(Ok(at))) = (row_number, &c.at)
-                            && at.row + 1 != row
-                        {
-                            row_mismatch = Some((at.to_string(), row));
-                        }
-                        cell = Some(c);
-                    }
-                    // Also check cells below wrappers such as mc:AlternateContent.
-                    // Only direct children of a row enter the formula census.
-                    "c" if row_mismatch.is_none() && let Some(row) = row_number => {
-                        if let Some(Ok(at)) = attr(e, "r")?.as_deref().map(CellIndex::parse)
-                            && at.row + 1 != row
-                        {
-                            row_mismatch = Some((at.to_string(), row));
-                        }
-                    }
-                    "f" => {
-                        let Some(c) = cell.as_mut().filter(|_| parent == Some("c")) else {
-                            return Err("an f element outside worksheet/sheetData/row/c".into());
-                        };
-                        let mut attrs = Vec::new();
-                        for a in e.attributes().with_checks(true) {
-                            let a = a.map_err(|e| e.to_string())?;
-                            if a.key.prefix().is_none() {
-                                let v = a.normalized_value(XmlVersion::Implicit1_0).map_err(|e| e.to_string())?;
-                                attrs.push((String::from_utf8_lossy(a.key.local_name().into_inner().as_bytes()).into_owned(), v.into_owned()));
-                            }
-                        }
-                        c.f = Some((attrs, String::new()));
-                        if !empty {
-                            sink = TextSink::F;
-                        }
-                    }
-                    "v" if parent == Some("c") => {
-                        if let Some(c) = cell.as_mut() {
-                            c.v = Some(String::new());
-                            if !empty {
-                                sink = TextSink::V;
-                            }
-                        }
-                    }
-                    "is" if parent == Some("c") => {
-                        if let Some(c) = cell.as_mut() {
-                            c.is = true;
-                        }
-                    }
-                    _ => {}
-                }
-                if empty {
-                    if local == "c" && parent == Some("row") {
-                        formula_without_r |= finish_cell(cell.take(), sheet, dynamic_cm, &mut found, &mut vm_cells, &mut unknown_cm, &mut bx)?;
-                    }
+                let local = if sml {
+                    e.local_name().into_inner().to_owned()
                 } else {
+                    String::new()
+                };
+                let parent = stack.last().map(String::as_str);
+                scan.start(&local, parent, ScanElement::Stream(e), empty)?;
+                if !empty {
                     stack.push(local);
                 }
             }
             Event::End(_) => {
                 let local = stack.pop().unwrap_or_default();
-                if local == "row" && stack.last().map(String::as_str) == Some("sheetData") {
-                    row_number = None;
-                }
-                if local == "f" || local == "v" {
-                    sink = TextSink::None;
-                }
-                if local == "c" && stack.last().map(String::as_str) == Some("row") {
-                    formula_without_r |= finish_cell(cell.take(), sheet, dynamic_cm, &mut found, &mut vm_cells, &mut unknown_cm, &mut bx)?;
-                }
+                scan.end(&local, stack.last().map(String::as_str))?;
             }
             Event::Text(t) => {
                 let s = t.xml_content(XmlVersion::Implicit1_0);
-                push_text(&mut cell, sink, &s);
+                push_text(&mut scan.cell, scan.sink, &s);
             }
             Event::CData(t) => {
                 let s = t.xml_content(XmlVersion::Implicit1_0);
-                push_text(&mut cell, sink, &s);
+                push_text(&mut scan.cell, scan.sink, &s);
             }
             Event::GeneralRef(r) => {
                 let ch = match r.resolve_char_ref().map_err(|e| e.to_string())? {
@@ -354,47 +269,296 @@ pub(crate) fn scan_sheet(
                         other => return Err(format!("undeclared entity &{other};")),
                     },
                 };
-                push_text(&mut cell, sink, ch.encode_utf8(&mut [0; 4]));
+                push_text(&mut scan.cell, scan.sink, ch.encode_utf8(&mut [0; 4]));
             }
             Event::DocType(_) => return Err("DTD (<!DOCTYPE>) is not allowed".into()),
             Event::Eof => break,
             _ => {}
         }
     }
-    if missing_r {
-        census.implicit_references.insert(sheet);
-    }
-    if formula_without_r || (missing_r && !found.is_empty()) {
-        census.block(EditBlock::MissingReference { part: part.to_owned() });
-    }
-    if let Some(cell) = unknown_cm {
-        census.block(EditBlock::UnknownCellMetadata { part: part.to_owned(), cell });
-    }
-    // Any sheet, with or without formulas: a write to the named cell would
-    // not find it through the row index and add a duplicate, and a formula
-    // anywhere may read it. Fail closed for every edit (reads still work).
-    if let Some((cell, row)) = row_mismatch {
-        census.block(EditBlock::RowMismatch { part: part.to_owned(), cell, row });
-    }
-    census.bx_any |= bx;
-    let mut masters: HashMap<u32, usize> = HashMap::new();
-    for f in &found {
-        if let FKind::Shared { si, master: true } = f.kind {
-            *masters.entry(si).or_default() += 1;
-        }
-    }
-    for f in &mut found {
-        if let FKind::Shared { si, .. } = f.kind
-            && masters.get(&si).is_some_and(|n| *n > 1)
-        {
-            f.ambiguous_group = true;
-        }
-    }
-    census.vm_cells.extend(vm_cells.into_iter().map(|c| (sheet, c)));
-    for f in found {
-        census.push(f);
-    }
+    scan.finish(part, census);
     Ok(())
+}
+
+/// Rebuilds the census from the current tree of a modified sheet.
+pub(crate) fn scan_parsed_sheet(
+    root: &RawNode,
+    part: &str,
+    sheet: usize,
+    dynamic_cm: &HashSet<u32>,
+    census: &mut Census,
+) -> Result<(), String> {
+    let mut scan = SheetScan::new(sheet, dynamic_cm);
+    scan.visit(root, None)?;
+    scan.finish(part, census);
+    Ok(())
+}
+
+enum ScanElement<'a, 'xml> {
+    Stream(&'a BytesStart<'xml>),
+    Tree(&'a RawNode),
+}
+
+impl ScanElement<'_, '_> {
+    fn attr(&self, local: &'static str) -> Result<Option<String>, String> {
+        match self {
+            Self::Stream(element) => attr(element, local),
+            Self::Tree(node) => Ok(node.attr(QName::new("", local)).map(str::to_owned)),
+        }
+    }
+
+    fn formula_attrs(&self) -> Result<Vec<(String, String)>, String> {
+        match self {
+            Self::Stream(e) => {
+                let mut attrs = Vec::new();
+                for a in e.attributes().with_checks(true) {
+                    let a = a.map_err(|e| e.to_string())?;
+                    if a.key.prefix().is_none() {
+                        let v = a
+                            .normalized_value(XmlVersion::Implicit1_0)
+                            .map_err(|e| e.to_string())?;
+                        attrs.push((
+                            String::from_utf8_lossy(a.key.local_name().into_inner().as_bytes())
+                                .into_owned(),
+                            v.into_owned(),
+                        ));
+                    }
+                }
+                Ok(attrs)
+            }
+            Self::Tree(node) => Ok(node
+                .attrs()
+                .iter()
+                .filter(|attr| attr.name().prefix().is_none())
+                .map(|attr| (attr.name().local().to_owned(), attr.value().to_owned()))
+                .collect()),
+        }
+    }
+}
+
+struct SheetScan<'a> {
+    sheet: usize,
+    dynamic_cm: &'a HashSet<u32>,
+    cell: Option<CellScan>,
+    sink: TextSink,
+    missing_r: bool,
+    formula_without_r: bool,
+    found: Vec<FCell>,
+    vm_cells: Vec<CellIndex>,
+    unknown_cm: Option<String>,
+    bx: bool,
+    row_number: Option<u32>,
+    row_mismatch: Option<(String, u32)>,
+}
+
+impl<'a> SheetScan<'a> {
+    fn new(sheet: usize, dynamic_cm: &'a HashSet<u32>) -> Self {
+        Self {
+            sheet,
+            dynamic_cm,
+            cell: None,
+            sink: TextSink::None,
+            missing_r: false,
+            formula_without_r: false,
+            found: Vec::new(),
+            vm_cells: Vec::new(),
+            unknown_cm: None,
+            bx: false,
+            row_number: None,
+            row_mismatch: None,
+        }
+    }
+
+    fn visit(&mut self, node: &RawNode, parent: Option<&str>) -> Result<(), String> {
+        let name = node.name();
+        let local = if name.ns() == SML_NS {
+            name.local()
+        } else {
+            ""
+        };
+        let empty =
+            node.children().is_empty() && node.span().is_none_or(|span| span.is_self_closing());
+        self.start(local, parent, ScanElement::Tree(node), empty)?;
+        if !empty {
+            for item in node.children() {
+                match item {
+                    RawItem::Element(child) => self.visit(child, Some(local))?,
+                    RawItem::Text(text) => push_text(&mut self.cell, self.sink, text.value()),
+                    RawItem::Markup(_) => {}
+                }
+            }
+            self.end(local, parent)?;
+        }
+        Ok(())
+    }
+
+    fn start(
+        &mut self,
+        local: &str,
+        parent: Option<&str>,
+        element: ScanElement<'_, '_>,
+        empty: bool,
+    ) -> Result<(), String> {
+        match local {
+            "row" if parent == Some("sheetData") => {
+                let r = element.attr("r")?;
+                if r.is_none() {
+                    self.missing_r = true;
+                }
+                // Read exactly as the row index reads it (XML whitespace
+                // trimmed, row 0 invalid), or the two disagree again
+                // (review of PR #67, M1/m1). A row the index cannot read
+                // is its own refusal (`BadRowR`), not a mismatch.
+                if !empty {
+                    self.row_number = r
+                        .as_deref()
+                        .and_then(ooxml_core::value::parse_u32)
+                        .filter(|r| *r >= 1);
+                }
+            }
+            "c" if parent == Some("row") => {
+                let mut c = CellScan {
+                    r: element.attr("r")?,
+                    t: element.attr("t")?,
+                    cm: element.attr("cm")?,
+                    ..Default::default()
+                };
+                c.vm = element.attr("vm")?.is_some();
+                c.at = c.r.as_deref().map(CellIndex::parse);
+                if c.r.is_none() {
+                    self.missing_r = true;
+                }
+                if self.row_mismatch.is_none()
+                    && let (Some(row), Some(Ok(at))) = (self.row_number, &c.at)
+                    && at.row + 1 != row
+                {
+                    self.row_mismatch = Some((at.to_string(), row));
+                }
+                self.cell = Some(c);
+            }
+            // Also check cells below wrappers such as mc:AlternateContent.
+            // Only direct children of a row enter the formula census.
+            "c" if self.row_mismatch.is_none()
+                && let Some(row) = self.row_number =>
+            {
+                if let Some(Ok(at)) = element.attr("r")?.as_deref().map(CellIndex::parse)
+                    && at.row + 1 != row
+                {
+                    self.row_mismatch = Some((at.to_string(), row));
+                }
+            }
+            "f" => {
+                let Some(c) = self.cell.as_mut().filter(|_| parent == Some("c")) else {
+                    return Err("an f element outside worksheet/sheetData/row/c".into());
+                };
+                c.f = Some((element.formula_attrs()?, String::new()));
+                if !empty {
+                    self.sink = TextSink::F;
+                }
+            }
+            "v" if parent == Some("c") => {
+                if let Some(c) = self.cell.as_mut() {
+                    c.v = Some(String::new());
+                    if !empty {
+                        self.sink = TextSink::V;
+                    }
+                }
+            }
+            "is" if parent == Some("c") => {
+                if let Some(c) = self.cell.as_mut() {
+                    c.is = true;
+                }
+            }
+            _ => {}
+        }
+        if empty && local == "c" && parent == Some("row") {
+            self.formula_without_r |= self.finish_cell()?;
+        }
+        Ok(())
+    }
+
+    fn end(&mut self, local: &str, parent: Option<&str>) -> Result<(), String> {
+        if local == "row" && parent == Some("sheetData") {
+            self.row_number = None;
+        }
+        if local == "f" || local == "v" {
+            self.sink = TextSink::None;
+        }
+        if local == "c" && parent == Some("row") {
+            self.formula_without_r |= self.finish_cell()?;
+        }
+        Ok(())
+    }
+
+    fn finish_cell(&mut self) -> Result<bool, String> {
+        finish_cell(
+            self.cell.take(),
+            self.sheet,
+            self.dynamic_cm,
+            &mut self.found,
+            &mut self.vm_cells,
+            &mut self.unknown_cm,
+            &mut self.bx,
+        )
+    }
+
+    fn finish(self, part: &str, census: &mut Census) {
+        let Self {
+            sheet,
+            missing_r,
+            formula_without_r,
+            mut found,
+            vm_cells,
+            unknown_cm,
+            bx,
+            row_mismatch,
+            ..
+        } = self;
+        if missing_r {
+            census.implicit_references.insert(sheet);
+        }
+        if formula_without_r || (missing_r && !found.is_empty()) {
+            census.block(EditBlock::MissingReference {
+                part: part.to_owned(),
+            });
+        }
+        if let Some(cell) = unknown_cm {
+            census.block(EditBlock::UnknownCellMetadata {
+                part: part.to_owned(),
+                cell,
+            });
+        }
+        // Any sheet, with or without formulas: a write to the named cell would
+        // not find it through the row index and add a duplicate, and a formula
+        // anywhere may read it. Fail closed for every edit (reads still work).
+        if let Some((cell, row)) = row_mismatch {
+            census.block(EditBlock::RowMismatch {
+                part: part.to_owned(),
+                cell,
+                row,
+            });
+        }
+        census.bx_any |= bx;
+        let mut masters: HashMap<u32, usize> = HashMap::new();
+        for f in &found {
+            if let FKind::Shared { si, master: true } = f.kind {
+                *masters.entry(si).or_default() += 1;
+            }
+        }
+        for f in &mut found {
+            if let FKind::Shared { si, .. } = f.kind
+                && masters.get(&si).is_some_and(|n| *n > 1)
+            {
+                f.ambiguous_group = true;
+            }
+        }
+        census
+            .vm_cells
+            .extend(vm_cells.into_iter().map(|c| (sheet, c)));
+        for f in found {
+            census.push(f);
+        }
+    }
 }
 
 fn push_text(cell: &mut Option<CellScan>, sink: TextSink, s: &str) {

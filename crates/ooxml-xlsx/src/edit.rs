@@ -10,10 +10,9 @@ use ooxml_schema::sml;
 
 use crate::census::{FCell, FKind, SheetKind};
 use crate::error::{Error, Result};
-use crate::formula::lexer::{Area, Comp};
 use crate::formula::parse::parse;
 use crate::formula::precedents::Rect;
-use crate::formula::structural::{AreaOutcome, Axis, Shift, shift_area};
+use crate::formula::structural::{Axis, Shift};
 use crate::formula::translate::translate;
 use crate::graph::{Graph, precedents_of};
 use crate::reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
@@ -149,7 +148,7 @@ pub(crate) struct CellWritePlan {
 pub(crate) struct StripPlan {
     pub(crate) sheets: Vec<(String, Vec<(usize, usize)>)>,
     /// Stripped cells that had `t="s"`.
-    shared_refs: i64,
+    pub(crate) shared_refs: i64,
     fids: Vec<usize>,
     anchors: Vec<usize>,
 }
@@ -376,8 +375,8 @@ impl Workbook {
                 return Err(Error::DuplicateCellWrite { cell });
             }
 
+            let unshifted = edit.is_none();
             let shifted = edit.as_mut().filter(|edit| edit.sheet == sheet);
-            let unshifted = shifted.is_none();
             let before = shifted.as_ref().map_or(Some(at), |edit| edit.predecessor(at));
             let style_only = matches!(op, CellOp::StyleOnly);
             // ---- guards on value and formula writes ----
@@ -496,12 +495,11 @@ impl Workbook {
         let written: HashSet<_> = planned.iter().filter(|w| !matches!(w.op, CellOp::StyleOnly)).map(|w| (w.sheet, w.at)).collect();
 
         // ---- dependents' guards ----
-        let shifted_view = edit.as_ref().zip(staged_index.as_ref());
         let has_other_dependents = self.check_write_dependents(&deps, &written, edit.as_ref())?;
 
         // ---- strip plan ----
         let strip = match self.policy {
-            CalcPolicy::StripDependentCaches => self.plan_strip_with_index(&deps, &written, shifted_view)?,
+            CalcPolicy::StripDependentCaches => self.plan_strip(&deps, &written)?,
             CalcPolicy::KeepStaleCaches => StripPlan::default(),
         };
 
@@ -522,7 +520,7 @@ impl Workbook {
     }
 
     // The census tracks pre-edit coordinates, and the writes target the staged sheet.
-    fn check_write_dependents(
+    pub(crate) fn check_write_dependents(
         &self,
         deps: &DepSet,
         written: &HashSet<(usize, CellIndex)>,
@@ -603,15 +601,7 @@ impl Workbook {
             registry.stage_part(&self.pkg, &self.workbook_part, doc)?;
         }
         if let Some(p) = &plan.chain {
-            // The structural edit may have already scheduled the same removal.
-            // The write planner verified that this single part exists in the package.
-            match registry.remove_parts(&self.pkg, &[p.as_str()], &[REL_CALC_CHAIN]) {
-                Ok(_) => {}
-                Err(ooxml_core::Error::RegistryRefused {
-                    reason: ooxml_core::RegistryRefusal::PartNotFound, ..
-                }) if plan.shifted_sheet.is_some() => {}
-                Err(error) => return Err(error.into()),
-            }
+            registry.remove_parts(&self.pkg, &[p.as_str()], &[REL_CALC_CHAIN])?;
         }
         self.apply_registry_edit(registry, |wb| {
             insert(wb)?;
@@ -748,52 +738,19 @@ impl Workbook {
     /// dependent that still has a cached value (§3.1, R2-m1). Cells the
     /// plan writes are not stripped: they get new content.
     pub(crate) fn plan_strip(&mut self, deps: &DepSet, written: &HashSet<(usize, CellIndex)>) -> Result<StripPlan> {
-        self.plan_strip_with_index(deps, written, None)
-    }
-
-    fn plan_strip_with_index(
-        &mut self,
-        deps: &DepSet,
-        written: &HashSet<(usize, CellIndex)>,
-        shifted: Option<(&WriteIndexMap<'_>, &SheetIndex)>,
-    ) -> Result<StripPlan> {
         let mut cells: HashMap<usize, HashSet<CellIndex>> = HashMap::new();
         let mut rects: HashMap<usize, Vec<Rect>> = HashMap::new();
         let mut plan = StripPlan::default();
         for &fid in &deps.formulas {
             let c = self.census.get(fid).expect("alive");
-            let at = match shifted.filter(|(edit, _)| edit.sheet == c.sheet) {
-                Some((edit, _)) => edit.successor(c.at),
-                None => Some(c.at),
-            };
-            if c.has_cache && let Some(at) = at && !written.contains(&(c.sheet, at)) {
-                cells.entry(c.sheet).or_default().insert(at);
+            if c.has_cache && !written.contains(&(c.sheet, c.at)) {
+                cells.entry(c.sheet).or_default().insert(c.at);
                 plan.fids.push(fid);
             }
         }
         for &(fid, r) in &deps.results {
-            let range = match shifted.filter(|(edit, _)| edit.sheet == r.sheet) {
-                Some((edit, _)) => {
-                    let comp = |idx| Comp { idx, abs: false };
-                    let area = Area::Range {
-                        r1: comp(r.r1), c1: comp(r.c1), r2: comp(r.r2), c2: comp(r.c2),
-                    };
-                    match shift_area(area, edit.axis, edit.shift)
-                        .map_err(|_| Error::Malformed("shifted formula result outside worksheet".into()))?
-                    {
-                        AreaOutcome::Unchanged => Some(r),
-                        AreaOutcome::Moved(Area::Range { r1, c1, r2, c2 })
-                        | AreaOutcome::Resized(Area::Range { r1, c1, r2, c2 }) => {
-                            Some(Rect { r1: r1.idx, c1: c1.idx, r2: r2.idx, c2: c2.idx, ..r })
-                        }
-                        AreaOutcome::Deleted => None,
-                        _ => unreachable!("shifting a result rectangle preserves its shape"),
-                    }
-                }
-                None => Some(r),
-            };
-            if !self.census.get(fid).expect("alive").results_stripped && let Some(range) = range {
-                rects.entry(r.sheet).or_default().push(range);
+            if !self.census.get(fid).expect("alive").results_stripped {
+                rects.entry(r.sheet).or_default().push(r);
                 plan.anchors.push(fid);
             }
         }
@@ -804,13 +761,9 @@ impl Workbook {
             let part = self.sheets[s].part.clone().expect("formula sheet");
             let want = cells.remove(&s).unwrap_or_default();
             let rs = rects.remove(&s).unwrap_or_default();
-            let (doc, index) = match shifted.filter(|(edit, _)| edit.sheet == s) {
-                Some((edit, index)) => (&*edit.worksheet, index),
-                None => {
-                    self.ensure_index(s)?;
-                    (self.pkg.xml_part(&part)?, self.indexes.get(&s).expect("built"))
-                }
-            };
+            self.ensure_index(s)?;
+            let doc = self.pkg.xml_part(&part)?;
+            let index = self.indexes.get(&s).expect("built");
             let (positions, shared) = strip_positions(doc, index, &part, s, &want, &rs)?;
             plan.shared_refs += shared;
             if !positions.is_empty() {
@@ -825,7 +778,7 @@ impl Workbook {
     /// `Package::apply`; only the in-memory state follows them.
     fn apply_steps(&mut self, plan: CellWritePlan, registry_done: bool, staged: Option<XmlDocument>) -> Result<()> {
         use crate::workbook::ApplyStepHook as Step;
-        let CellWritePlan { writes, strip, handoffs, full_calc_on_load, chain, mut registry, shifted_sheet } = plan;
+        let CellWritePlan { writes, strip, handoffs, full_calc_on_load, chain, registry, shifted_sheet } = plan;
         if registry_done {
             if chain.is_some() {
                 self.calc_chain = None;
@@ -850,13 +803,8 @@ impl Workbook {
         // (iii) dependents, at the positions planned on the tree before any
         // write of this plan (writes come after)
         self.fault_point(Step::Strip)?;
-        let mut stripped_refs = 0;
         for (p, positions) in &strip.sheets {
-            stripped_refs += strip_cells(self.pkg.xml_part_mut(p)?, positions)?;
-        }
-        if shifted_sheet.is_some() {
-            // A staged structural strip may already have removed a cache.
-            registry.refs_delta += strip.shared_refs - stripped_refs;
+            strip_cells(self.pkg.xml_part_mut(p)?, positions)?;
         }
         // (iv) shared-formula hand-offs
         self.fault_point(Step::HandOff)?;
@@ -1248,6 +1196,26 @@ mod tests {
         book.apply_writes_with_insertion(plan, staged_other, None, |_| Ok(())).unwrap();
         assert!(book.pkg.xml_part(&shifted_part).unwrap().serialize().contains("<t>new</t>"));
         assert_eq!(book.pkg.xml_part(&other_part).unwrap().serialize(), rewritten);
+    }
+
+    #[test]
+    fn shifted_write_skips_old_master_dependents_and_chain() {
+        let mut book = Workbook::from_bytes(synthetic("o1_shared.xlsx")).unwrap();
+        let index = sheet(&book, "Sheet2");
+        let part = book.sheets[index].part.clone().unwrap();
+        let mut shifted = Workbook::from_bytes(synthetic("o1_shared.xlsx")).unwrap();
+        shifted.worksheet().unwrap().insert_rows(2, 1).unwrap();
+        let mut worksheet = shifted.pkg.xml_part(&part).unwrap().clone();
+        let at = CellIndex::parse("B2").unwrap();
+        let plan = book.plan_writes_after(
+            Some(WriteIndexMap { sheet: index, axis: Axis::Row, shift: Shift::Insert { at: 2, count: 1 }, worksheet: &mut worksheet }),
+            vec![(index, at, CellOp::Number("1".into()), Extra::default())],
+            &HashSet::new(),
+            RegistryApply::default(),
+        ).unwrap();
+        assert!(plan.handoffs.is_empty());
+        assert!(plan.strip.sheets.is_empty());
+        assert!(plan.chain.is_none());
     }
 
     #[test]

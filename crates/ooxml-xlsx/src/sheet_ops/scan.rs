@@ -52,13 +52,29 @@ fn describe(stack: &[El], attribute: Option<&str>) -> String {
 /// (UTF-8, and UTF-16LE if it has that BOM), and any hit refuses
 /// (review R2-m3).
 pub(crate) fn scan_part(part: &str, bytes: &[u8], kind: PartKind, name: &str, edit: Option<&PrefixEdit<'_>>) -> Result<()> {
+    scan(part, bytes, kind, name, edit, false, edit.is_none())
+}
+
+pub(super) fn scan_grid_part(part: &str, bytes: &[u8], kind: PartKind, name: &str, own: bool) -> Result<()> {
+    // UTF-16 and character references can spell a delimiter without a
+    // literal ASCII exclamation mark at the position being checked.
+    let utf8 = !matches!(bytes, [0xff, 0xfe, ..] | [0xfe, 0xff, ..]);
+    if utf8 && !bytes.contains(&b'!') && !bytes.windows(2).any(|w| w == b"&#")
+        && !(own && bytes.windows(3).any(|w| w == b"ext"))
+    {
+        return Ok(());
+    }
+    scan(part, bytes, kind, name, None, true, own)
+}
+
+fn scan(part: &str, bytes: &[u8], kind: PartKind, name: &str, edit: Option<&PrefixEdit<'_>>, grid: bool, check_positions: bool) -> Result<()> {
     let refuse = |location: String| Err(Error::UnrewritableReference { part: part.to_owned(), location });
     let check = |value: &str, stack: &[El], attribute: Option<&str>, uri: Option<&str>, supported_target: bool| {
         if guid_shaped(value) {
             return Ok(());
         }
         let field = attribute.or_else(|| stack.last().map(|(_, local)| local.as_str()));
-        let position = edit.is_none() && uri.is_some()
+        let position = check_positions && uri.is_some()
             && field.is_some_and(|field| matches!(field, "f" | "sqref" | "ref" | "r"))
             && lex(value).is_ok_and(|tokens| tokens.iter().any(|token| {
                 matches!(&token.kind, TokKind::Ref(reference) if reference.prefix == Prefix::None)
@@ -73,6 +89,10 @@ pub(crate) fn scan_part(part: &str, bytes: &[u8], kind: PartKind, name: &str, ed
             {
                 unknown_prefix = !matches!(rewrite_formula(value, edit, &|text| mentions_prefix(text, name)), Ok(None));
             }
+        }
+        if grid && value.contains('!') && mentions_prefix(value, name) {
+            unknown_prefix = !supported_target || !(locations::find(kind, stack, attribute, uri).is_some()
+                || allowed(kind, stack, attribute, uri));
         }
         if unknown_position || unknown_prefix {
             let location = describe(stack, attribute);

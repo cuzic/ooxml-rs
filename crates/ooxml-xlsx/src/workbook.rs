@@ -696,7 +696,11 @@ fn formula_census(pkg: &Package, wb_rels: &Relationships, sheets: &[SheetEntry])
             continue;
         }
         listed.insert(part.clone());
-        if let Err(reason) = census::scan_sheet(&pkg.read_part(part)?, part, i, &dynamic, &mut census) {
+        let scanned = match pkg.parsed_part(part).filter(|doc| doc.is_dirty()) {
+            Some(doc) => census::scan_parsed_sheet(doc.root(), part, i, &dynamic, &mut census),
+            None => census::scan_sheet(&pkg.read_part(part)?, part, i, &dynamic, &mut census),
+        };
+        if let Err(reason) = scanned {
             census.block.get_or_insert(EditBlock::ScanFailed { part: part.clone(), reason });
         }
     }
