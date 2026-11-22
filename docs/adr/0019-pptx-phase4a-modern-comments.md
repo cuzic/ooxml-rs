@@ -1324,3 +1324,12 @@ can be revisited.
   `slides.rs` (`next_shape_id`, `drop_comment_rel`, `set_creation_id`,
   `COMMENT_TYPES`), `crates/ooxml-xlsx/src/comments/threads.rs`
   (P5c persons and GUIDs).
+
+### Post-acceptance note — transition occurrence limit
+
+Under ADR-0020 §§5 and 9, the core counts a transition in an
+`mc:AlternateContent` branch against the slide's transition limit.
+A typed `get_or_insert::<Transition>` returns `AlreadyPresent` when
+the transition exists only in branches, as verified on
+`bug68703.pptx`. This is the occurrence rule used by future transition
+write work.

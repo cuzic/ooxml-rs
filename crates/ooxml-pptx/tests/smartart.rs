@@ -537,6 +537,6 @@ fn cache_run_insertion_refuses_same_slot_alternate_content() {
         xml.replace(&shape, &shape.replacen("</a:r>", &format!("</a:r>{ac}"), 1))
     });
     let (result, output) = edit(&input, |sa| sa.set_run_text(NODE, 0, 1, "new"));
-    assert_matches!(result, Err(Error::UnsupportedContent(_) | Error::SmartArtCacheInconsistent(_)));
+    assert_matches!(result, Err(Error::UnsupportedContent(_)));
     assert_eq!(output, unchanged(&input));
 }

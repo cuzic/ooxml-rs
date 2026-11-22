@@ -426,19 +426,58 @@ fn alternate_content(contents: &str) -> String {
 }
 
 #[test]
-fn table_style_list_with_alternate_content_is_refused_without_changes() {
+fn table_style_append_reserves_ids_in_all_branches_and_preserves_wrapper() {
     let mut pkg = fixture(styles_theme_case::TABLE_FIXTURE);
-    let style_xml = xml(&pkg, STYLES);
-    let doc = XmlDocument::parse(style_xml.as_bytes()).unwrap();
-    let span = doc.root().elements().next().unwrap().span().unwrap();
-    let entry = &style_xml[span.start..span.end()];
-    replace(&mut pkg, STYLES, entry, &alternate_content(entry));
+    let source = xml(&pkg, STYLES);
+    let definition = styles_theme_case::definition();
+    let mut baseline = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    let first_id = baseline.add_table_style(definition.clone()).unwrap();
+    let entry = format!(
+        r#"<a:tblStyle styleId="{}" styleName="Reserved"/>"#,
+        first_id.to_ascii_lowercase()
+    );
+    let wrap = |choice: &str, fallback: &str| {
+        format!(
+            r#"<compat:AlternateContent xmlns:compat="{}"><compat:Choice Requires="a">{choice}</compat:Choice><compat:Fallback>{fallback}</compat:Fallback></compat:AlternateContent>"#,
+            ooxml_core::name::MC_NS
+        )
+    };
+    let close = "</a:tblStyleLst>";
+    assert!(source.contains(close));
+    for wrapper in [wrap(&entry, ""), wrap("", &entry), wrap(&wrap("", &entry), "")] {
+        let original = source.replacen(close, &format!("{wrapper}{close}"), 1);
+        pkg.set_part(STYLES, original.as_bytes().to_vec()).unwrap();
+        let mut deck = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let id = deck.add_table_style(definition.clone()).unwrap();
+        assert!(!id.eq_ignore_ascii_case(&first_id));
+        let saved = deck.to_bytes().unwrap();
+        let after = Package::from_bytes(saved.clone()).unwrap();
+        assert_other_parts(&pkg, &after, &[STYLES]);
+        let edited = xml(&after, STYLES);
+        let doc = XmlDocument::parse(edited.as_bytes()).unwrap();
+        let span = doc.root().elements().last().unwrap().span().unwrap();
+        assert_eq!([&edited[..span.start], &edited[span.end()..]].concat(), original);
+        assert_eq!(Presentation::from_bytes(saved.clone()).unwrap().to_bytes().unwrap(), saved);
+    }
+}
+
+#[test]
+fn table_style_append_refuses_malformed_alternate_content_without_changes() {
+    let mut pkg = fixture(styles_theme_case::TABLE_FIXTURE);
+    replace(
+        &mut pkg,
+        STYLES,
+        "</a:tblStyleLst>",
+        &format!(
+            r#"<mc:AlternateContent xmlns:mc="{}"/></a:tblStyleLst>"#,
+            ooxml_core::name::MC_NS
+        ),
+    );
     let before = pkg.to_bytes().unwrap();
     let mut deck = Presentation::from_bytes(before.clone()).unwrap();
     assert_matches!(
-        deck.add_table_style(TableStyleDef::default()),
-        Err(Error::UnsupportedContent(message))
-            if message.contains("a:tblStyleLst") && message.contains("mc:AlternateContent")
+        deck.add_table_style(styles_theme_case::definition()),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
     );
     assert_eq!(deck.to_bytes().unwrap(), before);
 }
