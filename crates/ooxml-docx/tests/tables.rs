@@ -438,3 +438,27 @@ fn delete_rows_treats_a_different_span_as_a_vertical_merge_boundary() {
     doc.delete_rows(t0(), 1..2).unwrap();
     assert_eq!(body_of(&doc), table(&[1000, 1000], &[plain, continuation]));
 }
+
+#[test]
+fn positioned_table_edits_refuse_same_slot_alternate_content() {
+    let ac = |child: &str| format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{child}</mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    let base = table(&[1000], &[format!("<w:tr>{}</w:tr>", cell("cell"))]);
+    let mut doc = open(&base.replacen("</w:tbl>", &format!("{}</w:tbl>", ac("<w:tr/>")), 1));
+    assert_matches!(
+        refused(&mut doc, |doc| doc.insert_rows(t0(), 1, 1, RowTemplate::Above)),
+        Error::Core(ooxml_core::Error::UnresolvedSibling(_))
+    );
+    for (end, child) in [
+        ("</w:tblGrid>", r#"<w:gridCol w:w="1000"/>"#),
+        ("</w:tr>", "<w:tc><w:p/></w:tc>"),
+    ] {
+        let mut doc = open(&base.replacen(end, &format!("{}{end}", ac(child)), 1));
+        assert_matches!(
+            refused(&mut doc, |doc| doc.insert_column(t0(), 1, 1000)),
+            Error::Core(ooxml_core::Error::UnresolvedSibling(_))
+        );
+    }
+}

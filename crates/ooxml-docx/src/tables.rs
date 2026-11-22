@@ -700,15 +700,11 @@ impl Document {
             edits.push((row.item, edit));
         }
         let grid_pos = grid.cols.get(at_grid_col).map(|(i, _)| *i);
-        // dry run: the new gridCol
+        // Inserting a cell can refuse after the grid or earlier rows have
+        // been edited. Commit the story only after every row succeeds.
         let xml = self.pkg.xml_part_mut(&part)?;
-        {
-            let mut tl = crate::structure::table_lens(xml, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;
-            let g = tl.nth_child_mut::<TableGrid>(0).expect("grid");
-            let at = grid_pos.unwrap_or(g.node().children().len());
-            g.check_insert_at::<GridColumn>(at)?;
-        }
-        let mut tl = crate::structure::table_lens(xml, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;
+        let mut staged = xml.clone();
+        let mut tl = crate::structure::table_lens(&mut staged, kind, &path)?.ok_or(Error::NoSuchTable(t.index))?;
         {
             let mut g = tl.nth_child_mut::<TableGrid>(0).expect("grid");
             let at = grid_pos.unwrap_or(g.node().children().len());
@@ -751,6 +747,7 @@ impl Document {
                 }
             }
         }
+        *xml = staged;
         self.table_changed(t.story, &path);
         Ok(())
     }

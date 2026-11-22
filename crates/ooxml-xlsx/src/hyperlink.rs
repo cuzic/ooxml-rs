@@ -196,7 +196,7 @@ impl Workbook {
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             match ws.child_mut::<sml::Hyperlinks>() {
                 Some(h) => h.check_insert_with_ns::<sml::Hyperlink>(decls).map(drop)?,
-                None => ws.check_insert_by::<sml::Hyperlinks>(|_, _| false)?,
+                None => ws.check_insert::<sml::Hyperlinks>()?,
             }
         }
         let text_op = match &opts.text {

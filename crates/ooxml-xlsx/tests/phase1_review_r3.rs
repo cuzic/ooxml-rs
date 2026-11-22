@@ -102,7 +102,8 @@ fn p6_double_equals_is_refused() {
 }
 
 /// R3-m6, P7: `calcPr` would have to be inserted next to an
-/// `mc:AlternateContent` child of `workbook`: refused, nothing changed.
+/// `mc:AlternateContent` child of `workbook` whose Choice requires the
+/// unbound prefix `x15`. The edit is refused without changing the package.
 #[test]
 fn p7_calc_pr_next_to_alternate_content() {
     let b = book(&[("S", r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1</f><v>1</v></c></row>"#)], "", r#"<mc:AlternateContent><mc:Choice Requires="x15"/><mc:Fallback/></mc:AlternateContent>"#);

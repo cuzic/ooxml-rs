@@ -685,24 +685,16 @@ pub enum FieldSpec {
   `Seq`, `Toc`) gets `w:dirty="true"` on its begin `fldChar`.
   - The operation also requires the caller's `updateFields` opt-in (ADR-0007). Without it, the
     operation is refused, because the result would be stale by construction.
-  - `w:dirty` alone is not relied on: it was never seen in the corpora, and Word's handling of it
-    is *(u)*.
+  - Content-dependent fields use both mechanisms because Word's handling of
+    `w:dirty` alone is unverified *(u)*. As an exception, W2-safe date-valued
+    `DocProperty` fields use an empty cache and a dirty begin marker without
+    requiring `updateFields` opt-in (owner question 11 below).
 - **Gates.** W1 and W3 apply. W2: inserting a safe field is a text edit. Inserting a
   content-dependent field turns the document into one W2 refuses for later untracked edits,
   unless `updateFields` stays set. That is the intended consequence and is documented on the
   operation.
 - **Not in Phase3:** `IF`, `=`, mail-merge fields, `INCLUDETEXT`, form fields, and editing
   existing field instructions.
-
-#### Open question: date-valued DOCPROPERTY refresh (post-acceptance, #139)
-
-Date-valued DOCPROPERTY fields are W2-safe and currently use an empty cache and
-`w:dirty="true"` on the begin marker. Word's first-open behavior with that
-marker alone is unverified. Manual check `53-field-docproperty-createtime.docx`
-records what Word displays before and after F9. The owner will decide whether
-to keep the empty cache or populate it with a date formatted as Word displays it.
-LibreOffice 25.2.7.2 (`C.UTF-8`, UTC) exported this case as
-`Created: 11/22/2003` in both text and PDF, without a manual field update.
 
 ### 8. Effective formatting (read-only resolver)
 
@@ -1023,6 +1015,13 @@ owner's decision.
    in the pinned SDK data, or do they need an override file? (Open.)
 10. **docx4j** as a further formatting reference (its `PropertyResolver`): add its source at a
     pinned revision to the spike before implementation? (Open.)
+11. **Date-valued DOCPROPERTY refresh (§7, post-acceptance, #139).** Will Word
+    refresh an empty cache on first open using only `w:dirty="true"`? Manual
+    check `53-field-docproperty-createtime.docx` records what Word displays
+    before and after F9. The owner will decide whether to keep the empty cache
+    or populate it with a date formatted as Word displays it. LibreOffice
+    25.2.7.2 (`C.UTF-8`, UTC) exported this case as `Created: 11/22/2003` in
+    both text and PDF without a manual field update.
 
 ## Sources
 
@@ -1243,13 +1242,19 @@ Acceptance tests cover byte-local edits and byte-identical refusals.
   These properties remain W2-safe and require no session opt-in.
 - REF caches the matched bookmark's current text and refuses insertion
   inside that bookmark with InvalidValue. PAGEREF has a question-mark
-  cache until pagination. SEQ identifiers begin with a Unicode alphabetic
-  character. Subsequent characters may be Unicode alphanumeric characters
-  or underscores. Invalid identifiers return InvalidValue. The cache counts
-  prior completed simple and complex fields with the same normalized
-  identifier in the current story, ignoring switches such as \r, \c, and \h
-  until the field is updated.
+  cache until pagination. SEQ identifiers have a maximum of 40 Unicode
+  characters and begin with a Unicode alphabetic character. Subsequent
+  characters may be Unicode alphanumeric characters or underscores, including
+  numeric symbols such as `②`, `½`, `²`, and `Ⅻ`. The manual case
+  `54-field-seq-number-symbols.docx` checks how Word updates such an identifier.
+  Invalid identifiers return `InvalidValue` without changing the document.
+  The 40-character limit follows the [Microsoft SEQ field documentation].
+  The cache counts prior completed simple and complex fields with the same
+  normalized identifier in the current story, ignoring switches such as
+  `\r`, `\c`, and `\h` until the field is updated.
 - Content-dependent insertion requires the session opt-in from ADR-0007
   even when the input settings already request updates. Those fields carry
   the dirty flag on the begin marker. Word's treatment of that flag and
   full-width date picture letters remains unverified *(u)*.
+
+[Microsoft SEQ field documentation]: https://support.microsoft.com/en-us/word/field-codes-seq-sequence-field

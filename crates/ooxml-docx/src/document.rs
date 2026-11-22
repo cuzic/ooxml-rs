@@ -657,6 +657,13 @@ impl Document {
         if index.open_fields_at_end > 0 {
             return Err(Error::InsideField);
         }
+        // The format-level lift is scheduled for ADR-0020 U3.
+        let root = self.story_root_node(StoryIndex::MAIN);
+        if root.children()[b].as_element().is_some_and(|body| {
+            body.elements().any(|node| node.is(ooxml_core::name::MC_ALTERNATE_CONTENT))
+        }) {
+            return Err(ooxml_core::Error::UnresolvedSibling(Body::QNAME).into());
+        }
         if ends_with_section_break(self.story_root_node(StoryIndex::MAIN), index) {
             // Phase2 lifts A2 (ADR-0011 §6): the last section's sectPr moves to
             // the new paragraph, when the last paragraph is a body child.

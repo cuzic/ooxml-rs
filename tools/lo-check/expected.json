@@ -237,6 +237,15 @@
       ["word/document.xml", ".//w:t", 1]
     ]
   },
+  "docx/54-field-seq-number-symbols.docx": {
+    "text": ["Sequence with numeric symbols:"],
+    "pdf_text": ["Sequence with numeric symbols:"],
+    "xml": [
+      ["word/document.xml", ".//w:instrText[.=' SEQ \"Fig②½²Ⅻ\" ']", 1],
+      ["word/document.xml", ".//w:fldChar[@w:fldCharType='begin'][@w:dirty='true']", 1],
+      ["word/document.xml", ".//w:t[.='1']", 1]
+    ]
+  },
   "pptx/M1-slide-comment.pptx": {"text": []},
   "pptx/M2-title-comment.pptx": {"text": []},
   "pptx/M3-shape-without-creation-id.pptx": {"text": []},

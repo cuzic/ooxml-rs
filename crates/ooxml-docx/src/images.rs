@@ -4,7 +4,7 @@
 //! first, then the registry plan (media part and relationship, reused when
 //! possible), `Package::apply`, and the tree edits.
 
-use ooxml_core::{NsDecl, PartNameRequest, QName, RegistryPlan, Target};
+use ooxml_core::{ElementSpec, NsDecl, PartNameRequest, QName, RegistryPlan, Target};
 use ooxml_schema::dml::{
     AdjustValueList, Blip, Extents, FillRectangle, Graphic, GraphicData, GraphicFrameLocks, Offset, PresetGeometry,
     Stretch, Transform2D,
@@ -382,6 +382,10 @@ impl Document {
         let mut ppath = parent_path;
         ppath.push(item);
         let p_node = p.raw();
+        // The position counts element children across slots (ADR-0020 §4.4).
+        if p_node.elements().any(|n| n.is(ooxml_core::name::MC_ALTERNATE_CONTENT)) {
+            return Err(ooxml_core::Error::UnresolvedSibling(ooxml_schema::wml::Paragraph::QNAME).into());
+        }
         let k = after_item.map(|a| p_node.indexed_elements().filter(|(i, e)| *i <= a && !is::<ParagraphProperties>(e)).count());
         let runs_before = p
             .runs()

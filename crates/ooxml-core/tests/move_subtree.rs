@@ -500,3 +500,16 @@ fn an_undeclared_default_namespace_equals_xmlns_empty() {
     let src = r#"<x:doc xmlns:x="urn:t"><x:box><x:item><plain/></x:item></x:box><x:box xmlns="urn:z"/></x:doc>"#;
     assert_matches!(move_item_to_box1(src), Err(Error::NotMovable { reason: MoveRefusal::NamespaceBinding, .. }));
 }
+
+#[test]
+fn move_append_and_move_callback_treat_same_slot_alternate_content_differently() {
+    let source = r#"<x:doc xmlns:x="urn:t" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><x:box><x:item k="1"/><mc:AlternateContent><mc:Choice Requires="x"><x:item k="2"/></mc:Choice></mc:AlternateContent></x:box></x:doc>"#;
+    let mut d = doc(source);
+    let item = at::<Item>(&d, &[0, 0]);
+    let mut dest = lens_at::<Box_>(&mut d, &[0]);
+    assert_matches!(dest.check_move_in_by::<Item>(&item, |_, _| false), Err(Error::UnresolvedSibling(_)));
+    assert_matches!(dest.move_in_by::<Item>(&item, |_, _| false), Err(Error::UnresolvedSibling(_)));
+    assert_eq!(d.serialize(), source);
+    lens_at::<Box_>(&mut d, &[0]).move_in::<Item>(&item).unwrap();
+    assert_eq!(d.serialize(), source.replace(r#"<x:item k="1"/>"#, "").replace("</mc:AlternateContent>", r#"</mc:AlternateContent><x:item k="1"/>"#));
+}

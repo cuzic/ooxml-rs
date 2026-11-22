@@ -79,15 +79,18 @@ pub enum Error {
         /// Local name of the element found.
         found_local: String,
     },
-    /// The child's limit (`max_each` or `max_total` of its slot) is reached.
+    /// The child's limit (`max_each` or `max_total` of its slot) is reached,
+    /// counting direct children and the maximum across AlternateContent branches.
     #[error("{0} cannot be inserted: its slot is full")]
     AlreadyPresent(QName),
     /// The child's QName is in two slots; use `insert_in_slot`.
     #[error("{0} appears in more than one slot; use insert_in_slot")]
     AmbiguousSlot(QName),
-    /// The parent has an `mc:AlternateContent` child, or its existing
-    /// children violate the schema order, so no safe insertion point exists.
-    #[error("cannot position a new child of {0}: mc:AlternateContent sibling or out-of-order children")]
+    /// Existing children are out of schema order, or an `mc:AlternateContent`
+    /// sibling prevents safe placement. This includes malformed or unranked
+    /// branches, an interval straddling the target slot, and a positional
+    /// insert into a slot occupied by an AC (including any all-empty AC).
+    #[error("cannot position a new child of {0}: out-of-order children or an mc:AlternateContent sibling prevents placement")]
     UnresolvedSibling(QName),
     /// The parent's content model could not be lowered to slots.
     #[error("the content model of {0} is unsupported for insertion")]

@@ -207,11 +207,7 @@ fn insert_creation_id(doc: &mut XmlDocument, id: u32) -> Result<()> {
     let mut data = slide
         .child_mut::<pml::CommonSlideData>()
         .ok_or_else(|| Error::UnsupportedContent("missing p:cSld".into()))?;
-    let mut list = if child(data.node(), pml::CommonSlideDataExtensionList::QNAME).is_some() {
-        data.get_or_insert::<pml::CommonSlideDataExtensionList>()?
-    } else {
-        data.insert_after_alternate_content::<pml::CommonSlideDataExtensionList>()?
-    };
+    let mut list = data.get_or_insert::<pml::CommonSlideDataExtensionList>()?;
     let mut ext = list.insert::<pml::CommonSlideDataExtension>()?;
     ext.set_attr(q("", "uri"), CREATION_EXT)?;
     let mut creation = ext.insert_with_ns::<pml::CreationId>(&[NsDecl::new("p14", P14_NS)])?;
@@ -722,11 +718,7 @@ impl crate::Presentation {
                 declarations.push(NsDecl::new("r", R_NS));
             }
             let mut root = slide.lens_mut::<pml::Slide>()?;
-            let mut list = if child(root.node(), pml::SlideExtensionList::QNAME).is_some() {
-                root.get_or_insert::<pml::SlideExtensionList>()?
-            } else {
-                root.insert_after_alternate_content::<pml::SlideExtensionList>()?
-            };
+            let mut list = root.get_or_insert::<pml::SlideExtensionList>()?;
             let mut ext = list.insert::<pml::SlideExtension>()?;
             ext.set_attr(q("", "uri"), COMMENT_EXT)?;
             let mut rel = ext.insert_with_ns::<pml::CommentRelationship>(&declarations)?;
@@ -877,6 +869,31 @@ mod tests {
         let after = deck.tree(&source).unwrap().serialize();
         assert!(after.contains(&original));
         assert!(after.find(&original).unwrap() < after.find(COMMENT_EXT).unwrap());
+    }
+
+    #[test]
+    fn unranked_alternate_content_refuses_comment_without_changes() {
+        let mut deck = open("poi/bug68703.pptx");
+        let source = deck.slides[0].part.clone().unwrap();
+        let slide = deck.tree(&source).unwrap();
+        let alternate = slide
+            .root()
+            .elements()
+            .find(|node| node.is(q(MC_NS, "AlternateContent")))
+            .unwrap();
+        let span = alternate.span().unwrap();
+        let mut xml = slide.source().to_owned();
+        xml.replace_range(
+            span.start..span.end(),
+            r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:v="urn:vendor"><mc:Choice Requires="v"><v:unknown/></mc:Choice></mc:AlternateContent>"#,
+        );
+        deck.pkg.set_part(&source, xml.into_bytes()).unwrap();
+        let mut deck = Presentation::from_bytes(deck.to_bytes().unwrap()).unwrap();
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::Core(ooxml_core::Error::UnresolvedSibling(_))),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
     }
 
     #[test]

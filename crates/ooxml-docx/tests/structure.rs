@@ -468,3 +468,108 @@ fn fixture_sweep() {
     eprintln!("structure sweep: {ok} writes, {refusals} refusals");
     assert!(ok > 100);
 }
+
+#[test]
+fn paragraph_insertion_and_update_fields_refuse_same_slot_alternate_content() {
+    let wrap = |member: &str| {
+        format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{member}</mc:Choice></mc:AlternateContent>"#,
+                ooxml_core::name::MC_NS)
+    };
+    let mut doc = open(&format!("<w:p/>{}", wrap("<w:p/>")));
+    assert_matches!(
+        refused(&mut doc, |doc| doc.insert_paragraph(Place::After(p(0)), "new", &ParagraphSpec::Plain)),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+
+    let settings = story_xml("settings", &wrap("<w:updateFields/>"));
+    let bytes = package(&document_xml("<w:p/>"), &[("settings", "settings.xml", &settings)]);
+    let mut doc = Document::from_bytes(bytes).unwrap();
+    assert_matches!(
+        refused(&mut doc, Document::enable_update_fields_on_open),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+}
+
+#[test]
+fn positioned_run_insertion_refuses_same_slot_alternate_content() {
+    use ooxml_docx::{BookmarkRange, ControlSpec, FieldSpec, TextRange, WrapTarget};
+
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w"><w:r/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let mut doc = open(&format!("<w:p><w:r><w:t>anchor</w:t></w:r>{ac}</w:p>"));
+    let anchor = RunRef::new(p(0), 0);
+    let at = RunPosition::After(anchor);
+    assert_matches!(
+        refused(&mut doc, |doc| doc.insert_field(at, FieldSpec::Page)),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+    assert_matches!(
+        refused(&mut doc, |doc| doc.add_footnote(at, vec!["note".into()])),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+    assert_matches!(
+        refused(&mut doc, |doc| doc.add_bookmark("mark", BookmarkRange::Paragraphs { first: p(0), last: p(0) })),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+    let matched = doc.find("cho", &ReplaceOptions::default()).unwrap().remove(0);
+    assert_matches!(
+        refused(&mut doc, |doc| doc.add_bookmark("partial", BookmarkRange::Match(&matched))),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+    assert_matches!(
+        refused(&mut doc, |doc| doc.wrap_in_control(WrapTarget::Inline(TextRange::new(anchor, anchor)), ControlSpec::default())),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+}
+
+#[test]
+fn section_break_refuses_same_slot_alternate_content_in_paragraph_properties() {
+    let wrap = |member: &str| format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{member}</mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    for properties in [
+        wrap("<w:pPr/>"),
+        format!("<w:pPr>{}</w:pPr>", wrap("<w:sectPr/>")),
+    ] {
+        let mut doc = open(&format!("<w:p>{properties}<w:r><w:t>anchor</w:t></w:r></w:p><w:p/><w:sectPr/>"));
+        assert_matches!(
+            refused(&mut doc, |doc| doc.insert_section_break(p(0), SectionBreak::Continuous)),
+            Error::Core(CoreError::UnresolvedSibling(_))
+        );
+    }
+
+    let mut doc = open(&format!("<w:p/><w:p/><w:sectPr>{}</w:sectPr>", wrap("<w:type w:val='continuous'/>")));
+    assert_matches!(
+        refused(&mut doc, |doc| doc.insert_section_break(p(0), SectionBreak::Continuous)),
+        Error::Core(CoreError::NotDetachable { reason: ooxml_core::DetachRefusal::AlternateContent, .. })
+    );
+}
+
+#[test]
+fn block_wrap_refuses_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w"><w:p/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let mut doc = open(&format!("<w:p><w:r><w:t>anchor</w:t></w:r></w:p>{ac}"));
+    assert_matches!(
+        refused(&mut doc, |doc| doc.wrap_in_control(
+            ooxml_docx::WrapTarget::Paragraphs { first: p(0), last: p(0) }, ooxml_docx::ControlSpec::default()
+        )),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+}
+
+#[test]
+fn run_piece_replacement_refuses_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w"><w:t>hidden</w:t></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let mut doc = open(&format!("<w:p><w:r><w:t>anchor</w:t>{ac}</w:r></w:p>"));
+    let before = doc.to_bytes().unwrap();
+    let matches = doc.find("anchor", &ReplaceOptions::default()).unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_matches!(
+        doc.replace_at(&matches[0], "left\tright\nend", &ReplaceOptions::default()),
+        Err(Error::ReplaceRefused { .. })
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
+}

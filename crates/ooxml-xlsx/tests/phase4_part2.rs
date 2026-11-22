@@ -623,3 +623,54 @@ fn conditional_format_uses_the_differential_format_registry() {
     let sheet = sheet_xml(&bytes);
     assert!(sheet.contains(&format!(r#"dxfId="{id}""#)), "{sheet}");
 }
+
+#[test]
+fn layout_append_dry_runs_count_alternate_content_limits() {
+    fn ac(member: &str) -> String {
+        format!(r#"<mc:AlternateContent xmlns:mc="{}" xmlns:x="{SML}"><mc:Choice Requires="x">{member}</mc:Choice></mc:AlternateContent>"#,
+                ooxml_core::name::MC_NS)
+    }
+    type Edit = fn(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<()>;
+    let cases: [(Vec<u8>, Edit); 6] = [
+        (sheet_with(&ac("<sheetViews/>"), "", ""), |ws| ws.freeze_panes(1, 0)),
+        (sheet_with(&ac("<sheetFormatPr/>"), "", ""), |ws| ws.set_column_outline(0, 0, 1)),
+        (sheet_with(&ac("<sheetFormatPr/>"), "", ""), |ws| ws.set_row_outline(0, 1)),
+        (sheet_with(&ac("<sheetPr/>"), "", ""), |ws| ws.set_page_setup(&PageSetup { fit_to_page: Some(true), ..PageSetup::default() })),
+        (sheet_with(&format!("<sheetPr>{}</sheetPr>", ac("<pageSetUpPr/>")), "", ""), |ws| {
+            ws.set_page_setup(&PageSetup { fit_to_page: Some(true), ..PageSetup::default() })
+        }),
+        (sheet_with("", &ac("<pageSetup/>"), ""), |ws| ws.set_page_setup(&PageSetup::default())),
+    ];
+    for (input, edit) in cases {
+        let (wb, result) = try_on(&input, edit);
+        assert_matches!(result, Err(Error::Core(ooxml_core::Error::AlreadyPresent(_))));
+        let unedited = Workbook::from_bytes(input).unwrap().to_bytes().unwrap();
+        assert_eq!(wb.to_bytes().unwrap(), unedited);
+    }
+
+    // Worksheet columns are repeatable. The preflight still refuses a
+    // branch whose interval straddles their slot.
+    let input = sheet_with(&ac("<sheetViews/><sheetData/>"), "", "");
+    let (wb, result) = try_on(&input, |ws| ws.set_column_width(0, 0, 12.0));
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+}
+
+#[test]
+fn indexed_column_splits_and_breaks_refuse_alternate_content_before_apply() {
+    let ac = |child: &str| {
+        format!(r#"<mc:AlternateContent xmlns:mc="{}" xmlns:x="{SML}"><mc:Choice Requires="x">{child}</mc:Choice></mc:AlternateContent>"#,
+                ooxml_core::name::MC_NS)
+    };
+    let cols = format!(r#"<cols><col min="1" max="3" width="10"/>{}</cols>"#, ac(r#"<col min="9" max="9"/>"#));
+    let input = sheet_with(&cols, "", "");
+    let (wb, result) = try_on(&input, |ws| ws.set_column_outline(1, 1, 1));
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+
+    let breaks = format!(r#"<rowBreaks>{}<brk id="7"/></rowBreaks>"#, ac(r#"<brk id="5"/>"#));
+    let input = sheet_with("", &breaks, "");
+    let (wb, result) = try_on(&input, |ws| ws.add_row_break(2));
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+}

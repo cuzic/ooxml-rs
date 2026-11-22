@@ -1053,3 +1053,17 @@ fn destination_refusals_of_a_copy_are_format_not_copyable() {
     let e = refused(&mut p, |p| p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.paragraph_mut(0)?.set_text("a\u{b}b"));
     assert_matches!(e, Error::FormatNotCopyable("a:rPr"));
 }
+
+#[test]
+fn paragraph_insertion_preserves_text_body_with_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a"><a:p/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let src = patch("poi/sample.pptx", "ppt/slides/slide1.xml", |xml| xml.replacen("</p:txBody>", &format!("{ac}</p:txBody>"), 1));
+    let mut p = Presentation::from_bytes(src).unwrap();
+    assert_matches!(
+        refused(&mut p, |p| {
+            p.slide_mut(0)?.shape_mut_by_id(2049)?.text_body_mut()?.add_paragraph("new").map(|_| ())
+        }),
+        Error::UnsupportedContent(_)
+    );
+}

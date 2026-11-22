@@ -980,3 +980,14 @@ fn clear_autofit_restores_original_provenance() {
     edit(&mut pres, |body| body.clear_autofit()).unwrap();
     assert_eq!(inspect(&mut pres, false), original);
 }
+
+#[test]
+fn range_formatting_refuses_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a"><a:r/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let mut pres = patch("</a:r>", &format!("</a:r>{ac}"));
+    assert_matches!(
+        refused(&mut pres, |body| body.paragraph_mut(0)?.format_range(1, 3, &bold())),
+        Error::UnsupportedContent(_)
+    );
+}

@@ -371,3 +371,18 @@ fn sheet_operations_refuse_an_unregistered_extension_formula_atomically() {
     );
     assert_eq!(book.to_bytes().unwrap(), before);
 }
+
+#[test]
+fn positioned_sheet_edits_refuse_same_slot_alternate_content() {
+    let source = common::p1::book(&[("First", ""), ("Second", "")], "", "");
+    let part = "xl/workbook.xml";
+    let ac = format!(r#"<mc:AlternateContent><mc:Choice Requires="x" xmlns:x="{}"><x:sheet name="Wrapped" sheetId="900"/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_schema::sml::NS_X);
+    let workbook = common::patched(&source, part, "</sheets>", &format!("{ac}</sheets>"));
+    let mut book = Workbook::from_bytes(rebuild(&source, &[(part, workbook)])).unwrap();
+    let before = book.to_bytes().unwrap();
+    std::assert_matches!(book.add_sheet("New", 1), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(book.to_bytes().unwrap(), before);
+    std::assert_matches!(book.move_sheet(0, 1), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(book.to_bytes().unwrap(), before);
+}

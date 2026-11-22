@@ -960,6 +960,11 @@ whitespace is ever added, so the byte diff stays at the insertion point.
 
 #### 4.3 Unlisted siblings and Markup Compatibility
 
+[ADR-0020](0020-alternatecontent-rank.md) supersedes the Phase0 and later rules
+below. The implementation uses branch rank intervals and occurrence limits.
+The `mce_wrapped` override retains names in their slots and suppresses typed
+access only for children Office writes exclusively inside MCE branches.
+
 A child that is in no slot (and matches no wildcard) is *unlisted*: a
 vendor extension, a comment, a processing instruction. It is treated as
 attached to the listed sibling before it. It never decides a position
@@ -985,8 +990,8 @@ Therefore:
   disagree.
 - The SDK data lists some MCE-only children as direct children (e.g.
   `x15ac:absPath` at position 3 of `CT_Workbook`). These get a
-  `mce_wrapped` override (§1.3) so the generated `CONTENT` does not
-  offer a direct insert Excel would never write.
+  `mce_wrapped` override (§1.3) so the generated typed API omits that direct
+  child and the slot table can still rank its wrapper (ADR-0020 §8).
 
 ### 5. Scope control
 

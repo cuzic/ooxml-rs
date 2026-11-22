@@ -550,7 +550,7 @@ fn refusals_preserve_every_byte() {
     let input = with_part(&blank, SHEET, &ac);
     assert_matches!(
         refusal(&input, |ws| spark(ws, "D1", "Sheet1!A1:C1")),
-        Error::Core(ooxml_core::Error::UnresolvedSibling(_))
+        Error::Core(ooxml_core::Error::AlreadyPresent(_))
     );
 
     let implicit = book(&[("Sheet1", r#"<row r="4"><c><v>1</v></c></row>"#)], "", "");

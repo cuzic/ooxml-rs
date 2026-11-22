@@ -104,7 +104,7 @@ impl Workbook {
         let mut ws = doc.lens_mut::<sml::Worksheet>()?;
         match ws.child_mut::<sml::MergeCells>() {
             Some(mc) => mc.check_insert::<sml::MergeCell>()?,
-            None => ws.check_insert_by::<sml::MergeCells>(|_, _| false)?,
+            None => ws.check_insert::<sml::MergeCells>()?,
         }
         Ok((r, hidden))
     }
@@ -267,7 +267,7 @@ impl Workbook {
                         return Err(Error::AutoFilterExists);
                     }
                 }
-                None => ws.check_insert_by::<sml::AutoFilter>(|_, _| false)?,
+                None => ws.check_insert::<sml::AutoFilter>()?,
             }
         }
         // the sheet-local _xlnm._FilterDatabase
@@ -314,7 +314,7 @@ impl Workbook {
             let mut wb = doc.lens_mut::<sml::Workbook>()?;
             match wb.child_mut::<sml::DefinedNames>() {
                 Some(dn) => dn.check_insert::<sml::DefinedName>()?,
-                None => wb.check_insert_by::<sml::DefinedNames>(|_, _| false)?,
+                None => wb.check_insert::<sml::DefinedNames>()?,
             }
         }
         if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&text) {
@@ -390,7 +390,7 @@ impl Workbook {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if ws.child_mut::<sml::SheetProtection>().is_none() {
-                ws.check_insert_by::<sml::SheetProtection>(|_, _| false)?;
+                ws.check_insert::<sml::SheetProtection>()?;
             }
         }
         self.poisoning(|wb| {
@@ -440,7 +440,7 @@ impl Workbook {
             let doc = self.pkg.xml_part_mut(&part)?;
             let mut wb = doc.lens_mut::<sml::Workbook>()?;
             if wb.child_mut::<sml::WorkbookProtection>().is_none() {
-                wb.check_insert_by::<sml::WorkbookProtection>(|_, _| false)?;
+                wb.check_insert::<sml::WorkbookProtection>()?;
             }
         }
         self.poisoning(|wb| {
