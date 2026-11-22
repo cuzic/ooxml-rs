@@ -836,3 +836,22 @@ fn set_adjustment_completes_a_partial_list_in_order() {
     );
 }
 
+
+#[test]
+fn completing_adjustments_refuses_same_slot_alternate_content() {
+    let mut p = synthetic(&member(81, 10, 20, 30, 40));
+    edit(&mut p, 81, |s| {
+        s.set_preset(ShapeTypeValues::UpArrow)?;
+        s.set_adjustment("adj1", 50_000)
+    }).unwrap();
+    let mut pkg = Package::from_bytes(p.to_bytes().unwrap()).unwrap();
+    let xml = String::from_utf8(pkg.read_part(SLIDE).unwrap()).unwrap();
+    let ac = format!(r#"<a:avLst><mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a"><a:gd name="adj1" fmla="val 50000"/></mc:Choice></mc:AlternateContent></a:avLst>"#,
+                     ooxml_core::name::MC_NS);
+    pkg.set_part(SLIDE, xml.replacen(&av_list(&p), &ac, 1).into_bytes()).unwrap();
+    let mut p = Presentation::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+    assert_matches!(
+        refused(&mut p, 81, |shape| shape.set_adjustment("adj2", 40_000)),
+        Error::InsideAlternateContent
+    );
+}

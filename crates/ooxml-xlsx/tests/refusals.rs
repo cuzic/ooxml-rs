@@ -102,7 +102,8 @@ fn with_sheet(xml: &str) -> Vec<u8> {
 /// P0-R9 (adapted: a missing `dimension` is never inserted, coordinator
 /// default): a worksheet with an `mc:AlternateContent` child and no
 /// `dimension` is writable; one that also lacks `sheetData` needs an
-/// insertion next to the AC → `UnresolvedSibling`, nothing changed.
+/// insertion next to the AC. The Choice's unbound Requires prefix
+/// makes that insertion fail with `UnresolvedSibling`.
 #[test]
 fn r9_alternate_content_sibling() {
     let ac = "<mc:AlternateContent><mc:Choice Requires=\"x14\"><controls/></mc:Choice></mc:AlternateContent>";
@@ -114,6 +115,7 @@ fn r9_alternate_content_sibling() {
     let bad = with_sheet(&format!("{WS_OPEN}{ac}</worksheet>"));
     let (wb, r) = apply(&bad, a1("B2"), &W::Num(1.0));
     assert_matches!(r, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(bad).unwrap().to_bytes().unwrap());
     assert_eq!(wb.package().state("xl/worksheets/sheet1.xml"), Some(PartStateKind::Parsed { dirty: false }));
 }
 
@@ -257,9 +259,14 @@ fn f6_alternate_content_around_rows_and_cells() {
         }
     }
     // (c) a worksheet with an AC and no sheetData: sheetData may be inside it
-    let bytes = with_sheet(&format!("{WS_OPEN}<mc:AlternateContent><mc:Fallback><sheetData/></mc:Fallback></mc:AlternateContent></worksheet>"));
+    let bytes = with_sheet(&format!(r#"{WS_OPEN}<mc:AlternateContent><mc:Choice Requires="mc"><sheetData/></mc:Choice></mc:AlternateContent></worksheet>"#));
     let mut wb = Workbook::from_bytes(bytes).unwrap();
-    assert_matches!(wb.worksheet().unwrap().cell(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    let before = wb.to_bytes().unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert_matches!(ws.cell(0, 0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_matches!(ws.set_row_height(0, 18.0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_matches!(ws.cell_mut(0, 0).unwrap().set_number(1.0), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), before);
 }
 
 /// F7: a `dimension` whose `ref` is missing or not a cell range refuses

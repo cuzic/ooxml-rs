@@ -754,3 +754,13 @@ fn deletion_removes_anchors_in_existing_content_controls() {
         .replace("<w:r><w:commentReference w:id='7'/></w:r>", "");
     assert_eq!(xml(&doc.to_bytes().unwrap(), "word/document.xml"), expected);
 }
+
+#[test]
+fn comment_anchor_insertion_refuses_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w"><w:r/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let input = docx(&format!("<w:p><w:r><w:t>anchor</w:t></w:r>{ac}</w:p>"), None, None);
+    let mut d = Document::from_bytes(input.clone()).unwrap();
+    assert_matches!(d.add_comment(range(&d), comment("new comment")), Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(d.to_bytes().unwrap(), input);
+}

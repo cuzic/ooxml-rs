@@ -395,13 +395,17 @@ fn rule_4_keeps_the_first_run_with_its_format() {
 
 #[test]
 fn unsupported_paragraph_content_is_refused() {
-    // SYNTHETIC: an a14:m (math) item between two runs
-    let runs = format!("{}<a14:m xmlns:a14=\"http://schemas.microsoft.com/office/drawing/2010/main\"/>{}", r("", "", "left"), r("", "", "right"));
-    let input = deck(&runs);
-    let mut pres = Presentation::from_bytes(input.clone()).unwrap();
-    let rep = pres.replace_all("left", "L", &opts(0)).unwrap();
-    assert_matches!(rep.skipped[..], [(_, Error::UnsupportedContent(_))]);
-    assert_eq!(pres.to_bytes().unwrap(), input);
+    let math = r#"<a14:m xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main"/>"#;
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="a"><a:r/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    for member in [math, &ac] {
+        let runs = format!("{}{member}{}", r("", "", "left"), r("", "", "right"));
+        let input = deck(&runs);
+        let mut pres = Presentation::from_bytes(input.clone()).unwrap();
+        let rep = pres.replace_all("left", "L\u{b}R", &opts(0)).unwrap();
+        assert_matches!(rep.skipped[..], [(_, Error::UnsupportedContent(_))]);
+        assert_eq!(pres.to_bytes().unwrap(), input);
+    }
 }
 
 #[test]

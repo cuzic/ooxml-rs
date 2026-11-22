@@ -961,3 +961,44 @@ fn tracked_insert_refuses_revision_at_boundary_or_marker_in_template() {
         assert_eq!(doc.to_bytes().unwrap(), input);
     }
 }
+
+#[test]
+fn tracked_insertions_refuse_same_slot_alternate_content() {
+    let ac = |member: &str| format!(
+        r#"<mc:AlternateContent><mc:Choice Requires="w">{member}</mc:Choice></mc:AlternateContent>"#
+    );
+    let input = docx(&format!("<w:p><w:r><w:t>anchor</w:t></w:r>{}</w:p>{}", ac("<w:r/>"), ac("<w:p/>")), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let before = doc.to_bytes().unwrap();
+    assert_matches!(
+        doc.track_changes(author(), None).unwrap().insert_text(RunPosition::After(r(0, 0)), "new"),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
+    assert_matches!(
+        doc.track_changes(author(), None).unwrap().delete_text(TextRange::new(r(0, 0), r(0, 0))),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
+    assert_matches!(
+        doc.track_changes(author(), None).unwrap().insert_paragraph(Place::After(p(0)), "new", &ParagraphSpec::Plain),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn tracked_paragraph_mark_refuses_same_slot_alternate_content() {
+    let input = docx(
+        r#"<w:p><w:pPr><w:rPr><mc:AlternateContent><mc:Choice Requires="w"/></mc:AlternateContent></w:rPr></w:pPr><w:r><w:t>anchor</w:t></w:r></w:p><w:p/>"#,
+        None,
+        None,
+    );
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let before = doc.to_bytes().unwrap();
+    assert_matches!(
+        doc.track_changes(author(), None).unwrap().delete_paragraph(p(0)),
+        Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+    );
+    assert_eq!(doc.to_bytes().unwrap(), before);
+}

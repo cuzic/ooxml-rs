@@ -430,3 +430,38 @@ fn a_failure_while_applying_poisons() {
         }
     }
 }
+
+#[test]
+fn range_append_dry_runs_refuse_occupied_alternate_content_slots() {
+    use ooxml_xlsx::{Link, LinkOptions, Validation, WorkbookProtection};
+
+    fn ac(member: &str) -> String {
+        format!(r#"<mc:AlternateContent xmlns:mc="{}" xmlns:x="{SML}"><mc:Choice Requires="x">{member}</mc:Choice></mc:AlternateContent>"#,
+                ooxml_core::name::MC_NS)
+    }
+    type Edit = fn(&mut ooxml_xlsx::Worksheet<'_>) -> ooxml_xlsx::Result<()>;
+    let cases: [(&str, Edit); 5] = [
+        ("<mergeCells/>", |ws| ws.merge("A1:B1")),
+        ("<autoFilter/>", |ws| ws.set_autofilter("A1:A2")),
+        ("<sheetProtection/>", |ws| ws.protect_sheet(&SheetProtection::new())),
+        ("<hyperlinks/>", |ws| ws.set_hyperlink("A1", &Link::Url("https://example.com/".into()), &LinkOptions::default())),
+        ("<dataValidations/>", |ws| ws.add_validation("A1", &Validation::list(&["a", "b"]))),
+    ];
+    for (member, edit) in cases {
+        let input = sheet_with(&ac(member), "");
+        let (wb, result) = try_on(&input, 0, edit);
+        assert_matches!(result, Err(Error::Core(ooxml_core::Error::AlreadyPresent(_))), "{member}");
+        assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+    }
+    let input = book(&[("S", "")], "", &ac("<definedNames/>"));
+    let (_, result) = try_on(&input, 0, |ws| ws.set_autofilter("A1:A2"));
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::AlreadyPresent(_))));
+
+    let input = book(&[("S", "")], "", "");
+    let workbook = patched(&input, "xl/workbook.xml", "<sheets>", &format!("{}<sheets>", ac("<workbookProtection/>")));
+    let input = rebuild(&input, &[("xl/workbook.xml", workbook)]);
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let unedited = wb.to_bytes().unwrap();
+    assert_matches!(wb.protect_workbook(&WorkbookProtection::new()), Err(Error::Core(ooxml_core::Error::AlreadyPresent(_))));
+    assert_eq!(wb.to_bytes().unwrap(), unedited);
+}

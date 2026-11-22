@@ -217,3 +217,29 @@ fn image_extent_bounds_and_zero_rounded_dpi() {
         Error::InvalidValue { what: "image size", .. }
     );
 }
+
+#[test]
+fn positioned_image_and_hyperlink_refuse_alternate_content_across_slots() {
+    let wrap = |member: &str| {
+        format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{member}</mc:Choice></mc:AlternateContent>"#,
+                ooxml_core::name::MC_NS)
+    };
+    let run = |text: &str| format!("<w:r><w:t>{text}</w:t></w:r>");
+    let (r0, r1, r2) = (run("r0"), run("r1"), run("r2"));
+    for (body, after) in [
+        (format!("<w:p><w:pPr/>{r0}{}{r1}{r2}</w:p>", wrap("")), 1),
+        (format!("<w:p>{}{r0}{r1}</w:p>", wrap("<w:pPr/>")), 0),
+        (format!("<w:p>{r0}{}{r1}</w:p>", wrap("<w:r/>")), 0),
+    ] {
+        let mut doc = open(&body);
+        let at = RunPosition::After(RunRef::new(p(0), after));
+        assert_matches!(
+            refused(&mut doc, |doc| doc.insert_image(at, &png(), ImageSize::Auto, "")),
+            Error::Core(ooxml_core::Error::UnresolvedSibling(_))
+        );
+        assert_matches!(
+            refused(&mut doc, |doc| doc.insert_hyperlink(at, "link", &HyperlinkTarget::External("https://example.com/".into()))),
+            Error::Core(ooxml_core::Error::UnresolvedSibling(_))
+        );
+    }
+}

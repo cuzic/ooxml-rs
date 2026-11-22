@@ -756,3 +756,17 @@ fn block_wrap_refuses_invalid_ranges() {
     );
     assert_eq!(doc.to_bytes().unwrap(), input);
 }
+
+#[test]
+fn control_text_refuses_wrapped_run_without_changes() {
+    let ac = format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{}</mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS,
+        run("wrapped"),
+    );
+    let input = docx(&para(&sdt("<w:text/>", &ac)), None, None);
+    let mut doc = Document::from_bytes(input.clone()).unwrap();
+    let control = doc.content_controls().next().unwrap().location;
+    assert_matches!(doc.set_text(control, "new"), Err(Error::UnsupportedControl));
+    assert_eq!(doc.to_bytes().unwrap(), input);
+}

@@ -600,3 +600,18 @@ fn t5_docx_rs_reads_formatting_back() {
     assert_eq!(pp["alignment"], "center");
     assert_eq!(pp["indent"]["start"], 240, "{pp}");
 }
+
+#[test]
+fn property_creation_refuses_same_slot_alternate_content() {
+    let ac = |member: &str| format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{member}</mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    let mut doc = open(&format!("<w:p><w:r>{}<w:t>anchor</w:t></w:r></w:p>", ac("<w:rPr/>")));
+    assert_matches!(refused(&mut doc, |d| d.format_run(r(0, 0), &bold())), Error::Core(CoreError::UnresolvedSibling(_)));
+    let mut doc = open(&format!("<w:p>{}<w:r><w:t>anchor</w:t></w:r></w:p>", ac("<w:pPr/>")));
+    let para = ParagraphFormat { keep_next: Prop::Set(true), ..ParagraphFormat::default() };
+    assert_matches!(refused(&mut doc, |d| d.format_paragraph(p(0), &para)), Error::Core(CoreError::UnresolvedSibling(_)));
+    let mut doc = open(&format!("<w:p><w:r><w:rPr>{}</w:rPr><w:t>anchor</w:t></w:r></w:p>", ac("<w:b/>")));
+    assert_matches!(refused(&mut doc, |d| d.format_run(r(0, 0), &bold())), Error::Core(CoreError::UnresolvedSibling(_)));
+}

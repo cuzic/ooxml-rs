@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Range};
 
 use super::{ElementSpan, RawAttr, RawItem};
-use crate::name::{QName, XML_SPACE, XName};
+use crate::name::{MC_ALTERNATE_CONTENT, QName, XML_SPACE, XName};
 
 const FLAG_BIT: u32 = 1 << 31;
 pub(super) const MAX_SPAN_OFFSET: u32 = FLAG_BIT - 1;
@@ -14,6 +14,7 @@ struct CompactSpan {
     start: u32,
     // The high bit stores own_dirty.
     open_end: u32,
+    // The high bit records that an AlternateContent child may be present.
     close_start: u32,
     // The high bit stores subtree_dirty.
     close_end: u32,
@@ -26,13 +27,13 @@ impl CompactSpan {
         (open_end != 0).then_some(ElementSpan {
             start: (self.start & MAX_SPAN_OFFSET) as usize,
             open_end: open_end as usize,
-            close: (close_end != 0).then_some((self.close_start as usize, close_end as usize)),
+            close: (close_end != 0).then_some(((self.close_start & MAX_SPAN_OFFSET) as usize, close_end as usize)),
         })
     }
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(size_of::<RawNode>() <= 64);
+const _: () = assert!(size_of::<RawNode>() == 64);
 
 /// An element of the raw tree (ADR-0001 Layer 2, with names as resolved
 /// QName + original prefix per its post-acceptance note).
@@ -61,7 +62,7 @@ impl RawNode {
     }
 
     pub(super) fn close(&mut self, start: usize, end: usize) {
-        self.span.close_start = start as u32;
+        self.span.close_start = (self.span.close_start & FLAG_BIT) | start as u32;
         self.span.close_end = end as u32;
     }
 
@@ -90,6 +91,7 @@ impl RawNode {
     }
 
     pub(crate) fn insert_child(&mut self, index: usize, item: RawItem) {
+        self.span.close_start |= ac_bit(&item);
         self.children.insert(index, item);
     }
 
@@ -98,7 +100,8 @@ impl RawNode {
     }
 
     pub(crate) fn splice_children(&mut self, range: Range<usize>, items: impl IntoIterator<Item = RawItem>) {
-        self.children.splice(range, items);
+        let close_start = &mut self.span.close_start;
+        self.children.splice(range, items.into_iter().inspect(|item| *close_start |= ac_bit(item)));
     }
 
     pub(crate) fn retain_children(&mut self, keep: impl FnMut(&RawItem) -> bool) {
@@ -106,7 +109,14 @@ impl RawNode {
     }
 
     pub(crate) fn set_children(&mut self, children: Vec<RawItem>) {
+        if children.iter().any(|item| ac_bit(item) != 0) {
+            self.span.close_start |= FLAG_BIT;
+        }
         self.children = children;
+    }
+
+    pub(crate) fn may_have_alternate_content(&self) -> bool {
+        self.span.close_start & FLAG_BIT != 0
     }
 
     pub(crate) fn push_attr(&mut self, attr: RawAttr) {
@@ -226,6 +236,58 @@ impl RawNode {
                 RawItem::Text(t) => t.forget_span(),
                 RawItem::Markup(_) => {}
             }
+        }
+    }
+}
+
+fn ac_bit(item: &RawItem) -> u32 {
+    if item.as_element().is_some_and(|node| node.is(MC_ALTERNATE_CONTENT)) {
+        FLAG_BIT
+    } else {
+        0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::XmlDocument;
+
+    #[test]
+    fn alternate_content_flag_survives_child_edits_and_close() {
+        let source = format!(
+            "<root xmlns:mc='{}'><mc:AlternateContent/></root>",
+            MC_ALTERNATE_CONTENT.ns
+        );
+        let doc = XmlDocument::parse(source.as_bytes()).unwrap();
+        let root = doc.root();
+        assert!(root.may_have_alternate_content());
+        let ac = root.children()[0].clone();
+        assert!(!ac.as_element().unwrap().may_have_alternate_content());
+        assert_eq!(doc.serialize(), source);
+
+        let fresh = || RawNode::parsed(root.name.clone(), Box::default(), 0, 6);
+        let mut parent = fresh();
+        let ordinary = RawItem::Element(fresh());
+        parent.insert_child(0, ordinary.clone());
+        parent.splice_children(0..1, [ordinary.clone()]);
+        parent.set_children(vec![ordinary]);
+        assert!(!parent.may_have_alternate_content());
+
+        let add: [fn(&mut RawNode, RawItem); 3] = [
+            |parent, ac| parent.insert_child(0, ac),
+            |parent, ac| parent.splice_children(0..0, [ac]),
+            |parent, ac| parent.set_children(vec![ac]),
+        ];
+        for add_child in add {
+            let mut parent = fresh();
+            add_child(&mut parent, ac.clone());
+            assert!(parent.may_have_alternate_content());
+            parent.close(27, 34);
+            assert!(parent.may_have_alternate_content());
+            assert_eq!(parent.span().unwrap().close, Some((27, 34)));
+            parent.remove_child(0);
+            assert!(parent.may_have_alternate_content());
         }
     }
 }

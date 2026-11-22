@@ -281,3 +281,26 @@ fn transition_kind_attribute_namespaces() {
     let t = d.slide(0).unwrap().transition().unwrap();
     assert_eq!(t.kind_attributes, [(("", "prst"), "airplane"), (("http://schemas.microsoft.com/office/powerpoint/2010/main", "dir"), "r")]);
 }
+
+#[test]
+fn core_slide_transition_limit_counts_alternate_content() {
+    use ooxml_core::{ElementSpec, Error as CoreError, XmlDocument};
+    use ooxml_schema::pml::{Slide, SlideExtensionList, Transition};
+    let bytes = include_bytes!("../../../reference/fixtures/pptx/poi/bug68703.pptx");
+    let presentation = Presentation::from_bytes(bytes.to_vec()).unwrap();
+    let mut counted = 0;
+    for part in presentation.package().part_names().filter(|p| p.starts_with("ppt/slides/slide") && p.ends_with(".xml")) {
+        let source = presentation.package().read_part(part).unwrap();
+        let mut doc = XmlDocument::parse(&source).unwrap();
+        if !doc.root().elements().any(|n| n.is(ooxml_core::name::MC_ALTERNATE_CONTENT)) {
+            continue;
+        }
+        let mut slide = doc.lens_mut::<Slide>().unwrap();
+        assert!(slide.node().elements().all(|node| !node.is(Transition::QNAME)));
+        std::assert_matches!(slide.get_or_insert::<Transition>(), Err(CoreError::AlreadyPresent(_)));
+        assert_eq!(doc.serialize().as_bytes(), source);
+        doc.lens_mut::<Slide>().unwrap().check_get_or_insert::<SlideExtensionList>().unwrap();
+        counted += 1;
+    }
+    assert!(counted > 0);
+}

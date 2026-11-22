@@ -150,6 +150,8 @@ pub enum Override {
         reason: String,
         evidence: String,
     },
+    /// Suppress typed accessors for children Office writes only in MCE branches.
+    /// Their QNames still contribute to the parent slot table.
     MceWrapped {
         parent: String,
         children: Vec<String>,

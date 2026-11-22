@@ -70,6 +70,20 @@ commit); revision 3 of the script (after ADR-0020 review round 2: interval stati
 real greedy `cur`, and an all-empty AC counted as same-slot for the positional forms). The
 output is identical to revision 2's. Runs in about 1 s.
 
+## Core placement verification
+
+```sh
+python3 -I spikes/ac-rank/check_core.py reference/fixtures
+python3 -I spikes/ac-rank/check_core.py "$T/poi-xlsx" "$T/poi-docx" "$T/poi-pptx" reference/fixtures
+```
+
+The verifier uses the same corpus filtering and typed pairs as the spike. It
+compares each simulated outcome with the Rust append and callback checks, and
+checks whether any item index admits a positional insertion. It also executes
+the append and checks byte equality on refusal. A scope declaration supplies
+the typed child's namespace when needed so the comparison measures placement.
+The temporary probe builds under the clone's `target/ac-rank` directory.
+
 ## Results (`results/ac-rank.txt`)
 
 | | xlsx | docx | pptx |

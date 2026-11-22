@@ -163,20 +163,19 @@ pub(crate) fn locate(doc: &XmlDocument, index: &SheetIndex, part: &str, at: Cell
 }
 
 /// `Err(UnresolvedSibling(parent))` if `n` has an `mc:AlternateContent`
-/// child: what it wraps (rows, cells, values) cannot be located without
-/// MCE processing, so neither a read nor a write can be answered honestly.
-fn refuse_alternate_content(n: &RawNode, parent: QName) -> Result<()> {
+/// child. Callers that rely on the physical child index cannot account for
+/// items contributed through branches.
+pub(crate) fn refuse_alternate_content(n: &RawNode, parent: QName) -> Result<()> {
     if n.elements().any(|c| c.is(MC_ALTERNATE_CONTENT)) {
         return Err(ooxml_core::Error::UnresolvedSibling(parent).into());
     }
     Ok(())
 }
 
-/// Dry run of `LensMut::insert_by::<C>` on a parent `E` whose element
-/// children would be `children` (ooxml-core's `place`, ADR-0002 §4.1, without
-/// mutating anything): `Err` exactly when that insertion would be refused
-/// (an `mc:AlternateContent` sibling, listed children out of schema order,
-/// or the slot already full). Unlisted children are skipped, as in `place`.
+/// Greedy append preflight for a proposed list of children (ADR-0002 §4.1).
+/// It checks schema order and slot limits and skips unlisted children.
+/// Lists with AlternateContent are refused here because this planner relies
+/// on the physical child list (ADR-0020 §8).
 ///
 /// The new child's namespace prefix cannot be refused: it is always
 /// SpreadsheetML main, the namespace of `E` itself, so the parent's own
@@ -269,6 +268,9 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
         let row = sd.into_child_at::<sml::Row>(ri).expect("located row");
         row.check_insert_at::<sml::Cell>(loc.cell_insert_at)?;
     }
+    if !index.sheet_data {
+        doc.lens_mut::<sml::Worksheet>()?.check_get_or_insert::<sml::SheetData>()?;
+    }
     let ws = sml::WorksheetView(doc.lens::<sml::Worksheet>()?);
     let new_child = match op {
         CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
@@ -277,7 +279,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
         CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
-        None => check_insertable::<sml::Worksheet>(ws.raw().elements(), sml::SheetData::QNAME)?,
+        None => {},
         Some(sd) => match loc.row {
             None => {} // checked above, at the indexed position
             Some(ri) => {
