@@ -82,7 +82,7 @@ compares each simulated outcome with the Rust append and callback checks, and
 checks whether any item index admits a positional insertion. It also executes
 the append and checks byte equality on refusal. A scope declaration supplies
 the typed child's namespace when needed so the comparison measures placement.
-The temporary probe builds under the clone's `target` directory.
+The temporary probe builds under the clone's `target/ac-rank` directory.
 
 ## Results (`results/ac-rank.txt`)
 

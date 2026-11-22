@@ -478,6 +478,7 @@ def pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs, path, check_pair
     if correlated:
         st.add("%s parent_correlated_acs" % fmt, fname)
     outcomes = collections.Counter()
+    wildcard_only = all(x["wild"] and not x["names"] for x in slots)
     for c in sorted(childof.get(spec, ())):
         q = specs[c]["qname"]
         ss = candidates(slots, q)
@@ -487,13 +488,13 @@ def pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs, path, check_pair
         s = ss[0]
         out, same_slot_ac = simulate(el, slots, s, q, scope)
         outcomes[out] += 1
-        if all(x["wild"] and not x["names"] for x in slots):
+        if check_pair is not None:
+            check_pair(path, spec, c, out, same_slot_ac, wildcard_only)
+        if wildcard_only:
             # a wildcard-only parent (a:graphicData): counted apart
             st.add("%s wildcard_parent_pair_%s" % (fmt, out), fname)
             st.pairs[(fmt, pq, "(any typed child)")][out] += 1
             continue
-        if check_pair is not None:
-            check_pair(path, spec, c, out, same_slot_ac)
         st.add("%s pair_total" % fmt, fname)
         st.add("%s pair_%s" % (fmt, out), fname)
         st.pairs[(fmt, pq, sh(q))][out] += 1

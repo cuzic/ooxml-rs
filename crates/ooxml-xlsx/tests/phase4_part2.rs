@@ -647,6 +647,13 @@ fn layout_append_dry_runs_count_alternate_content_limits() {
         let unedited = Workbook::from_bytes(input).unwrap().to_bytes().unwrap();
         assert_eq!(wb.to_bytes().unwrap(), unedited);
     }
+
+    // Worksheet columns are repeatable. The preflight still refuses a
+    // branch whose interval straddles their slot.
+    let input = sheet_with(&ac("<sheetViews/><sheetData/>"), "", "");
+    let (wb, result) = try_on(&input, |ws| ws.set_column_width(0, 0, 12.0));
+    assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
+    assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
 }
 
 #[test]

@@ -538,6 +538,12 @@ fn section_break_refuses_same_slot_alternate_content_in_paragraph_properties() {
             Error::Core(CoreError::UnresolvedSibling(_))
         );
     }
+
+    let mut doc = open(&format!("<w:p/><w:p/><w:sectPr>{}</w:sectPr>", wrap("<w:type w:val='continuous'/>")));
+    assert_matches!(
+        refused(&mut doc, |doc| doc.insert_section_break(p(0), SectionBreak::Continuous)),
+        Error::Core(CoreError::NotDetachable { reason: ooxml_core::DetachRefusal::AlternateContent, .. })
+    );
 }
 
 #[test]

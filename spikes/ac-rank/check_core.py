@@ -102,7 +102,7 @@ def main(arguments):
             # Save only parts with typed pairs, using a numeric filename.
             part_id = str(len(pairs))
 
-            def check_pair(path, parent, child, outcome, same_slot):
+            def check_pair(path, parent, child, outcome, same_slot, wildcard_only):
                 target = scratch / part_id
                 if not target.exists():
                     target.write_bytes(data)
@@ -113,9 +113,10 @@ def main(arguments):
                 pair = f"{parent}/{child}"
                 arms[pair] = f"check::<ooxml_schema::{parent}, ooxml_schema::{child}>"
                 pairs.append((part_id, ",".join(map(str, path)), pair, append, positional, f"{filename}/{part}"))
-                counts[fmt, "pairs"] += 1
-                counts[fmt, "append"] += append == "ok"
-                counts[fmt, "positional"] += positional == "ok"
+                group = f"{fmt} wildcard-only" if wildcard_only else fmt
+                counts[group, "pairs"] += 1
+                counts[group, "append"] += append == "ok"
+                counts[group, "positional"] += positional == "ok"
 
             return check_pair
 
@@ -142,7 +143,7 @@ ooxml-core = {{ path = {json.dumps(str(ROOT / "crates/ooxml-core"))} }}
 ooxml-schema = {{ path = {json.dumps(str(ROOT / "crates/ooxml-schema"))}, features = ["sml", "wml", "pml", "dml", "props"] }}
 """)
         # Keep the probe's build output inside the same repository clone.
-        env = dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target"))
+        env = dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target" / "ac-rank"))
         subprocess.run(
             ["cargo", "run", "--quiet", "--manifest-path", str(scratch / "Cargo.toml"), "--", str(scratch)],
             check=True, cwd=ROOT, env=env,
