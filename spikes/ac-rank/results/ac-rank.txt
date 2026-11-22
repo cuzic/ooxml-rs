@@ -1,0 +1,262 @@
+# ---- counters: key  files=N  total=M
+# docx ac_children	files=10	total=34
+# docx ac_choices=1_fallbacks=1	files=10	total=34
+# docx ac_in_generated_parent	files=9	total=23
+# docx ac_single_rank	files=9	total=23
+# docx branch_empty	files=1	total=2
+# docx duplicate_packages	files=0	total=18
+# docx packages	files=123	total=123
+# docx packages_with_ac	files=10	total=19
+# docx pair_limit	files=9	total=27
+# docx pair_limit_ac	files=2	total=2
+# docx pair_ok	files=7	total=411
+# docx pair_ok_same_slot_ac	files=7	total=411
+# docx pair_total	files=9	total=440
+# docx parents_with_ac	files=10	total=34
+# docx parts_with_dtd_skipped	files=0	total=1
+# docx requires=c14	files=2	total=6
+# docx requires=cx	files=1	total=2
+# docx requires=ma	files=1	total=1
+# docx requires=w14	files=1	total=1
+# docx requires=wp14	files=1	total=4
+# docx requires=wpc	files=1	total=2
+# docx requires=wpg	files=2	total=3
+# docx requires=wps	files=5	total=15
+# docx unreadable_packages	files=0	total=15
+# pptx ac_children	files=25	total=51
+# pptx ac_choices=1_fallbacks=1	files=25	total=51
+# pptx ac_in_generated_parent	files=17	total=43
+# pptx ac_single_rank	files=17	total=43
+# pptx duplicate_packages	files=0	total=15
+# pptx packages	files=102	total=102
+# pptx packages_with_ac	files=25	total=47
+# pptx pair_limit	files=9	total=38
+# pptx pair_limit_ac	files=7	total=18
+# pptx pair_ok	files=9	total=41
+# pptx pair_ok_same_slot_ac	files=1	total=6
+# pptx pair_total	files=9	total=97
+# pptx parents_with_ac	files=25	total=51
+# pptx requires=c14	files=8	total=8
+# pptx requires=cx1	files=1	total=1
+# pptx requires=ma	files=1	total=1
+# pptx requires=p14	files=6	total=17
+# pptx requires=p15	files=1	total=1
+# pptx requires=v	files=9	total=23
+# pptx unreadable_packages	files=0	total=11
+# pptx wildcard_parent_pair_ok	files=9	total=920
+# xlsx ac_children	files=89	total=466
+# xlsx ac_choices=1_fallbacks=0	files=83	total=248
+# xlsx ac_choices=1_fallbacks=1	files=19	total=218
+# xlsx ac_in_generated_parent	files=83	total=276
+# xlsx ac_single_rank	files=83	total=276
+# xlsx branch_empty	files=5	total=171
+# xlsx duplicate_packages	files=0	total=33
+# xlsx packages	files=378	total=378
+# xlsx packages_with_ac	files=89	total=111
+# xlsx pair_limit	files=81	total=366
+# xlsx pair_ok	files=83	total=256
+# xlsx pair_ok_same_slot_ac	files=6	total=21
+# xlsx pair_total	files=83	total=622
+# xlsx parent_correlated_acs	files=4	total=6
+# xlsx parents_with_ac	files=89	total=115
+# xlsx parts_with_dtd_skipped	files=0	total=7
+# xlsx requires=a14	files=5	total=171
+# xlsx requires=c14	files=13	total=16
+# xlsx requires=hs	files=1	total=24
+# xlsx requires=x14	files=5	total=173
+# xlsx requires=x15	files=82	total=82
+# xlsx unreadable_packages	files=0	total=15
+
+## parents with an AC child: fmt parent instances acs files status disagree spans
+docx	w:r	inst=20	ac=20	files=6	Slots=20	disagree=0	spans=0
+docx	?chart:chartSpace	inst=6	ac=6	files=2	not-generated=6	disagree=0	spans=0
+docx	wp:anchor	inst=4	ac=4	files=1	not-generated=4	disagree=0	spans=0
+docx	pic:pic	inst=1	ac=1	files=1	Slots=1	disagree=0	spans=0
+docx	w:body	inst=1	ac=1	files=1	Slots=1	disagree=0	spans=0
+docx	w:fonts	inst=1	ac=1	files=1	not-generated=1	disagree=0	spans=0
+docx	w:lvl	inst=1	ac=1	files=1	Slots=1	disagree=0	spans=0
+pptx	a:graphicData	inst=23	ac=23	files=9	Slots=23	disagree=0	spans=0
+pptx	p:sld	inst=12	ac=12	files=7	Slots=12	disagree=0	spans=0
+pptx	?chart:chartSpace	inst=8	ac=8	files=8	not-generated=8	disagree=0	spans=0
+pptx	p:sldLayout	inst=4	ac=4	files=2	Slots=4	disagree=0	spans=0
+pptx	p:sldMaster	inst=2	ac=2	files=1	Slots=2	disagree=0	spans=0
+pptx	p:pic	inst=1	ac=1	files=1	Slots=1	disagree=0	spans=0
+pptx	p:spTree	inst=1	ac=1	files=1	Slots=1	disagree=0	spans=0
+xlsx	x:workbook	inst=79	ac=79	files=79	Slots=79	disagree=0	spans=0
+xlsx	?chart:chartSpace	inst=16	ac=16	files=13	not-generated=16	disagree=0	spans=0
+xlsx	xdr:wsDr	inst=5	ac=170	files=4	Slots=5	disagree=0	spans=0
+xlsx	x:oleObjects	inst=4	ac=7	files=3	not-generated=4	disagree=0	spans=0
+xlsx	?main:workbook	inst=3	ac=3	files=3	not-generated=3	disagree=0	spans=0
+xlsx	x:controls	inst=2	ac=164	files=2	not-generated=2	disagree=0	spans=0
+xlsx	x:worksheet	inst=2	ac=2	files=2	Slots=2	disagree=0	spans=0
+xlsx	a:p	inst=1	ac=1	files=1	Slots=1	disagree=0	spans=0
+xlsx	x:cellXfs	inst=1	ac=7	files=1	Slots=1	disagree=0	spans=0
+xlsx	x:dxfs	inst=1	ac=11	files=1	Slots=1	disagree=0	spans=0
+xlsx	x:fonts	inst=1	ac=6	files=1	Slots=1	disagree=0	spans=0
+
+## parents with two or more ACs whose mc:Choice Requires are equal (§3.2): fmt file parent acs outcomes
+xlsx	58325_db.xlsx	xdr:wsDr	acs=3	ok=3
+xlsx	bug64512_embed.xlsx	xdr:wsDr	acs=2	ok=3
+xlsx	mv-calculator-final-2-20-2013.xlsm	xdr:wsDr	acs=163	ok=3
+xlsx	style-alternate-content.xlsx	x:cellXfs	acs=7	ok=1
+xlsx	style-alternate-content.xlsx	x:dxfs	acs=11	ok=1
+xlsx	style-alternate-content.xlsx	x:fonts	acs=6	ok=1
+
+## branch contents per parent (C = mc:Choice, F = mc:Fallback; element QNames in order, de-duplicated)
+docx	?chart:chartSpace	6	C:?chart:style
+docx	?chart:chartSpace	6	F:?chart:style
+docx	pic:pic	1	C:pic:blipFill
+docx	pic:pic	1	F:pic:blipFill
+docx	w:body	1	C:w:p
+docx	w:body	1	F:(empty)
+docx	w:fonts	1	C:w:font
+docx	w:fonts	1	F:(empty)
+docx	w:lvl	1	C:w:numFmt
+docx	w:lvl	1	F:w:numFmt
+docx	w:r	20	C:w:drawing
+docx	w:r	18	F:w:pict
+docx	w:r	2	F:w:drawing
+docx	wp:anchor	4	C:wp:positionH
+docx	wp:anchor	4	F:wp:positionH
+pptx	?chart:chartSpace	8	C:?chart:style
+pptx	?chart:chartSpace	8	F:?chart:style
+pptx	a:graphicData	23	C:p:oleObj
+pptx	a:graphicData	23	F:p:oleObj
+pptx	p:pic	1	C:p:blipFill
+pptx	p:pic	1	F:p:blipFill
+pptx	p:sld	12	C:p:transition
+pptx	p:sld	12	F:p:transition
+pptx	p:sldLayout	4	C:p:transition
+pptx	p:sldLayout	4	F:p:transition
+pptx	p:sldMaster	2	C:p:transition
+pptx	p:sldMaster	2	F:p:transition
+pptx	p:spTree	1	C:p:graphicFrame
+pptx	p:spTree	1	F:p:pic
+xlsx	?chart:chartSpace	16	C:?chart:style
+xlsx	?chart:chartSpace	16	F:?chart:style
+xlsx	?main:workbook	3	C:x15ac:absPath
+xlsx	a:p	1	C:a14:m
+xlsx	a:p	1	F:(empty)
+xlsx	x:cellXfs	7	C:x:xf
+xlsx	x:cellXfs	7	F:x:xf
+xlsx	x:controls	164	C:x:control
+xlsx	x:dxfs	11	C:x:dxf
+xlsx	x:dxfs	11	F:x:dxf
+xlsx	x:fonts	6	C:x:font
+xlsx	x:fonts	6	F:x:font
+xlsx	x:oleObjects	7	C:x:oleObject
+xlsx	x:oleObjects	7	F:x:oleObject
+xlsx	x:workbook	79	C:x15ac:absPath
+xlsx	x:worksheet	2	C:x:controls
+xlsx	xdr:wsDr	170	C:xdr:twoCellAnchor
+xlsx	xdr:wsDr	170	F:(empty)
+
+## typed inserts (parent, child): outcomes of a plain append under ADR-0020 (today: all refused)
+docx	pic:pic	pic:blipFill	limit_ac=1
+docx	pic:pic	pic:nvPicPr	limit=1
+docx	pic:pic	pic:spPr	limit=1
+docx	w:body	w:bookmarkEnd	ok=1 ok_same_slot_ac=1
+docx	w:body	w:bookmarkStart	ok=1 ok_same_slot_ac=1
+docx	w:body	w:commentRangeEnd	ok=1 ok_same_slot_ac=1
+docx	w:body	w:commentRangeStart	ok=1 ok_same_slot_ac=1
+docx	w:body	w:del	ok=1 ok_same_slot_ac=1
+docx	w:body	w:ins	ok=1 ok_same_slot_ac=1
+docx	w:body	w:moveFrom	ok=1 ok_same_slot_ac=1
+docx	w:body	w:moveTo	ok=1 ok_same_slot_ac=1
+docx	w:body	w:p	ok=1 ok_same_slot_ac=1
+docx	w:body	w:sdt	ok=1 ok_same_slot_ac=1
+docx	w:body	w:sectPr	limit=1
+docx	w:body	w:tbl	ok=1 ok_same_slot_ac=1
+docx	w:lvl	w:lvlJc	limit=1
+docx	w:lvl	w:lvlText	limit=1
+docx	w:lvl	w:numFmt	limit_ac=1
+docx	w:lvl	w:pPr	limit=1
+docx	w:lvl	w:start	limit=1
+docx	w:r	w:annotationRef	ok=20 ok_same_slot_ac=20
+docx	w:r	w:br	ok=20 ok_same_slot_ac=20
+docx	w:r	w:commentReference	ok=20 ok_same_slot_ac=20
+docx	w:r	w:continuationSeparator	ok=20 ok_same_slot_ac=20
+docx	w:r	w:cr	ok=20 ok_same_slot_ac=20
+docx	w:r	w:delInstrText	ok=20 ok_same_slot_ac=20
+docx	w:r	w:delText	ok=20 ok_same_slot_ac=20
+docx	w:r	w:drawing	ok=20 ok_same_slot_ac=20
+docx	w:r	w:endnoteRef	ok=20 ok_same_slot_ac=20
+docx	w:r	w:endnoteReference	ok=20 ok_same_slot_ac=20
+docx	w:r	w:fldChar	ok=20 ok_same_slot_ac=20
+docx	w:r	w:footnoteRef	ok=20 ok_same_slot_ac=20
+docx	w:r	w:footnoteReference	ok=20 ok_same_slot_ac=20
+docx	w:r	w:instrText	ok=20 ok_same_slot_ac=20
+docx	w:r	w:lastRenderedPageBreak	ok=20 ok_same_slot_ac=20
+docx	w:r	w:noBreakHyphen	ok=20 ok_same_slot_ac=20
+docx	w:r	w:rPr	limit=20
+docx	w:r	w:separator	ok=20 ok_same_slot_ac=20
+docx	w:r	w:softHyphen	ok=20 ok_same_slot_ac=20
+docx	w:r	w:t	ok=20 ok_same_slot_ac=20
+docx	w:r	w:tab	ok=20 ok_same_slot_ac=20
+pptx	a:graphicData	(any typed child)	ok=920
+pptx	p:pic	p:nvPicPr	limit=1
+pptx	p:pic	p:spPr	limit=1
+pptx	p:pic	p:style	ok=1
+pptx	p:sld	p:cSld	limit=12
+pptx	p:sld	p:clrMapOvr	limit=5 ok=7
+pptx	p:sld	p:extLst	ok=12
+pptx	p:sld	p:timing	limit=3 ok=9
+pptx	p:sld	p:transition	limit_ac=12
+pptx	p:sldLayout	p:cSld	limit=4
+pptx	p:sldLayout	p:clrMapOvr	limit=4
+pptx	p:sldLayout	p:timing	ok=4
+pptx	p:sldLayout	p:transition	limit_ac=4
+pptx	p:sldMaster	p:cSld	limit=2
+pptx	p:sldMaster	p:clrMap	limit=2
+pptx	p:sldMaster	p:timing	ok=2
+pptx	p:sldMaster	p:transition	limit_ac=2
+pptx	p:sldMaster	p:txStyles	limit=2
+pptx	p:spTree	p:contentPart	ok=1 ok_same_slot_ac=1
+pptx	p:spTree	p:cxnSp	ok=1 ok_same_slot_ac=1
+pptx	p:spTree	p:graphicFrame	ok=1 ok_same_slot_ac=1
+pptx	p:spTree	p:grpSp	ok=1 ok_same_slot_ac=1
+pptx	p:spTree	p:grpSpPr	limit=1
+pptx	p:spTree	p:nvGrpSpPr	limit=1
+pptx	p:spTree	p:pic	ok=1 ok_same_slot_ac=1
+pptx	p:spTree	p:sp	ok=1 ok_same_slot_ac=1
+xlsx	a:p	a:br	ok=1 ok_same_slot_ac=1
+xlsx	a:p	a:endParaRPr	limit=1
+xlsx	a:p	a:fld	ok=1 ok_same_slot_ac=1
+xlsx	a:p	a:pPr	limit=1
+xlsx	a:p	a:r	ok=1 ok_same_slot_ac=1
+xlsx	x:cellXfs	x:xf	ok=1 ok_same_slot_ac=1
+xlsx	x:dxfs	x:dxf	ok=1 ok_same_slot_ac=1
+xlsx	x:fonts	x:font	ok=1 ok_same_slot_ac=1
+xlsx	x:workbook	x:bookViews	limit=79
+xlsx	x:workbook	x:calcPr	limit=79
+xlsx	x:workbook	x:customWorkbookViews	limit=1 ok=78
+xlsx	x:workbook	x:definedNames	limit=20 ok=59
+xlsx	x:workbook	x:sheets	limit=79
+xlsx	x:workbook	x:workbookPr	limit=79
+xlsx	x:workbook	x:workbookProtection	limit=1 ok=78
+xlsx	x:worksheet	x:autoFilter	ok=2
+xlsx	x:worksheet	x:colBreaks	ok=2
+xlsx	x:worksheet	x:cols	ok=2
+xlsx	x:worksheet	x:conditionalFormatting	ok=2
+xlsx	x:worksheet	x:dataValidations	limit=1 ok=1
+xlsx	x:worksheet	x:dimension	limit=2
+xlsx	x:worksheet	x:drawing	limit=2
+xlsx	x:worksheet	x:extLst	limit=2
+xlsx	x:worksheet	x:headerFooter	limit=1 ok=1
+xlsx	x:worksheet	x:hyperlinks	ok=2
+xlsx	x:worksheet	x:legacyDrawing	limit=2
+xlsx	x:worksheet	x:mergeCells	limit=1 ok=1
+xlsx	x:worksheet	x:pageMargins	limit=2
+xlsx	x:worksheet	x:pageSetup	limit=2
+xlsx	x:worksheet	x:printOptions	limit=1 ok=1
+xlsx	x:worksheet	x:rowBreaks	ok=2
+xlsx	x:worksheet	x:sheetData	limit=2
+xlsx	x:worksheet	x:sheetFormatPr	limit=2
+xlsx	x:worksheet	x:sheetPr	limit=2
+xlsx	x:worksheet	x:sheetProtection	limit=2
+xlsx	x:worksheet	x:sheetViews	limit=2
+xlsx	x:worksheet	x:sortState	ok=2
+xlsx	x:worksheet	x:tableParts	ok=2
+xlsx	xdr:wsDr	xdr:absoluteAnchor	ok=5 ok_same_slot_ac=5
+xlsx	xdr:wsDr	xdr:oneCellAnchor	ok=5 ok_same_slot_ac=5
+xlsx	xdr:wsDr	xdr:twoCellAnchor	ok=5 ok_same_slot_ac=5
