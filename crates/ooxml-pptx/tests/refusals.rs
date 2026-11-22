@@ -127,6 +127,28 @@ fn alternate_content_is_read_only() {
 }
 
 #[test]
+fn positioned_shape_insertion_refuses_same_slot_alternate_content() {
+    use ooxml_core::{Error as CoreError, XmlDocument};
+    use ooxml_schema::pml::{CommonSlideData, Shape, ShapeTree, Slide};
+
+    let input = cases::read_fixture("open-xml-sdk/Of16-01.pptx");
+    let pkg = Package::from_bytes(input).unwrap();
+    for part in pkg.part_names().filter(|p| p.starts_with("ppt/slides/slide") && p.ends_with(".xml")) {
+        let source = pkg.read_part(part).unwrap();
+        let mut doc = XmlDocument::parse(&source).unwrap();
+        let mut slide = doc.lens_mut::<Slide>().unwrap();
+        let mut common = slide.child_mut::<CommonSlideData>().unwrap();
+        let mut tree = common.child_mut::<ShapeTree>().unwrap();
+        if tree.node().elements().any(|n| n.is(ooxml_core::name::MC_ALTERNATE_CONTENT)) {
+            assert_matches!(tree.insert_by::<Shape>(|index, _| index == 0), Err(CoreError::UnresolvedSibling(_)));
+            assert_eq!(doc.serialize().as_bytes(), source);
+            return;
+        }
+    }
+    panic!("fixture must have a slide with AlternateContent in its shape tree");
+}
+
+#[test]
 fn bodies_tables_cells() {
     // Real: shapes.pptx has connectors, groups and tables (with merged cells)
     let mut p = open("poi/shapes.pptx");

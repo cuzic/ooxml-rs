@@ -1220,3 +1220,32 @@ pub(crate) fn next_shape_id(slide: &RawNode, comments: &[&RawNode]) -> Result<u3
     }
     Ok(next as u32)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn section_insert_refuses_same_slot_alternate_content_after_planning() {
+        // The public section reader rejects wrapped IDs. Exercise insertion
+        // with a planned section and a valid same-slot wrapper in its list.
+        let source = format!(
+            r#"<p:presentation xmlns:p="{P_NS}" xmlns:p14="{P14_NS}" xmlns:mc="{}">
+                <p:extLst><p:ext uri="{SECTION_LIST_URI}"><p14:sectionLst>
+                    <p14:section><p14:sldIdLst><p14:sldId id="256"/>
+                        <mc:AlternateContent><mc:Choice Requires="p14">
+                            <p14:sldId id="257"/>
+                        </mc:Choice></mc:AlternateContent>
+                    </p14:sldIdLst></p14:section>
+                </p14:sectionLst></p:ext></p:extLst>
+            </p:presentation>"#,
+            ooxml_core::name::MC_NS
+        );
+        let mut doc = XmlDocument::parse(source.as_bytes()).unwrap();
+        std::assert_matches!(
+            insert_into_sections(&mut doc, &[vec![256]], &[256], 1, 258),
+            Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_)))
+        );
+        assert_eq!(doc.serialize(), source);
+    }
+}
