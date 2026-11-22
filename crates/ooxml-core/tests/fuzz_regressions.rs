@@ -8,6 +8,7 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::assert_matches;
+use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -394,6 +395,54 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+#[derive(Default)]
+struct DeferredOracle {
+    // ParseOptions requires static names. Share one test-only name per
+    // distinct fixture root, including across the seed replay.
+    roots: BTreeMap<(String, String), &'static [QName]>,
+}
+
+impl DeferredOracle {
+    fn compare(&mut self, input: &[u8], context: &str) {
+        let Ok(mut full) = XmlDocument::parse(input) else { return };
+        let span = full.root().span().unwrap();
+        let name = full.root().name();
+        let defer = self.roots.entry((name.ns().into(), name.local().into())).or_insert_with(|| {
+            Box::leak(Box::new([QName::new(name.ns().to_owned().leak(), name.local().to_owned().leak())]))
+        });
+        let options = ParseOptions::default().with_defer(defer);
+        let mut lazy = XmlDocument::parse_with(input, &options).unwrap();
+        assert!(lazy.root().is_deferred(), "{context}");
+        assert_eq!(lazy.serialize().as_bytes(), input, "{context}: deferred T1");
+        lazy.force_rerender();
+        full.force_rerender();
+        assert_eq!(lazy.serialize(), full.serialize(), "{context}: deferred re-render");
+        assert!(lazy.root().structurally_eq(full.root()), "{context}: deferred T1b");
+
+        if let Some((close, _)) = span.close {
+            for (position, bad) in [(span.open_end, b"&unknown;".as_slice()), (close, b"<unclosed>")] {
+                let mutated = [&input[..position], bad, &input[position..]].concat();
+                let lazy = XmlDocument::parse_with(&mutated, &options).unwrap_err();
+                let full = XmlDocument::parse(&mutated).unwrap_err();
+                assert_eq!(format!("{lazy:?}"), format!("{full:?}"), "{context}: mutation at {position}");
+            }
+        }
+    }
+}
+
+#[test]
+fn deferred_parser_matches_on_xml_fuzz_seeds() {
+    let Some(path) = std::env::var_os("OOXML_XML_SEEDS") else { return };
+    let mut oracle = DeferredOracle::default();
+    for seed in std::fs::read_dir(path).unwrap() {
+        let path = seed.unwrap().path();
+        let input = std::fs::read(&path).unwrap();
+        if !input.windows(b"<!DOCTYPE".len()).any(|window| window == b"<!DOCTYPE") {
+            oracle.compare(&input, &path.display().to_string());
+        }
+    }
+}
+
 #[test]
 fn every_fixture_opens_parses_and_round_trips() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference");
@@ -403,6 +452,7 @@ fn every_fixture_opens_parses_and_round_trips() {
     files.sort();
     assert!(files.len() >= 70, "{} fixture packages", files.len());
     let (mut opened, mut parsed) = (0, 0);
+    let mut deferred = DeferredOracle::default();
     for f in &files {
         let input = std::fs::read(f).unwrap();
         let mut pkg = match Package::from_bytes(input.clone()) {
@@ -419,7 +469,9 @@ fn every_fixture_opens_parses_and_round_trips() {
             let bytes = pkg.read_part(n).unwrap();
             // Corpus files are untrusted and DTD-bearing parts are excluded.
             if !bytes.windows(b"<!DOCTYPE".len()).any(|window| window == b"<!DOCTYPE") {
-                compare_parsers(&bytes, &format!("{} {n}", f.display()));
+                let context = format!("{} {n}", f.display());
+                compare_parsers(&bytes, &context);
+                deferred.compare(&bytes, &context);
             }
             match pkg.xml_part(n) {
                 Ok(_) => parsed += 1,

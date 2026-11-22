@@ -819,3 +819,40 @@ The parser checks UTF-16 BOM, UTF-8, a repeated UTF-8 BOM and NUL before
 reporting `Error::XmlPartTooLarge`. The default package part limit is 1 GiB.
 Stage 1 asserts a 64 B limit for `RawNode` on 64-bit targets, leaving 8 B for
 Stage 2's deferred pointer within the 72 B budget in §2.4.
+
+## Post-acceptance note (Issue #126, stage 2)
+
+The child list uses the alternative enum in §2.4. Rust 1.99 fits a built
+`Vec<RawItem>` and a boxed deferred payload in the original list's footprint
+on 64-bit targets, so the 64 B `RawNode` assertion still holds. During the
+shared validation pass, a deferred node records the presence of direct
+`mc:AlternateContent` children in the existing high bit of `close_start`
+(ADR-0020 §4.3). Closing, expanding and releasing keep that bit.
+
+In the stage 2 benchmark, 100,000 rows of a 33.1 MiB, one-million-cell
+worksheet were deferred. Each reported range covers three runs on the same
+host, with each run taking the best of five and excluding drop time.
+The skip timing includes copying the shared source and building the
+worksheet root. The row construction estimate subtracts that timing from
+the row-deferred parse within each run.
+
+| Core worksheet operation | Time |
+| --- | ---: |
+| Inflate the worksheet | 42.69–47.59 ms |
+| Validate and count with the worksheet root deferred | 361.13–374.34 ms |
+| Validate, count and build deferred rows | 386.77–396.59 ms |
+| Additional construction for the row-deferred tree (paired difference) | 19.85–25.65 ms |
+| Package open and row-deferred worksheet parse | 432.19–439.19 ms |
+
+The core worksheet path used **100.5 MiB peak** and retained **60.9 MiB**,
+including the compressed package. It releases the inflated buffer before
+building the tree and still uses the bounded, growing inflater buffer
+before copying the source. The core time leaves about 161–168 ms of the
+0.6 s budget for shared strings, indexes and workbook setup. The core
+worksheet peak already exceeds 80 MiB. Stage 2x will need to reduce the
+inflate/source peak and measure the shared-string and row-index lifetimes
+in the full workbook path before confirming either target.
+
+Measured with `cargo bench -p ooxml-bench --bench breakdown -- --stage2`.
+The same-host `--stage1` comparison against `d8741d4`, best of 15 per input,
+showed parse-time changes of −2.5% to +1.0% across the six full-parse inputs.

@@ -1,6 +1,6 @@
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, ops::Range, sync::{Arc, OnceLock}};
 
-use super::{ElementSpan, RawAttr, RawItem};
+use super::{ElementSpan, ParseOptions, RawAttr, RawItem, parse};
 use crate::name::{MC_ALTERNATE_CONTENT, QName, XML_SPACE, XName};
 
 const FLAG_BIT: u32 = 1 << 31;
@@ -35,13 +35,50 @@ impl CompactSpan {
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(size_of::<RawNode>() == 64);
 
+pub(super) type Bindings = Arc<[(Option<Range<usize>>, Arc<str>)]>;
+
+#[derive(Clone)]
+pub(super) struct Deferred {
+    pub(super) source: Arc<str>,
+    pub(super) options: ParseOptions,
+    pub(super) depth: u32,
+    pub(super) bindings: Bindings,
+    children: OnceLock<Vec<RawItem>>,
+}
+
+impl std::fmt::Debug for Deferred {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Deferred").field("depth", &self.depth).field("children", &self.children).finish_non_exhaustive()
+    }
+}
+
+impl Deferred {
+    pub(super) fn new(source: &Arc<str>, options: ParseOptions, depth: usize, bindings: Bindings) -> Self {
+        Self { source: source.clone(), options, depth: depth as u32, bindings, children: OnceLock::new() }
+    }
+
+    fn expand(&self, span: ElementSpan) -> Vec<RawItem> {
+        if span.close.is_none_or(|(start, _)| start == span.open_end) {
+            return Vec::new();
+        }
+        parse::expand(self, span)
+    }
+}
+
+// The Vec's niche keeps both variants within the original child-list size.
+#[derive(Clone, Debug)]
+enum Children {
+    Built(Vec<RawItem>),
+    Deferred(Box<Deferred>),
+}
+
 /// An element of the raw tree (ADR-0001 Layer 2, with names as resolved
 /// QName + original prefix per its post-acceptance note).
 #[derive(Clone, Debug)]
 pub struct RawNode {
     pub(crate) name: XName,
     pub(crate) attrs: Box<[RawAttr]>,
-    children: Vec<RawItem>,
+    children: Children,
     /// Original offsets and dirty flags.
     span: CompactSpan,
 }
@@ -51,7 +88,7 @@ impl RawNode {
         Self {
             name,
             attrs,
-            children: Vec::new(),
+            children: Children::Built(Vec::new()),
             span: CompactSpan {
                 start: start as u32,
                 open_end: open_end as u32,
@@ -82,37 +119,84 @@ impl RawNode {
         self.span.close_end |= FLAG_BIT;
     }
 
+    pub(super) fn defer(&mut self, deferred: Deferred) {
+        self.children = Children::Deferred(Box::new(deferred));
+    }
+
+    pub(super) fn mark_alternate_content(&mut self) {
+        self.span.close_start |= FLAG_BIT;
+    }
+
+    fn children_mut(&mut self) -> &mut Vec<RawItem> {
+        match &mut self.children {
+            Children::Deferred(deferred) => {
+                if deferred.children.get().is_none() {
+                    let children = deferred.expand(self.span.expand().expect("deferred node has a source span"));
+                    deferred.children = OnceLock::from(children);
+                }
+                deferred.children.get_mut().expect("expanded above")
+            }
+            Children::Built(children) => children,
+        }
+    }
+
+    // A structural edit makes the original child list unsuitable for release,
+    // even if every remaining child still has a clean span.
+    fn discard_deferral(&mut self) {
+        if matches!(self.children, Children::Deferred(_)) {
+            self.children = Children::Built(std::mem::take(self.children_mut()));
+        }
+    }
+
+    fn edited_children(&mut self) -> &mut Vec<RawItem> {
+        self.discard_deferral();
+        self.children_mut()
+    }
+
     pub(crate) fn child_mut(&mut self, index: usize) -> Option<&mut RawItem> {
-        self.children.get_mut(index)
+        self.children_mut().get_mut(index)
     }
 
     pub(crate) fn children_slice_mut(&mut self) -> &mut [RawItem] {
-        &mut self.children
+        self.children_mut()
     }
 
     pub(crate) fn insert_child(&mut self, index: usize, item: RawItem) {
         self.span.close_start |= ac_bit(&item);
-        self.children.insert(index, item);
+        self.edited_children().insert(index, item);
     }
 
     pub(crate) fn remove_child(&mut self, index: usize) -> RawItem {
-        self.children.remove(index)
+        self.edited_children().remove(index)
     }
 
     pub(crate) fn splice_children(&mut self, range: Range<usize>, items: impl IntoIterator<Item = RawItem>) {
+        self.discard_deferral();
+        let Children::Built(children) = &mut self.children else { unreachable!() };
         let close_start = &mut self.span.close_start;
-        self.children.splice(range, items.into_iter().inspect(|item| *close_start |= ac_bit(item)));
+        children.splice(range, items.into_iter().inspect(|item| *close_start |= ac_bit(item)));
     }
 
     pub(crate) fn retain_children(&mut self, keep: impl FnMut(&RawItem) -> bool) {
-        self.children.retain(keep);
+        self.edited_children().retain(keep);
     }
 
     pub(crate) fn set_children(&mut self, children: Vec<RawItem>) {
+        self.discard_deferral();
+        self.finish_parsed_children(children);
+    }
+
+    pub(super) fn finish_parsed_children(&mut self, children: Vec<RawItem>) {
+        debug_assert!(matches!(self.children, Children::Built(_)));
         if children.iter().any(|item| ac_bit(item) != 0) {
-            self.span.close_start |= FLAG_BIT;
+            self.mark_alternate_content();
         }
-        self.children = children;
+        self.children = Children::Built(children);
+    }
+
+    pub(super) fn into_parsed_children(self) -> Vec<RawItem> {
+        let Children::Built(children) = self.children else { unreachable!("expansion builds its root") };
+        children
     }
 
     pub(crate) fn may_have_alternate_content(&self) -> bool {
@@ -135,7 +219,7 @@ impl RawNode {
         Self {
             name,
             attrs: Box::default(),
-            children: Vec::new(),
+            children: Children::Built(Vec::new()),
             span: CompactSpan {
                 open_end: FLAG_BIT,
                 close_end: FLAG_BIT,
@@ -162,22 +246,62 @@ impl RawNode {
     }
     /// Child items (elements, text, markup) in document order.
     pub fn children(&self) -> &[RawItem] {
-        &self.children
+        match &self.children {
+            Children::Deferred(deferred) => deferred.children.get_or_init(|| {
+                deferred.expand(self.span().expect("deferred node has a source span"))
+            }),
+            Children::Built(children) => children,
+        }
     }
+
+    /// Whether this node's children are still waiting to be built from the source.
+    pub fn is_deferred(&self) -> bool {
+        matches!(&self.children, Children::Deferred(d) if d.children.get().is_none())
+    }
+
+    /// Original byte range of the content between this node's tags. A
+    /// self-closing tag has an empty range. Created nodes have no range.
+    pub fn content_span(&self) -> Option<Range<usize>> {
+        let span = self.span()?;
+        Some(span.open_end..span.close.map_or(span.open_end, |(start, _)| start))
+    }
+
+    /// Drops an expanded child list that can still be rebuilt from the
+    /// source. Attribute edits on this element do not prevent release.
+    /// Returns whether a list was dropped.
+    pub fn release_children(&mut self) -> bool {
+        let Children::Deferred(deferred) = &mut self.children else { return false };
+        if deferred.children.get().is_some_and(|children| {
+            children.iter().all(|item| item.as_element().is_none_or(|n| !n.subtree_dirty()))
+        }) {
+            return deferred.children.take().is_some();
+        }
+        false
+    }
+
+    pub(super) fn deferred_content<'a>(&'a self, source: &str) -> Option<&'a str> {
+        let Children::Deferred(deferred) = &self.children else { return None };
+        if deferred.children.get().is_some() {
+            return None;
+        }
+        debug_assert!(std::ptr::eq(deferred.source.as_ref(), source));
+        Some(&deferred.source[self.content_span().expect("deferred node has a source span")])
+    }
+
     /// Child elements in document order.
     pub fn elements(&self) -> impl Iterator<Item = &RawNode> {
-        self.children.iter().filter_map(RawItem::as_element)
+        self.children().iter().filter_map(RawItem::as_element)
     }
     /// Child elements with their item index (the index used in node paths).
     pub fn indexed_elements(&self) -> impl Iterator<Item = (usize, &RawNode)> {
-        self.children
+        self.children()
             .iter()
             .enumerate()
             .filter_map(|(i, c)| c.as_element().map(|n| (i, n)))
     }
     /// The concatenated text children (no descendants).
     pub fn text(&self) -> Cow<'_, str> {
-        let mut texts = self.children.iter().filter_map(|c| match c {
+        let mut texts = self.children().iter().filter_map(|c| match c {
             RawItem::Text(t) => Some(t.value.as_str()),
             _ => None,
         });
@@ -218,8 +342,8 @@ impl RawNode {
     pub fn structurally_eq(&self, other: &RawNode) -> bool {
         self.name == other.name
             && self.attrs == other.attrs
-            && self.children.len() == other.children.len()
-            && self.children.iter().zip(&other.children).all(|(a, b)| match (a, b) {
+            && self.children().len() == other.children().len()
+            && self.children().iter().zip(other.children()).all(|(a, b)| match (a, b) {
                 (RawItem::Element(a), RawItem::Element(b)) => a.structurally_eq(b),
                 (RawItem::Text(a), RawItem::Text(b)) => a.value == b.value && a.cdata == b.cdata,
                 (RawItem::Markup(a), RawItem::Markup(b)) => a == b,
@@ -230,7 +354,7 @@ impl RawNode {
     pub(super) fn force_rerender(&mut self) {
         self.mark_own_dirty();
         self.mark_subtree_dirty();
-        for c in &mut self.children {
+        for c in self.edited_children() {
             match c {
                 RawItem::Element(n) => n.force_rerender(),
                 RawItem::Text(t) => t.forget_span(),
@@ -252,6 +376,29 @@ fn ac_bit(item: &RawItem) -> u32 {
 mod tests {
     use super::*;
     use crate::XmlDocument;
+
+    #[test]
+    fn deferred_alternate_content_flag_tracks_only_direct_children() {
+        let source = format!(
+            "<root xmlns:m='{}'><row><m:AlternateContent/></row><row><x><m:AlternateContent/></x></row></root>",
+            MC_ALTERNATE_CONTENT.ns
+        );
+        const DEFER: &[QName] = &[QName::new("", "row"), QName::new("", "root")];
+        let options = ParseOptions::default().with_defer(DEFER);
+        let doc = XmlDocument::parse_with(source.as_bytes(), &options).unwrap();
+        assert!(doc.root().is_deferred());
+        assert!(!doc.root().may_have_alternate_content());
+        for (row, expected) in doc.root().elements().zip([true, false]) {
+            assert!(row.is_deferred());
+            assert_eq!(row.may_have_alternate_content(), expected);
+            let range = row.content_span().unwrap();
+            assert!(source[range].contains("<m:AlternateContent/>"));
+            let mut row = row.clone();
+            row.children();
+            assert!(row.release_children());
+            assert_eq!(row.may_have_alternate_content(), expected);
+        }
+    }
 
     #[test]
     fn alternate_content_flag_survives_child_edits_and_close() {

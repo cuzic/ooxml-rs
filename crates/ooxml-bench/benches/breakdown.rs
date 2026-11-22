@@ -10,7 +10,7 @@ use std::io::{Cursor, Read};
 use std::time::{Duration, Instant};
 
 use ooxml_bench::{PeakAlloc, fmt_bytes, fmt_dur, generate_deck};
-use ooxml_core::{Package, RawAttr, RawItem, RawNode, RawText, XName, XmlDocument};
+use ooxml_core::{Package, ParseOptions, QName, RawAttr, RawItem, RawNode, RawText, XName, XmlDocument};
 
 #[global_allocator]
 static ALLOC: PeakAlloc = PeakAlloc::new();
@@ -117,7 +117,60 @@ fn stage1() {
     }
 }
 
+/// Paired runs on the same worksheet isolate the cost of retaining row
+/// nodes. Both parses validate all events and count the same formulas.
+fn stage2() {
+    const SML: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    const WORKSHEET: QName = QName::new(SML, "worksheet");
+    const ROW: QName = QName::new(SML, "row");
+    const FORMULA: QName = QName::new(SML, "f");
+    const PART: &str = "xl/worksheets/sheet1.xml";
+
+    let input: std::sync::Arc<[u8]> = generate_xlsx(1_000_000).into();
+    let mut package = Package::from_bytes(input.clone()).unwrap();
+    let sheet = package.read_part(PART).unwrap();
+    let count = ParseOptions::default().with_count(&[FORMULA]);
+    let skip = count.with_defer(&[WORKSHEET]);
+    let rows = count.with_defer(&[ROW]);
+    let inflate = best(5, || package.read_part(PART).unwrap());
+    let skip_time = best(5, || XmlDocument::parse_with(&sheet, &skip).unwrap());
+    let rows_time = best(5, || XmlDocument::parse_with(&sheet, &rows).unwrap());
+    drop(package);
+    drop(sheet);
+
+    let end_to_end = best(5, || {
+        let mut package = Package::from_bytes(input.clone()).unwrap();
+        package.xml_part_with(PART, &rows).unwrap();
+        package
+    });
+    let other_heap = ALLOC.current() - input.len();
+    ALLOC.reset_peak();
+    package = Package::from_bytes(input).unwrap();
+    let doc = package.xml_part_with(PART, &rows).unwrap();
+    let retained = ALLOC.current() - other_heap;
+    let peak = ALLOC.peak() - other_heap;
+    let sheet_data = doc.root().elements().find(|n| n.is(QName::new(SML, "sheetData"))).unwrap();
+    assert_eq!(sheet_data.elements().filter(|n| n.is(ROW) && n.is_deferred()).count(), 100_000);
+    println!("| 1M-cell worksheet | Best of 5 |");
+    println!("|---|---|");
+    for (label, measurement) in [
+        ("Inflate", inflate),
+        ("Validate and count with worksheet root deferred (includes source copy)", skip_time),
+        ("Validate, count and build deferred rows (includes source copy)", rows_time),
+        ("Package open + deferred worksheet parse", end_to_end),
+    ] {
+        println!("| {label} | {} |", fmt_dur(measurement));
+    }
+    let construction_ms = (rows_time.as_secs_f64() - skip_time.as_secs_f64()) * 1_000.0;
+    println!("| Additional row and worksheet node construction (difference) | {construction_ms:.2} ms |");
+    println!("Peak heap including input: {}, retained: {}", fmt_bytes(peak), fmt_bytes(retained));
+}
+
 fn main() {
+    if std::env::args().any(|arg| arg == "--stage2") {
+        stage2();
+        return;
+    }
     if std::env::args().any(|arg| arg == "--stage1") {
         stage1();
         return;
