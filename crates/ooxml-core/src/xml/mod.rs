@@ -359,10 +359,11 @@ impl XmlDocument {
     }
 
     /// Number of elements of this name in the original parse, including
-    /// deferred content. Returns zero for an unrequested name. Edits do
-    /// not update this snapshot.
-    pub fn census(&self, name: QName) -> usize {
-        self.census.iter().find(|(q, _)| *q == name).map_or(0, |(_, count)| *count)
+    /// deferred content. Returns `None` for an unrequested name and
+    /// `Some(0)` for a requested name that was absent. Edits do not update
+    /// this snapshot.
+    pub fn census(&self, name: QName) -> Option<usize> {
+        self.census.iter().find(|(q, _)| *q == name).map(|(_, count)| *count)
     }
 
     /// The original source text.
@@ -477,3 +478,6 @@ fn preserve_attribute_spelling_on_edited_start_tag() {
         r#"<root  keep = '&#65;' edit="new"></root >"#
     );
 }
+
+#[cfg(test)]
+mod deferred_oracle;

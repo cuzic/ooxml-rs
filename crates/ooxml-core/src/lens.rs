@@ -612,6 +612,7 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     }
 
     /// Releases this element's clean expanded children for lazy re-reading.
+    /// Descendant edits and attribute-spelling preferences prevent release.
     pub fn release_children(&mut self) -> bool {
         self.node_mut().release_children()
     }

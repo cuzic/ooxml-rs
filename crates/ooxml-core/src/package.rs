@@ -354,6 +354,7 @@ impl Package {
         match self.parts[i].state {
             PartState::Parsed(_) => {}
             PartState::Raw => {
+                options.max_depth = options.max_depth.min(self.parse_options.max_depth);
                 if is_opc_metadata(name) {
                     options.max_depth = options.max_depth.max(crate::xml::DEFAULT_MAX_DEPTH);
                 }
@@ -381,8 +382,8 @@ impl Package {
     }
 
     /// Parses with the given options on first access. A cached tree keeps the
-    /// options it was parsed with. The package's byte ceiling and the OPC
-    /// metadata depth floor still apply.
+    /// options it was parsed with. On first access, the stricter byte and
+    /// depth limits apply, subject to the OPC metadata depth floor.
     pub fn xml_part_with(&mut self, name: &str, options: &ParseOptions) -> Result<&XmlDocument> {
         let i = self.ensure_parsed(name, *options)?;
         match &self.parts[i].state {

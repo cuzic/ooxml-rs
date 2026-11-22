@@ -261,6 +261,8 @@ impl RawNode {
 
     /// Original byte range of the content between this node's tags. A
     /// self-closing tag has an empty range. Created nodes have no range.
+    /// The range always refers to the original source, so it may describe
+    /// stale content after edits to the child list or its descendants.
     pub fn content_span(&self) -> Option<Range<usize>> {
         let span = self.span()?;
         Some(span.open_end..span.close.map_or(span.open_end, |(start, _)| start))
@@ -268,15 +270,30 @@ impl RawNode {
 
     /// Drops an expanded child list that can still be rebuilt from the
     /// source. Attribute edits on this element do not prevent release.
+    /// Descendant edits and attribute-spelling preferences prevent release.
     /// Returns whether a list was dropped.
     pub fn release_children(&mut self) -> bool {
         let Children::Deferred(deferred) = &mut self.children else { return false };
         if deferred.children.get().is_some_and(|children| {
-            children.iter().all(|item| item.as_element().is_none_or(|n| !n.subtree_dirty()))
+            children.iter().all(|item| item.as_element().is_none_or(|n| !n.subtree_dirty() && !n.has_spelling_preference()))
         }) {
             return deferred.children.take().is_some();
         }
         false
+    }
+
+    fn has_spelling_preference(&self) -> bool {
+        if self.preserves_attribute_spelling() {
+            return true;
+        }
+        let children = match &self.children {
+            Children::Built(children) => children,
+            Children::Deferred(deferred) => {
+                let Some(children) = deferred.children.get() else { return false };
+                children
+            }
+        };
+        children.iter().filter_map(RawItem::as_element).any(Self::has_spelling_preference)
     }
 
     pub(super) fn deferred_content<'a>(&'a self, source: &str) -> Option<&'a str> {

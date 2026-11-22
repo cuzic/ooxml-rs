@@ -67,18 +67,19 @@ fn attribute_edits_match_full_parse_with_and_without_expansion() {
 #[test]
 fn nested_deferral_census_absolute_spans_and_edits() {
     let xml = "<root xmlns:p='urn:cell'><row k='old'><p:c/><p:c><row>data</row></p:c></row><row/></root>";
-    let opts = ParseOptions::default().with_defer(DEFER).with_count(&[ROW, CELL, ROW]);
+    let opts = ParseOptions::default().with_defer(DEFER).with_count(&[ROW, CELL, ROW, ADDED]);
     let mut lazy = XmlDocument::parse_with(xml.as_bytes(), &opts).unwrap();
-    assert_eq!(lazy.census(ROW), 3);
-    assert_eq!(lazy.census(CELL), 2);
-    assert_eq!(lazy.census(KEY), 0);
+    assert_eq!(lazy.census(ROW), Some(3));
+    assert_eq!(lazy.census(CELL), Some(2));
+    assert_eq!(lazy.census(KEY), None);
+    assert_eq!(lazy.census(ADDED), Some(0));
     let row = lazy.root().elements().next().unwrap();
     assert!(row.is_deferred());
     let cell = row.elements().nth(1).unwrap();
     assert!(cell.is_deferred());
     assert_eq!(&xml[cell.content_span().unwrap()], "<row>data</row>");
     assert_eq!(cell.elements().next().unwrap().name().ns(), "");
-    assert_eq!(lazy.census(CELL), 2);
+    assert_eq!(lazy.census(CELL), Some(2));
 
     let edit = |doc: &mut XmlDocument| {
         let mut cell = doc.lens_mut_at::<Cell>(&[0, 1]).unwrap();
@@ -93,11 +94,13 @@ fn nested_deferral_census_absolute_spans_and_edits() {
 
     for doc in [&mut lazy, &mut full] {
         let mut row = doc.lens_mut_at::<Row>(&[0]).unwrap();
+        let original_content = row.as_lens().raw().content_span();
         assert!(row.remove_at(0));
+        assert_eq!(row.as_lens().raw().content_span(), original_content);
         assert!(!row.release_children());
     }
     assert_eq!(lazy.serialize(), full.serialize());
-    assert_eq!(lazy.census(CELL), 2);
+    assert_eq!(lazy.census(CELL), Some(2));
 }
 
 #[test]
@@ -129,4 +132,27 @@ fn malformed_content_has_the_same_error_and_position() {
         let lazy = XmlDocument::parse_with(xml.as_bytes(), &ParseOptions::default().with_defer(DEFER)).unwrap_err();
         assert_eq!(format!("{lazy:?}"), format!("{full:?}"), "{bad}");
     }
+}
+
+#[test]
+fn release_keeps_descendant_attribute_spelling_preference() {
+    let xml = "<row xmlns:p='urn:cell'><row><p:c k = '&#x61;'/></row></row>";
+    let options = ParseOptions::default().with_defer(DEFER);
+    let mut doc = XmlDocument::parse_with(xml.as_bytes(), &options).unwrap();
+    doc.lens_mut_at::<Cell>(&[0, 0]).unwrap().preserve_attribute_spelling();
+    assert!(!doc.lens_mut::<Row>().unwrap().release_children());
+    assert_eq!(doc.serialize(), xml);
+
+    doc.lens_mut_at::<Cell>(&[0, 0]).unwrap().set_attr(ADDED, "v").unwrap();
+    assert_eq!(doc.serialize(), "<row xmlns:p='urn:cell'><row><p:c k = '&#x61;' added=\"v\"/></row></row>");
+}
+
+#[test]
+fn deferred_siblings_restore_the_inherited_namespace() {
+    let xml = "<r xmlns:p='u1'><x xmlns:p='u2'><row/></x><row><p:a/></row></r>";
+    let options = ParseOptions::default().with_defer(DEFER);
+    let doc = XmlDocument::parse_with(xml.as_bytes(), &options).unwrap();
+    let row = doc.root().elements().nth(1).unwrap();
+    assert!(row.is_deferred());
+    assert_eq!(row.elements().next().unwrap().name().ns(), "u1");
 }
