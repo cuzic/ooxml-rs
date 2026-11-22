@@ -768,3 +768,15 @@ fn alternate_content_placement_agrees_with_expanding_each_branch() {
     exercise::<Item>(&["<head/>", &empty, "<ext/>"], "<item/>", true);
     exercise::<Head>(&["<head/>", &nested], "<head/>", false);
 }
+
+#[test]
+fn removing_alternate_content_restores_local_unlimited_slot_checks() {
+    let ac = wrapping("<item/>", None);
+    let (mut d, _) = ac_doc(&format!("<ext/><head/>{ac}<item/>"));
+    let mut p = d.lens_mut::<P>().unwrap();
+    assert!(p.remove_at(2));
+    // The AC bit is still set. The affected neighbourhood is in order.
+    p.check_insert_at::<Item>(3).unwrap();
+    p.insert_at::<Item>(3).unwrap();
+    assert_eq!(d.serialize(), format!("{AC_OPEN}<ext/><head/><item/><item/></p>"));
+}

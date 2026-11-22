@@ -516,3 +516,34 @@ fn positioned_run_insertion_refuses_same_slot_alternate_content() {
         Error::Core(CoreError::UnresolvedSibling(_))
     );
 }
+
+#[test]
+fn section_break_refuses_same_slot_alternate_content_in_paragraph_properties() {
+    let wrap = |member: &str| format!(
+        r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w">{member}</mc:Choice></mc:AlternateContent>"#,
+        ooxml_core::name::MC_NS
+    );
+    for properties in [
+        wrap("<w:pPr/>"),
+        format!("<w:pPr>{}</w:pPr>", wrap("<w:sectPr/>")),
+    ] {
+        let mut doc = open(&format!("<w:p>{properties}<w:r><w:t>anchor</w:t></w:r></w:p><w:sectPr/>"));
+        assert_matches!(
+            refused(&mut doc, |doc| doc.insert_section_break(p(0), SectionBreak::Continuous)),
+            Error::Core(CoreError::UnresolvedSibling(_))
+        );
+    }
+}
+
+#[test]
+fn block_wrap_refuses_same_slot_alternate_content() {
+    let ac = format!(r#"<mc:AlternateContent xmlns:mc="{}"><mc:Choice Requires="w"><w:p/></mc:Choice></mc:AlternateContent>"#,
+                     ooxml_core::name::MC_NS);
+    let mut doc = open(&format!("<w:p><w:r><w:t>anchor</w:t></w:r></w:p>{ac}"));
+    assert_matches!(
+        refused(&mut doc, |doc| doc.wrap_in_control(
+            ooxml_docx::WrapTarget::Paragraphs { first: p(0), last: p(0) }, ooxml_docx::ControlSpec::default()
+        )),
+        Error::Core(CoreError::UnresolvedSibling(_))
+    );
+}

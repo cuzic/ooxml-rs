@@ -729,6 +729,9 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
     ) -> Result<Placement> {
         let node = self.node();
         let mut cur = None;
+        let s = slots[slot];
+        let mut check_all_order = !matches!(position, InsertPosition::At(_)) || s.max_each.is_some() || s.max_total.is_some();
+        let mut disorder = false;
         let ranks = AlternateRanks { root: self.root, slots, target: slot, name: q, parent: E::QNAME };
         let mut path = None;
         let mut left: Option<Interval> = None;
@@ -753,6 +756,10 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 continue;
             }
             if child.is(MC_ALTERNATE_CONTENT) {
+                if disorder {
+                    return Err(Error::UnresolvedSibling(E::QNAME));
+                }
+                check_all_order = true;
                 let path = path.get_or_insert_with(|| self.path.clone());
                 path.push(i);
                 let interval = ranks.read::<E>(child, path, RankAssignment::Greedy(cur))?;
@@ -787,7 +794,13 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
                 continue; // unlisted: attached to the listed sibling before it
             }
             let Some(&rank) = cands.iter().find(|&&r| Some(r) >= cur) else {
-                return Err(Error::UnresolvedSibling(E::QNAME));
+                if check_all_order {
+                    return Err(Error::UnresolvedSibling(E::QNAME));
+                }
+                // The AC bit can remain set after removal. Ignore distant
+                // disorder for an unlimited slot unless an AC is found.
+                disorder = true;
+                continue;
             };
             cur = Some(rank);
             if rank == slot {
@@ -807,7 +820,6 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         if left.is_some_and(|r| r.hi > slot) || right.is_some_and(|r| r.lo < Some(slot)) {
             return Err(Error::UnresolvedSibling(E::QNAME));
         }
-        let s = slots[slot];
         if s.max_each.is_some_and(|m| same_q >= m) || s.max_total.is_some_and(|m| same_slot >= m) {
             return Err(Error::AlreadyPresent(q));
         }
