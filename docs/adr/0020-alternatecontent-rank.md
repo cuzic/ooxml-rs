@@ -1,6 +1,6 @@
 # ADR-0020: Inserting next to `mc:AlternateContent` (the AC-rank rule)
 
-- Status: **Draft** (revision 2)
+- Status: **Draft** (revision 3)
 - Date: 2026-11-22
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): `Err ⇒ byte-identical`, T2 locality,
@@ -19,7 +19,8 @@
 - Evidence: [`spikes/ac-rank/`](../../spikes/ac-rank/README.md) (`ac_rank.py`, output in
   `results/ac-rank.txt`): 378 xlsx, 123 docx and 102 pptx distinct packages, ranked with the
   **generated** slot tables of `main` (`d066ff1`).
-- Review: [round 1](0020-opus-review-round1.md) (not converged: M1–M4, m1–m5).
+- Review: [round 1](0020-opus-review-round1.md) (not converged: M1–M4, m1–m5),
+  [round 2](0020-opus-review-round2.md) (not converged: M1; m1–m3, n1).
 
 ## Revision history
 
@@ -46,9 +47,25 @@
   - **m3:** the spike now refuses unranked and malformed ACs, checks `Requires` binding in scope,
     and counts the new cases; counts re-run.
   - **m4:** `check_insertable` (xlsx, child lists not yet in the tree) delegates to a new public
-    core function, named in §8; the shared-strings refusal keeps its own guard (§9).
+    core function (dropped again in revision 3); the shared-strings refusal keeps its own guard
+    (§9).
   - **m5:** `mce_wrapped` redefinition restricted to children Office never writes directly
     (§8, Q5).
+- **Revision 3** (review round 2; coordinator decisions of 2026-11-22).
+  - **M1:** for the callback and positional forms, an AC whose branches are all empty is read as
+    **in every slot** (§4.2, §4.3). docx `insert_image` and hyperlink inserts keep a format-local
+    pre-check that refuses when the paragraph has **any** AC child, because their index counts ACs
+    and unlisted children of every slot (§4.4, §9). The reviewer's two examples are U1/U3 tests.
+  - **m1:** six missing call sites added to §4.4 (xlsx `layout.rs:649/793/823/826`,
+    `validation.rs:233`; pptx `write/table.rs:829`), with the grep used to enumerate them.
+  - **m2:** the "may have an AC child" bit lives in the free high bit of `CompactSpan::close_start`
+    (no size change) and is maintained inside `RawNode::insert_child`/`splice_children`/
+    `set_children`, with a debug assertion and a unit test (§4.3).
+  - **m3:** the public `check_append_among` is dropped; no new public core API. xlsx
+    `check_insertable` keeps refusing any AC; the `sheetData` dry run uses the lens's
+    `check_get_or_insert` (§8, §9).
+  - **n1:** the spike computes interval statistics from the real greedy `cur`; an all-empty AC
+    counts as same-slot for the positional forms. Counts unchanged.
 
 ## Context
 
@@ -298,13 +315,19 @@ interval:
 forms let the caller choose a position **within** the slot, by a `before(index_in_slot, node)`
 callback or an item index. When any AC of the parent **is in slot `s`**, they return
 `Err(UnresolvedSibling)`, whatever the callback or index (coordinator decision for review M1).
+For this check an AC whose branches are **all empty** (empty interval, §3 step 3) is read as being
+**in every slot** (review round 2 M1): it constrains no order, but a caller that counts element
+children still counts it, so a position computed next to it is just as undefined.
 
 Why: the meaning of "the k-th sibling in the slot" next to an AC is not defined. Existing callers
 count differently (§4.4): docx counts every element except `w:pPr`, the AC included; pptx and
 xlsx compare the lens's `index_in_slot`, which never sees the AC. Either convention silently
 moves content under the other (review M1: `[pPr, r0, AC{r}, r1, r2]`, `After(r1)` lands after
 `r2`), and "just after `r1`" cannot be expressed relative to an AC at all. Refusing keeps every
-existing caller correct without auditing its counting.
+caller that counts **within the slot** correct without auditing its counting. A caller that
+counts element children **across slots** (the docx run and hyperlink inserts, which count every
+element except `w:pPr`, so also an `AC{w:pPr}` in slot 0 and unlisted children) is not covered by
+a slot-based rule; such callers keep a format-local pre-check (§4.4, §9).
 
 When no AC is in slot `s`, these forms behave as today and as §4.1 for ACs in other slots: the
 callback still sees only same-slot listed siblings, and `index_in_slot` is unchanged.
@@ -318,8 +341,8 @@ internal append mode so that it is not refused by this section.
 as follows:
 
 1. If the parent has an AC child, it scans the children once and refuses
-   (`UnresolvedSibling`) if **any** AC is malformed or unranked, or **is in slot `s`** (§4.2),
-   whether or not it is adjacent to `index`. This matches `insert_by`, which refuses the whole
+   (`UnresolvedSibling`) if **any** AC is malformed or unranked, **is in slot `s`**, or has an
+   empty interval (§4.2), whether or not it is adjacent to `index`. This matches `insert_by`, which refuses the whole
    parent in those cases.
 2. The nearest ranked sibling before `index` must satisfy `hi ≤ s`, the nearest after `lo ≥ s`
    ("nearest" skips unlisted children and empty ACs, as today). For an AC neighbour, the
@@ -330,9 +353,27 @@ as follows:
    `insert_by` would refuse.
 3. Limits are counted as today by the full walk (§5).
 
-To keep the O(1) path for parents without an AC, U1 keeps an internal per-node bit "may have an AC
-child", set by the parser and by the insert primitives (never cleared except by a rescan). It is
-not public and may be stale-true, never stale-false.
+To keep the O(1) path for parents without an AC, U1 adds an internal per-node bit "may have an AC
+child" (review round 2 m2):
+
+- **Where it lives.** In the high bit of `CompactSpan::close_start`. ADR-0010 packs `RawNode`
+  (`const _: () = assert!(size_of::<RawNode>() <= 64)` in `xml/node.rs`); the high bits of
+  `start`, `open_end` and `close_end` already hold the attribute-spelling, `own_dirty` and
+  `subtree_dirty` flags (`FLAG_BIT`), while `close_start` stores an offset `≤ MAX_SPAN_OFFSET`
+  and its high bit is free. `RawNode` therefore does not grow; `CompactSpan::expand` masks
+  `close_start` with `MAX_SPAN_OFFSET` as it already does for the other three fields, and U1
+  adds `assert!(size_of::<RawNode>() == <the size on main>)` next to the existing bound so a
+  regression is a compile error.
+- **Who maintains it.** `RawNode` itself, inside the three methods that add children:
+  `insert_child`, `splice_children` and `set_children` (the parser hands each child list over
+  through `set_children`, `xml/parse.rs`). Each sets the bit when an item it adds is an
+  `mc:AlternateContent` element. Callers never set it. The item accessors (`child_mut`,
+  `children_slice_mut`) edit an existing child in place; U1 checks that no core path replaces a
+  whole item through them, and the debug assertion below catches one that would.
+- **Invariant.** "bit clear ⇒ no AC child". It is checked by a `debug_assert!` in the
+  `insert_at` fast path (which is where a stale-false bit would do harm) and by a unit test that
+  builds trees through each of the three methods and through the parser. Removing children never
+  clears the bit; a stale-true bit only costs one extra scan.
 
 #### 4.4 Existing callers of the callback and positional forms
 
@@ -342,18 +383,38 @@ next to a same-slot AC, gets the refusal, and saves byte-identical output.
 
 | Crate | Call sites (`file:line` on `d066ff1`) | Position source |
 |---|---|---|
-| docx | `images.rs:249/281` (`insert_image`; `k` from `run_insertion_point`, `images.rs:385`) | in-slot count, AC **included** |
-| docx | `structure.rs:643/661` (hyperlinks; `k` from `structure.rs:624`, `before_slot_child`) | in-slot count, AC **included** |
+| docx | `images.rs:249/281` (`insert_image`; `k` from `run_insertion_point`, `images.rs:385`) | count of every element except `w:pPr` (ACs and unlisted children of **any** slot included): **format-local pre-check refuses if the `w:p` has any AC child** |
+| docx | `structure.rs:643/661` (hyperlinks; `k` from `structure.rs:624`, `before_slot_child`) | same count: **same format-local pre-check** |
 | docx | `bookmarks.rs:409/421`, `controls/wrap.rs:249/295` (`move_in_by`/`insert_by` with constant callbacks) | callback |
 | docx | `insert_field.rs:222`, `bookmarks.rs:160/167/389`, `comments.rs:607/611/631`, `revisions.rs:675/694/720/725/859/930`, `controls.rs:672`, `controls/wrap.rs:240/337`, `tables.rs:296/298/709/715/739`, `notes.rs:37`, `structure.rs:356/361/489/492/498/739/756`, `replace.rs:750–769`, `format.rs:689/867/960`, `styles.rs:278` | item index |
-| pptx | `slides.rs:378/533/994`, `write.rs:201/1079`, `write/formatting/range.rs:201`, `write/table.rs:613/709/718/860`, `replace.rs:540/543` | lens `index_in_slot` |
+| pptx | `slides.rs:378/533/994`, `write.rs:201/1079`, `write/formatting/range.rs:201`, `write/table.rs:613/709/718/829/860` (`:829` is `check_move_in_by`), `replace.rs:540/543` | lens `index_in_slot` |
 | pptx | `write/shape_properties.rs:919` | item index |
 | xlsx | `sheet_ops/mod.rs:563/692` | own count of `x:sheet` / `index_in_slot` |
 | xlsx | `layout.rs:589/646/666/978`, `worksheet.rs:257/270/358/368` | item index |
-| xlsx | `hyperlink.rs:199`, `range.rs:107/270/317/393/443`, `layout.rs:209/574/577/644` (`check_insert_by(\|_, _\| false)`, dry runs of a plain append) | none: **switch to `check_insert`/`check_get_or_insert`** in U1 so they follow §4.1 |
+| xlsx | `hyperlink.rs:199`, `range.rs:107/270/317/393/443`, `layout.rs:209/574/577/644/649/793/823/826`, `validation.rs:233` (`check_insert_by(\|_, _\| false)`, dry runs of a plain append; each writes with `get_or_insert`) | none: **switch to `check_insert`/`check_get_or_insert`** in U1 so the dry run and the write agree (§4.1) |
+| xlsx | `worksheet.rs:280` (`check_insertable::<Worksheet>` for `sheetData`) | none: **switch to the lens's `check_get_or_insert::<SheetData>`** (§8) |
 
-Most of these never meet an AC in their slot in the corpus (only the docx rows do: run content and
-body content), but each gets its test.
+The list is complete for `d066ff1`: it is every non-test match in `crates/ooxml-{xlsx,docx,pptx}/src`
+of
+
+```sh
+grep -rnE '\.(check_)?(insert_by|insert_by_with_ns|insert_in_slot|insert_in_slot_with_ns|insert_at|insert_at_with_ns|move_in_by|insert_detached_by)(::<[^(]*>)?\(' \
+  crates/ooxml-{xlsx,docx,pptx}/src
+```
+
+(86 call sites, review round 2), plus xlsx `check_insertable`. U1 re-runs it on its base and adds
+any new site to its tests. Most of these never meet an AC in their slot in the corpus (only the
+docx rows do: run content and body content), but each gets its test.
+
+**The docx cross-slot count (review round 2 M1).** `run_insertion_point` (`images.rs:385`) and
+the hyperlink path (`structure.rs:624`) compute `k = count of element children up to the anchor,
+except w:pPr`, and pass `|i, _| Some(i) == k`. That count includes ACs in other slots
+(`[AC{w:pPr}, r0, r1]`, `After(r0)`) and ACs with only empty branches (`[pPr, r0,
+AC{Choice/}, r1, r2]`, `After(r1)`); with a slot-based core rule alone both would return `Ok` and
+place the run after `r2` / `r1`. These two operations therefore keep a docx pre-check: refuse
+(`Core(UnresolvedSibling)`, as today) when the `w:p` has **any** `mc:AlternateContent` child.
+Both reviewer examples are byte-identical refusal tests in U1 (core: the positional refusal for the
+all-empty AC) and U3 (docx: the pre-check for both).
 
 ### 5. Occurrence limits: count through the branches
 
@@ -398,27 +459,23 @@ ADR-0002 asked for "a diagnostic if branches disagree". This ADR drops it:
 
 - **Core, for the rule.** Internal to `LensMut::place_skipping`, `plan_insert_at` and their
   helpers, plus the internal append mode (§4.2) and the internal "may have an AC child" bit
-  (§4.3). No existing public signature changes.
-- **One new public core function** (review m4), for checks on child lists that are not in the
-  tree yet (xlsx `check_insertable`, `worksheet.rs:297`, where a cell's `f`/`v`/`is` are about to
-  be replaced, and `edit.rs:698` for `si`):
+  (§4.3). No existing public signature changes and no new public item.
+- **No new public core API** (review round 2 m3, coordinator decision). Revision 2's public
+  `check_append_among` is dropped: no §9 lift needs it. xlsx `check_insertable` (child lists not
+  in the tree yet) stays format-local and keeps refusing **any** AC child, as today:
+  - `worksheet.rs:297` (`c` with `f`/`v`/`is` about to be replaced): an AC in a cell is already
+    refused by `locate` (`worksheet.rs:157`);
+  - `edit.rs:698` (`si`): shared strings with an AC are refused by the registry (§9);
+  - `worksheet.rs:280` (`sheetData`, no skipped children): switches to the lens's
+    `check_get_or_insert::<SheetData>`, which follows the new rule.
 
-  ```rust
-  /// `Ok(())` exactly when appending a `q` child (ADR-0020 §4.1) to the element at
-  /// `parent_path` of `doc` would succeed if its children for which `skip` returns
-  /// `true` were absent. `E` is the parent's spec. Changes nothing.
-  pub fn check_append_among<E: ElementSpec>(
-      doc: &XmlDocument, parent_path: &[usize], q: QName, skip: impl FnMut(&RawNode) -> bool,
-  ) -> Result<()>
-  ```
-
-  It takes the document and path (like `Lens::check_insert_under`) so that `Requires` bindings
-  are checked in scope (§3.1). xlsx's `check_insertable` becomes a thin wrapper over it, so the
-  rule has one implementation. This is a hand-written core item, not a generated name.
+  The unit test that checks `check_insertable` against the core's placement
+  (`worksheet.rs:780`) is restricted in U2 to inputs without an AC, where the two still agree;
+  with an AC `check_insertable` is deliberately stricter.
 - **Errors.** The refusals keep `Error::UnresolvedSibling(parent)` (Q3); its doc comment and
   message change from "mc:AlternateContent sibling or out-of-order children" to "out-of-order
   children, or an `mc:AlternateContent` sibling that allows no position (straddled, in the slot
-  of a positional insert, unranked or malformed)". `AlreadyPresent` gains the branch-count cause.
+  of a positional insert or with only empty branches, unranked or malformed)". `AlreadyPresent` gains the branch-count cause.
   `Error` is `#[non_exhaustive]`, so a later dedicated variant stays possible.
 - **Generated code.** Nothing changes: `cargo xtask codegen --check` is clean, no generated public
   name changes.
@@ -468,17 +525,18 @@ nothing while consumers still read the value from the branch.
 
 | Format | Operation (refusal today) | Decision | Corpus / fixture |
 |---|---|---|---|
-| xlsx | Worksheet-level inserts next to `AC{controls}` (`plan_target`, `check_insertable`; `add_note`'s `legacyDrawing` (P5c); P7-pre/P7a worksheet inserts) | **Lift.** `check_insertable` delegates to `check_append_among` (§8); `check_insert_by(\|_, _\| false)` dry runs switch to `check_insert` (§4.4). | 2 POI sheets; `reference/fixtures/xlsx/poi/62629_target.xlsm` |
+| xlsx | Worksheet-level inserts next to `AC{controls}` (`plan_target`, `check_insertable`; `add_note`'s `legacyDrawing` (P5c); P7-pre/P7a worksheet inserts) | **Lift.** Inserts go through the lens; `check_insert_by(\|_, _\| false)` dry runs switch to `check_insert`/`check_get_or_insert` (§4.4); `check_insertable` stays and keeps refusing any AC (it is only used where AC is refused anyway, §8). | 2 POI sheets; `reference/fixtures/xlsx/poi/62629_target.xlsm` |
 | xlsx | `x:workbook` inserts next to `AC{x15ac:absPath}`: `definedNames` (`set_autofilter`, ADR-0014), `calcPr` (ADR-0003) | **Lift.** A `definedNames` inside a branch counts (§5). | 59 workbooks gain `definedNames`; 13 fixtures |
 | xlsx | Style tables with AC entries (`push_reserved`) | **Stays.** Index semantics (an AC is one entry only when index-stable, ADR-0006), not rank. Guard: `registry/mod.rs` `Table::has_ac` and `registry/styles.rs` `push_reserved` (Q6). | `style-alternate-content.xlsx` |
-| xlsx | Shared strings with an AC child | **Stays.** After `check_insertable` delegates, the rank rule alone would allow an `si` append after a same-slot AC; the refusal is kept by `registry/strings.rs` `SharedStrings::activate` (`UnresolvedSibling(SharedStringTable)`) and `Table::has_ac`, independent of the core. U2 keeps `sst_with_alternate_content_refuses_shared_writes`. | 0 in corpus |
+| xlsx | Shared strings with an AC child | **Stays.** Refused by `registry/strings.rs` `SharedStrings::activate` (`UnresolvedSibling(SharedStringTable)`) and `Table::has_ac`, and by `check_insertable` at `edit.rs:698`; none depends on the core rule. U2 keeps `sst_with_alternate_content_refuses_shared_writes`. | 0 in corpus |
 | xlsx | `sheetData`/`row`/`c` containing AC; a `drawing`/`legacyDrawing` wrapped in AC; G1/G2 rewrites (ADR-0018) | **Stays.** Edits inside branches or grid indexes; `index.rs` guards are unchanged. | 0 grids with AC |
 | xlsx | `xdr:wsDr` anchor append (raw splice before `</xdr:wsDr>`, ADR-0017) | **No change**; through the lens it would be a plain append next to same-slot ACs (allowed), but there is no reason to move it now. | 170 ACs |
 | docx | `Document::append_paragraph` into a `w:body` with an AC | **Lift** (it already relies on the core and uses `insert`, a plain append). | `sdk-HelloO14.docx` |
 | docx | `format_runs`/`set_run_properties` on a run that wraps a drawing (`run_container`) | **Lift**, with the general rule: `w:rPr` is slot 0 of `w:r`, the AC is in the content slot, so `check_insert_at::<RunProperties>` passes; refused if a branch holds a `w:rPr`. | 20 runs, 6 files |
 | docx | Property **inserts** into a `w:rPr`/`w:pPr` with an AC child (`Planner::existing`) | **Lift only for property kinds (QNames) that occur in no branch** of that element's ACs. | 0 in corpus; synthetic test |
 | docx | Property **Clear**, **Set of an existing value** and **attribute removal** where the property exists inside a branch | **Stays refused** (review M2): the pre-check stays for those kinds. Inserting such a kind is `AlreadyPresent` by §5 anyway. | synthetic test |
-| docx | `insert_image`, hyperlinks, and every positional insert next to a same-slot AC (§4.4) | **Stays refused** (§4.2). | 20 runs, 1 body |
+| docx | `insert_image` and hyperlinks into a `w:p` with **any** AC child | **Stays refused** by a kept docx pre-check (cross-slot count, §4.4). | 0 `w:p` with an AC in corpus; reviewer examples as tests |
+| docx | Every other positional insert next to a same-slot or all-empty AC (§4.4) | **Stays refused** (§4.2). | 20 runs, 1 body |
 | docx | Comment anchors, content controls and fields inside AC | **Stays** (inside a branch). | — |
 | pptx | `p:sld` / `p:cSld` `p:extLst` insert next to an AC-wrapped transition (ADR-0019 §3) | **Lift** through #144's rework onto U1 (§8.1). | 12 slides, 7 files; `bug68703.pptx` |
 | pptx | `p:timing` insert next to an AC-wrapped transition (roadmap Phase 4) | **Allowed by the core**; the operation itself is Phase 4 work. | 9 ok, 3 present |
@@ -510,11 +568,18 @@ nothing while consumers still read the value from the branch.
    combination of branch choices, substitute the branches, check the processed child list with
    ADR-0002 §4.1's greedy assignment and the limits; a plain append must be accepted only if every
    combination is valid, and its position must be one such.
-2. **Positional forms (§4.2):** for each form, a same-slot AC refuses regardless of callback or
-   index; an AC in another slot does not.
+2. **Positional forms (§4.2):** for each form, a same-slot AC and an all-empty AC refuse
+   regardless of callback or index; a non-empty AC in another slot does not. Includes the core
+   half of the reviewer's example: `insert_by::<R>` into `[pPr, r0, AC{Choice/}, r1, r2]` refuses
+   byte-identically.
+2a. **AC bit (§4.3):** a tree built through the parser, `insert_child`, `splice_children` and
+   `set_children` with and without AC children; `debug_assert` holds; `size_of::<RawNode>()`
+   unchanged.
 3. **Per-caller refusals (§4.4):** one test per listed call site (grouped by function where several
    lines are one operation): a same-slot AC, the operation refuses, the saved output is
-   byte-identical to the input.
+   byte-identical to the input. For docx `insert_image` and hyperlinks also the two cross-slot
+   forms `[pPr, r0, AC{Choice/}, r1, r2]` with `After(r1)` and `[AC{w:pPr}, r0, r1]` with
+   `After(r0)`.
 4. **Limits:** `get_or_insert::<Transition>` on `bug68703.pptx` slides returns `AlreadyPresent`;
    `max_total` counted through branches with branch sizes 0/1/2.
 5. **`Err ⇒ byte-identical`** for each core refusal: straddle, unranked, malformed, positional
@@ -525,7 +590,8 @@ nothing while consumers still read the value from the branch.
 7. **Mutation** (AGENTS.md): at least (a) point rank `= min lo` instead of the interval,
    (b) ignore branches for limits, (c) treat an AC with an empty branch as unranked, (d) skip the
    same-slot refusal of §4.2, (e) `lo = first listed` instead of `cur` for a leading unlisted
-   member; each must fail a test.
+   member, (f) skip the all-empty-AC refusal of §4.2, (g) do not set the AC bit in
+   `splice_children`; each must fail a test.
 8. **Per-format lifts:** for every §9 "Lift" row, a test that succeeds on the named fixture and
    whose output reopens and round-trips (python-pptx for pptx, the docx readback oracle, the xlsx
    readers), plus, for every "Stays" row touched by a lift, a case that still refuses
@@ -541,10 +607,11 @@ Each unit is one PR, reviewed until converged (no Blocker/Major), in this order 
      here (added when this ADR is Accepted).
 1. **U1: core rule.** `place_skipping`, `plan_insert_at`, the interval/branch helpers, the
    malformed-AC check with in-scope `Requires`, the append mode and the positional refusal (§4.2),
-   the internal AC bit (§4.3), `check_append_among` (§8), the error doc changes; ADR-0002 §4.3
-   note; the `mce_wrapped` redefinition in `xtask` with its rewritten unit test.
-   - **Acceptance:** AGENTS.md's definition of done; oracles 1, 2, 4, 5 and 7; oracle 3 for every
-     §4.4 call site; oracle 6 on the committed fixtures; the `check_insert_by(|_, _| false)` dry
+   the internal AC bit in `CompactSpan` maintained by `RawNode`'s child mutators (§4.3), the
+   error doc changes; ADR-0002 §4.3 note; the `mce_wrapped` redefinition in `xtask` with its
+   rewritten unit test. No new public item.
+   - **Acceptance:** AGENTS.md's definition of done; oracles 1, 2, 2a, 4, 5 and 7; oracle 3 for
+     every §4.4 call site (the docx cross-slot forms included); oracle 6 on the committed fixtures; the `check_insert_by(|_, _| false)` dry
      runs of §4.4 switched to `check_insert`; `cargo xtask codegen --check` clean with **no**
      generated diff; the existing AC refusal tests that assert the old blanket refusal are
      updated case by case, each change named in the PR body; the python-pptx oracle green.
@@ -557,15 +624,17 @@ Each unit is one PR, reviewed until converged (no Blocker/Major), in this order 
      still refuse byte-identically; python-pptx oracle green; ADR-0016/0019 notes updated.
 4. **U2: xlsx lifts** (§9 xlsx).
    - **Acceptance:** `add_note` on `62629_target.xlsm`; `set_autofilter` creating `definedNames`
-     on a workbook with `AC{absPath}`; a `calcPr` insert; `check_insertable` delegates to
-     `check_append_among`; the shared-string and style-table refusals still refuse
-     byte-identically (existing tests kept); ADR-0003/0014/0017 notes updated.
+     on a workbook with `AC{absPath}`; a `calcPr` insert; the `sheetData` dry run uses
+     `check_get_or_insert`; `check_insertable`'s agreement test restricted to AC-free input; the
+     shared-string and style-table refusals still refuse byte-identically (existing tests kept);
+     ADR-0003/0014/0017 notes updated.
 5. **U3: docx lifts** (§9 docx).
    - **Acceptance:** `append_paragraph` on `sdk-HelloO14.docx` succeeds and reads back; run
      formatting on the drawing runs of `sdk-complex2010.docx`/`poi-shapes-with-text.docx`;
      property inserts next to a synthetic AC in `w:rPr`; Clear, Set-existing and attribute
      removal of a property that exists only in a branch refuse byte-identically; `insert_image`
-     and hyperlink next to a same-slot AC refuse byte-identically; the docx oracle job green;
+     and hyperlink refuse byte-identically on a `w:p` with any AC child (both reviewer examples:
+     `[pPr, r0, AC{Choice/}, r1, r2]` / `After(r1)` and `[AC{w:pPr}, r0, r1]` / `After(r0)`); the docx oracle job green;
      ADR-0004/0007 notes updated.
 
 ## Alternatives considered
@@ -607,7 +676,6 @@ Each unit is one PR, reviewed until converged (no Blocker/Major), in this order 
 - Negative: placement now inspects branch contents, O(size of the AC's branches) per AC per
   insert (an `xdr:wsDr` can hold 170 ACs); `insert_at` on a parent with an AC scans the children
   once.
-- Negative: one new public core function (`check_append_among`).
 - Neutral: edits inside branches stay refused; the formats keep those refusals and their error
   variants.
 

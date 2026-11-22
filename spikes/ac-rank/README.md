@@ -33,7 +33,7 @@ The module docstring defines every counter and the rule (ADR-0020 revision 2, §
   the outcome of a **plain append** of `C` under ADR-0020: `ok`, `limit` (`AlreadyPresent` from
   direct children alone), `limit_ac` (`AlreadyPresent` only because a branch already holds that
   child), `straddle`, `disorder`, `unranked`, `malformed`. `pair_ok_same_slot_ac` counts the `ok`
-  pairs where an AC is in `C`'s slot: the callback and positional forms (`insert_by`,
+  pairs where an AC is in `C`'s slot (or an AC has only empty branches): the callback and positional forms (`insert_by`,
   `insert_at`, …) refuse those (§4.2). Today every pair is `Err(UnresolvedSibling)`.
   `pair_old_rule_wrong` counts `ok` appends that ADR-0002 §4.3's point rule would place out of
   order. Wildcard-only parents (`a:graphicData`) are counted apart (`wildcard_parent_pair_*`).
@@ -66,7 +66,9 @@ python3 -I spikes/ac-rank/ac_rank.py crates/ooxml-schema/src/generated \
 that is both in POI and in `reference/fixtures` is counted once.)
 
 Measured on 2026-11-22 with Python 3.15, on `main` at `d066ff1` (the generated tables of that
-commit); revision 2 of the script (after ADR-0020 review round 1). Runs in about 1 s.
+commit); revision 3 of the script (after ADR-0020 review round 2: interval statistics from the
+real greedy `cur`, and an all-empty AC counted as same-slot for the positional forms). The
+output is identical to revision 2's. Runs in about 1 s.
 
 ## Results (`results/ac-rank.txt`)
 

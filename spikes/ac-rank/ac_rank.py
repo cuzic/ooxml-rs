@@ -46,7 +46,8 @@ ADR-0020 for a plain append (`insert` / `get_or_insert`):
     because a branch holds matching children (the count is direct children plus,
     per AC, the maximum over its branches);
   - `ok`: placed. `ok_same_slot_ac` additionally counts the `ok` pairs where an
-    AC's interval contains s: the forms that take a `before` callback or a
+    AC's interval contains s, or an AC has an empty interval (read as in every
+    slot, revision 3): the forms that take a `before` callback or a
     positional index (`insert_by`, `insert_in_slot`, `insert_at`, `move_in_by`,
     their `check_*`) refuse those (ADR-0020 §4.2), only a plain append lands.
 
@@ -268,6 +269,10 @@ def simulate(parent, slots, s, q, scope):
             same_slot_ac = True
             a, b = branch_counts(el, slots, s, q)
             ac_s, ac_q = ac_s + a, ac_q + b
+    # §4.2: an AC whose branches are all empty is read as in every slot
+    for ch in parent:
+        if isinstance(ch.tag, str) and ch.tag == AC and interval(ch, slots, cur_before(parent, ch, slots, scope), scope)[0] is None:
+            same_slot_ac = True
     sl = slots[s]
 
     def over(n_s, n_q):
@@ -369,7 +374,7 @@ def walk(root, fmt, fname, st, G, scope):
             p["file:" + fname] = 1
             slots = specs[spec]["slots"] if status == "Slots" else None
             for a in acs:
-                ac_stats(a, fmt, fname, pq, slots, st, sh, scope)
+                ac_stats(a, fmt, fname, pq, slots, st, sh, scope, el)
             if slots is not None:
                 pair_stats(el, spec, fmt, fname, pq, st, sh, G, scope, acs)
         for ch in el:
@@ -390,7 +395,29 @@ def walk(root, fmt, fname, st, G, scope):
     visit(root, resolve(G, root.tag, None))
 
 
-def ac_stats(a, fmt, fname, pq, slots, st, sh, scope):
+def cur_before(parent, a, slots, scope):
+    """`cur` at AC `a`: the greedy assignment of the siblings before it (as `assign`)."""
+    cur = -1
+    for ch in parent:
+        if ch is a:
+            break
+        if not isinstance(ch.tag, str):
+            continue
+        if ch.tag == AC:
+            lo, hi, _ = interval(ch, slots, cur, scope)
+            if lo is not None:
+                cur = hi
+            continue
+        cands = candidates(slots, ch.tag)
+        if cands:
+            f = [r for r in cands if r >= cur]
+            if not f:
+                raise Refuse("disorder")
+            cur = f[0]
+    return cur
+
+
+def ac_stats(a, fmt, fname, pq, slots, st, sh, scope, parent):
     kids = elements(a)
     choices = [b for b in kids if b.tag == CHOICE]
     fallbacks = [b for b in kids if b.tag == FALLBACK]
@@ -424,7 +451,7 @@ def ac_stats(a, fmt, fname, pq, slots, st, sh, scope):
         return
     st.add("%s ac_in_generated_parent" % fmt, fname)
     try:
-        lo, hi, br = interval(a, slots, -1, scope)  # cur only matters for leading unlisted members
+        lo, hi, br = interval(a, slots, cur_before(parent, a, slots, scope), scope)
     except Refuse as e:
         st.add("%s ac_%s" % (fmt, e.kind), fname)
         return
