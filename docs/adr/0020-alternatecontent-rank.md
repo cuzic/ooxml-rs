@@ -1,6 +1,6 @@
 # ADR-0020: Inserting next to `mc:AlternateContent` (the AC-rank rule)
 
-- Status: **Draft** (revision 3)
+- Status: **Accepted** (revision 4; converged in review round 3, owner decisions 2026-11-22)
 - Date: 2026-11-22
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): `Err ⇒ byte-identical`, T2 locality,
@@ -20,7 +20,8 @@
   `results/ac-rank.txt`): 378 xlsx, 123 docx and 102 pptx distinct packages, ranked with the
   **generated** slot tables of `main` (`d066ff1`).
 - Review: [round 1](0020-opus-review-round1.md) (not converged: M1–M4, m1–m5),
-  [round 2](0020-opus-review-round2.md) (not converged: M1; m1–m3, n1).
+  [round 2](0020-opus-review-round2.md) (not converged: M1; m1–m3, n1),
+  [round 3](0020-opus-review-round3.md) (converged: n1–n2 applied in revision 4).
 
 ## Revision history
 
@@ -66,6 +67,11 @@
     `check_get_or_insert` (§8, §9).
   - **n1:** the spike computes interval statistics from the real greedy `cur`; an all-empty AC
     counts as same-slot for the positional forms. Counts unchanged.
+- **Revision 4** (review round 3, converged; owner decisions 2026-11-22). Status Accepted.
+  - Owner decisions recorded (Q1, Q2, Q3, Q5, Q6 as recommended).
+  - **n1:** `RawNode::close` keeps the AC bit (§4.3).
+  - **n2:** the `child_mut`/`children_slice_mut` audit is recorded as done on `main` (§4.3); it is
+    no longer a U1 task.
 
 ## Context
 
@@ -367,9 +373,15 @@ child" (review round 2 m2):
 - **Who maintains it.** `RawNode` itself, inside the three methods that add children:
   `insert_child`, `splice_children` and `set_children` (the parser hands each child list over
   through `set_children`, `xml/parse.rs`). Each sets the bit when an item it adds is an
-  `mc:AlternateContent` element. Callers never set it. The item accessors (`child_mut`,
-  `children_slice_mut`) edit an existing child in place; U1 checks that no core path replaces a
-  whole item through them, and the debug assertion below catches one that would.
+  `mc:AlternateContent` element. Callers never set it. `RawNode::close` (`node.rs:64`), which
+  today assigns `close_start` outright, writes only the offset bits and **keeps** the AC bit, so
+  the bit survives whatever the order of `close` and `set_children` (the parser calls `close`
+  first, `parse.rs:201-205`; review round 3 n1).
+- **Item accessors (checked on `main`, review rounds 2 and 3).** `child_mut` and
+  `children_slice_mut` edit an existing child in place; on `d066ff1` no core path replaces a whole
+  item through them or renames an element to `mc:AlternateContent`, so no path adds an AC child
+  outside the three methods above. A future path that did would be caught by the debug
+  assertion below.
 - **Invariant.** "bit clear ⇒ no AC child". It is checked by a `debug_assert!` in the
   `insert_at` fast path (which is where a stale-false bit would do harm) and by a unit test that
   builds trees through each of the three methods and through the parser. Removing children never
@@ -607,7 +619,8 @@ Each unit is one PR, reviewed until converged (no Blocker/Major), in this order 
      here (added when this ADR is Accepted).
 1. **U1: core rule.** `place_skipping`, `plan_insert_at`, the interval/branch helpers, the
    malformed-AC check with in-scope `Requires`, the append mode and the positional refusal (§4.2),
-   the internal AC bit in `CompactSpan` maintained by `RawNode`'s child mutators (§4.3), the
+   the internal AC bit in `CompactSpan` maintained by `RawNode`'s child mutators and kept by
+   `RawNode::close` (§4.3), the
    error doc changes; ADR-0002 §4.3 note; the `mce_wrapped` redefinition in `xtask` with its
    rewritten unit test. No new public item.
    - **Acceptance:** AGENTS.md's definition of done; oracles 1, 2, 2a, 4, 5 and 7; oracle 3 for
@@ -679,7 +692,9 @@ Each unit is one PR, reviewed until converged (no Blocker/Major), in this order 
 - Neutral: edits inside branches stay refused; the formats keep those refusals and their error
   variants.
 
-## Open questions for the project owner
+## Open questions for the project owner (decided)
+
+All decided; see "Owner decisions (2026-11-22)" below. The questions are kept as asked.
 
 - **Q1. Disagreeing branches: widen or refuse?** Use the union interval and refuse only a
   straddling insert (§6), or refuse every insert into a parent whose AC branches disagree (A5).
@@ -712,6 +727,22 @@ Each unit is one PR, reviewed until converged (no Blocker/Major), in this order 
   (§4.2, review M1).
 - **Q7 (revision 1: order of U2–U4).** Replaced: **U1 → #144 rework → U4 → U2 → U3**; #144 adds
   no public core API (§8.1, review M3).
+
+## Owner decisions (2026-11-22)
+
+The owner accepted every recommendation:
+
+| Q | Decision |
+|---|---|
+| Q1 | **Widen.** Disagreeing branches use the union interval; only a straddling insert is refused (§6). |
+| Q2 | **Refuse.** An AC with a non-empty branch that holds no listed member is unranked and refused; a branch that starts with unlisted members starts at `lo = cur` (§3). |
+| Q3 | **Reuse `UnresolvedSibling`**, with the doc change of §8. |
+| Q5 | **Yes, limited.** `mce_wrapped` keeps the name in its slot and drops the typed insert, and applies only to children Office never writes directly (§8); in U1. |
+| Q6 | **Left out of this ADR.** Style-table appends next to an index-stable AC are an ADR-0006 matter. |
+
+Coordinator decisions (2026-11-22), unchanged: Q4 (callback and positional inserts refuse when an
+AC is in the slot, §4.2), Q7 (order U1 → #144 rework → U4 → U2 → U3, §8.1), and no new public
+core API (`check_append_among` dropped, §8).
 
 ## Sources
 
