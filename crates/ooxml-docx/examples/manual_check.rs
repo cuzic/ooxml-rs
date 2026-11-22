@@ -717,6 +717,7 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
     );
 
     const CREATED: &str = "53-field-docproperty-createtime.docx";
+    const SEQ_NUMBER_SYMBOLS: &str = "54-field-seq-number-symbols.docx";
     let variants = [
         ("43-field-page.docx", "Page: ", FieldSpec::Page, false),
         ("44-field-numpages.docx", "Pages: ", FieldSpec::NumPages, false),
@@ -729,6 +730,7 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
         ("51-field-seq.docx", "Sequence: ", FieldSpec::Seq { identifier: "Figure".into() }, true),
         ("52-field-toc.docx", "", FieldSpec::Toc { levels: (1, 3), hyperlinks: true }, true),
         (CREATED, "Created: ", FieldSpec::DocProperty { name: "CreateTime".into() }, false),
+        (SEQ_NUMBER_SYMBOLS, "Sequence with numeric symbols: ", FieldSpec::Seq { identifier: "Fig②½²Ⅻ".into() }, true),
     ];
     for (file, label, spec, opt_in) in variants {
         let paragraph = if label.is_empty() {
@@ -767,6 +769,12 @@ fn field_cases(out: &Path, cases: &mut Vec<Case>) -> Result<(), Box<dyn std::err
                     "after Created (blank, a date for 22 November 2003, or another result). ",
                     "Use Alt+F9 to show field codes, put the cursor inside DOCPROPERTY CreateTime, ",
                     "and press F9 to update it. Return to the field result and record the new display.",
+                )
+            } else if file == SEQ_NUMBER_SYMBOLS {
+                concat!(
+                    "Record the Word version and the displayed result on open. Use Alt+F9 to verify ",
+                    "the SEQ identifier is Fig②½²Ⅻ. Put the cursor inside the field and press F9, ",
+                    "then return to the result and record whether Word displays 1 or another result.",
                 )
             } else {
                 "Verify the display, toggle field codes to inspect the instruction, then update the field."
