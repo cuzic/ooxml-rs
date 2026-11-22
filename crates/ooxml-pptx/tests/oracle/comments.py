@@ -51,7 +51,7 @@ def read(package, part):
 
 def rels_part(source):
     directory, name = posixpath.split(source)
-    return f"{directory}/_rels/{name}.rels"
+    return posixpath.join(directory, "_rels", f"{name}.rels")
 
 
 def relationships(package, source):
@@ -94,8 +94,13 @@ def key(author):
     return None
 
 
-def slides(package):
-    main = "ppt/presentation.xml"
+def main_part(package):
+    [main] = [name for kind, name in relationships(package, "").values() if kind.endswith("/officeDocument")]
+    return main
+
+
+def slides(package, main):
+    names = set(package.namelist())
     rels = relationships(package, main)
     return {
         rels[node.attrib[tag("r:id")]][1]: (
@@ -103,12 +108,15 @@ def slides(package):
             read(package, rels[node.attrib[tag("r:id")]][1]),
         )
         for node in read(package, main).findall("p:sldIdLst/p:sldId", NS)
+        if node.attrib[tag("r:id")] in rels and rels[node.attrib[tag("r:id")]][1] in names
     }
 
 
 def creation_id(slide):
     node = slide.find("p:cSld/p:extLst/p:ext/p14:creationId", NS)
-    return int(node.attrib["val"]) if node is not None else None
+    if node is not None and node.get("val", "").strip().isascii() and node.get("val", "").strip().isdecimal():
+        return int(node.attrib["val"])
+    return None
 
 
 def structure(deck):
@@ -147,18 +155,20 @@ def check_sdk(element, schemas):
                     assert ranks == sorted(ranks), name
 
 
-def check(before, after, schemas):
+def check(before, after, schemas, *, selected_slide=None):
     old_types, new_types = overrides(before), overrides(after)
     new_ids = ids(after, new_types) - ids(before, old_types)
     assert all(count == 1 and GUID.fullmatch(value) for value, count in new_ids.items()), new_ids
     assert not (new_ids.keys() & ids(before, old_types).keys())
-    assert set(new_types) <= set(after.namelist()), "dangling Override"
-    auth = [part for kind, part in relationships(after, "ppt/presentation.xml").values() if kind == REL + "authors"]
+    new_overrides = set(new_types) - set(old_types)
+    assert new_overrides <= set(after.namelist()), "new dangling Override"
+    main = main_part(after)
+    auth = [part for kind, part in relationships(after, main).values() if kind == REL + "authors"]
     [authors_part] = auth
     assert new_types[authors_part] == AUTHOR_CT
     authors = read(after, authors_part)
     assert authors.tag == tag("p188:authorLst")
-    allowed = {"[Content_Types].xml", authors_part, rels_part("ppt/presentation.xml")}
+    allowed = {"[Content_Types].xml", authors_part, rels_part(main)}
     seen_keys = set()
     first_by_key = {}
     for author in authors:
@@ -171,10 +181,12 @@ def check(before, after, schemas):
             seen_keys.add(author_key)
             first_by_key.setdefault(author_key, author.attrib["id"])
     author_by_id = {node.attrib["id"]: node for node in authors}
-    old_slides, new_slides = slides(before), slides(after)
+    old_slides, new_slides = slides(before, main), slides(after, main)
     cid_count = Counter(creation_id(slide) for _, slide in new_slides.values())
     new_threads = 0
     for slide_part, (slide_id, slide) in new_slides.items():
+        if selected_slide is not None and slide_part != selected_slide:
+            continue
         cid = creation_id(slide)
         if slide_part not in old_slides or cid != creation_id(old_slides[slide_part][1]):
             assert cid is not None and cid_count[cid] == 1
@@ -233,17 +245,34 @@ def check(before, after, schemas):
     old_parts, new_parts = set(before.namelist()), set(after.namelist())
     assert not old_parts - new_parts
     assert new_parts - old_parts <= allowed
-    for part in old_parts - allowed:
-        assert before.read(part) == after.read(part), part
+    if selected_slide is None:
+        for part in old_parts - allowed:
+            assert before.read(part) == after.read(part), part
+
+
+def load_schemas():
+    sdk = Path(__file__).resolve().parents[4] / "reference/openxml-sdk-data/schemas"
+    data = json.loads((sdk / "schemas_microsoft_com_office_powerpoint_2018_8_main.json").read_text())
+    return {item["Name"].split("/")[-1]: item for item in data["Types"] if "/" in item["Name"]}
+
+
+def sweep(out):
+    schemas = load_schemas()
+    cases = json.loads((out / "sweep.json").read_text())
+    for name, slide in cases:
+        try:
+            with ZipFile(out / f"{name}.input.pptx") as before, ZipFile(out / f"{name}.pptx") as after:
+                check(before, after, schemas, selected_slide=slide)
+        except Exception as error:
+            raise AssertionError(f"{name} ({slide}): {error}") from error
+    print(f"{len(cases)} corpus adds satisfy the modern comment XML invariants")
 
 
 def main(out, fixtures):
-    sdk = Path(__file__).resolve().parents[4] / "reference/openxml-sdk-data/schemas"
-    data = json.loads((sdk / "schemas_microsoft_com_office_powerpoint_2018_8_main.json").read_text())
-    schemas = {item["Name"].split("/")[-1]: item for item in data["Types"] if "/" in item["Name"]}
+    schemas = load_schemas()
     cases = json.loads((out / "comments.json").read_text())
-    for name, fixture, adds_slide in cases:
-        input_file = out / f"{name}.input.pptx" if adds_slide else fixtures / fixture
+    for name, fixture, prepared in cases:
+        input_file = out / f"{name}.input.pptx" if prepared else fixtures / fixture
         output_file = out / f"{name}.pptx"
         with ZipFile(input_file) as before, ZipFile(output_file) as after:
             check(before, after, schemas)
@@ -253,4 +282,7 @@ def main(out, fixtures):
 
 
 if __name__ == "__main__":
-    main(*map(Path, sys.argv[1:]))
+    if sys.argv[1:2] == ["--sweep"]:
+        sweep(Path(sys.argv[2]))
+    else:
+        main(*map(Path, sys.argv[1:]))

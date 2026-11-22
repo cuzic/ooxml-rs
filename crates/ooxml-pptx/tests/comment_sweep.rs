@@ -1,5 +1,7 @@
 //! ADR-0019 §11.6. Run with COMMENT_CORPUS pointing to the pinned corpus roots
 //! (as a path list). Committed fixtures are always included.
+//! Set COMMENT_CORPUS_ORACLE_DIR to retain the successful input/output
+//! pairs for `tests/oracle/comments.py --sweep DIR`.
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -98,6 +100,11 @@ fn check_locality(input_bytes: Vec<u8>, output_bytes: &[u8], output: &Package, s
 #[ignore = "requires the external pinned ADR-0019 corpora"]
 fn add_comments_to_corpus() {
     let roots = std::env::var_os("COMMENT_CORPUS").expect("set COMMENT_CORPUS");
+    let artifacts = std::env::var_os("COMMENT_CORPUS_ORACLE_DIR").map(PathBuf::from);
+    if let Some(dir) = &artifacts {
+        std::fs::create_dir_all(dir).unwrap();
+    }
+    let mut cases = Vec::new();
     let mut files = Vec::new();
     for root in std::env::split_paths(&roots)
         .chain([Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/fixtures/pptx")])
@@ -190,6 +197,12 @@ fn add_comments_to_corpus() {
                     assert_eq!(entry.text, "Corpus comment");
                     assert_eq!(entry.author.as_ref().unwrap().name, "Corpus Author");
                     let source = presentation.slide(0).unwrap().info().part_name.clone();
+                    if let Some(dir) = &artifacts {
+                        let case = format!("{hash}-{step}");
+                        std::fs::write(dir.join(format!("{case}.input.pptx")), &before).unwrap();
+                        std::fs::write(dir.join(format!("{case}.pptx")), &saved).unwrap();
+                        cases.push((case, source.clone()));
+                    }
                     check_locality(before, &saved, reopened.package(), &source);
                     added += 1;
                 }
@@ -208,6 +221,9 @@ fn add_comments_to_corpus() {
                 }
             }
         }
+    }
+    if let Some(dir) = &artifacts {
+        std::fs::write(dir.join("sweep.json"), serde_json::to_vec(&cases).unwrap()).unwrap();
     }
     let actual: BTreeSet<_> = actual.iter().map(String::as_str).collect();
     let extra: Vec<_> = actual.difference(&allowlist).collect();

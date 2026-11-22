@@ -64,12 +64,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (case, (name, fixture, _)) in comments_case::CASES.into_iter().enumerate() {
         let mut deck = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(fixture))?;
         comments_case::prepare(&mut deck, case)?;
-        if case == 3 {
+        let prepared = matches!(case, 3 | 4);
+        if prepared {
             deck.save(out.join(format!("{name}.input.pptx")))?;
         }
         comments_case::edit(&mut deck, case)?;
         deck.save(out.join(format!("{name}.pptx")))?;
-        comments.push((name, fixture, case == 3));
+        comments.push((name, fixture, prepared));
     }
     std::fs::write(out.join("comments.json"), serde_json::to_vec(&comments)?)?;
     let edits: usize = cases.iter().map(|c| c.edits.len()).sum();

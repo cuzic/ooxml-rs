@@ -1,6 +1,6 @@
 //! Modern PowerPoint comment creation (ADR-0019 Delivery 1).
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -83,7 +83,7 @@ impl std::fmt::Display for CommentId {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum CommentPart {
     Authors,
     Threads,
@@ -133,6 +133,9 @@ impl CommentPart {
         part: &str,
         source: &str,
     ) -> Result<XmlDocument> {
+        if Self::from_content_type(pkg.content_type(part)) != Some(self) {
+            return Err(self.error(part, "unexpected content type"));
+        }
         let incoming = pkg.incoming_relationships(part)?;
         if !matches!(&incoming[..], [edge] if edge.source.as_deref() == Some(source)) {
             return Err(self.error(part, "ambiguous part ownership"));
@@ -611,16 +614,28 @@ impl crate::Presentation {
         comment: NewComment,
         mut random: impl FnMut(&mut [u8; 16]) -> Result<()>,
     ) -> Result<CommentId> {
-        for part in self.slides.iter().filter_map(|slide| slide.part.as_deref()) {
-            if self
-                .pkg
-                .relationships(part)?
-                .by_type(REL_COMMENTS)
-                .next()
-                .is_some()
-            {
-                return Err(Error::LegacyCommentsInDeck);
+        let mut slides: BTreeSet<_> = self
+            .slides
+            .iter()
+            .filter_map(|slide| slide.part.as_deref())
+            .collect();
+        slides.extend(
+            self.pkg
+                .part_names()
+                .filter(|part| self.pkg.content_type(part) == Some(CT_SLIDE)),
+        );
+        let mut unreadable = None;
+        for part in slides {
+            match self.pkg.relationships(part) {
+                Ok(rels) if rels.by_type(REL_COMMENTS).next().is_some() => {
+                    return Err(Error::LegacyCommentsInDeck);
+                }
+                Err(error) if unreadable.is_none() => unreadable = Some(error),
+                _ => {}
             }
+        }
+        if let Some(error) = unreadable {
+            return Err(error.into());
         }
         let source = self.slide_part(index)?;
         let slide_id = self.slides[index].slide_id;
@@ -982,6 +997,13 @@ mod tests {
         )
         .unwrap()
         .unwrap();
+        deck.pkg.set_content_type(&part, "application/xml").unwrap();
+        refuses(
+            &mut deck,
+            |e| assert_matches!(e, Error::CommentPartNotEditable { reason, .. } if reason == "unexpected content type"),
+            |d| d.add_comment(0, CommentAnchor::Slide, comment()),
+        );
+        deck.pkg.set_content_type(&part, COMMENTS_CT).unwrap();
         let xml = String::from_utf8(deck.pkg.read_part(&part).unwrap()).unwrap();
         for fragment in [
             "<p188:extLst/>",
