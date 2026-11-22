@@ -31,6 +31,14 @@ pub const CASES: [(&str, &str, &str); 5] = [
     ),
 ];
 
+pub fn prepare(deck: &mut Presentation, case: usize) -> Result<(), Box<dyn std::error::Error>> {
+    if case == 3 {
+        let layout = deck.layouts()?.into_iter().next().ok_or("missing layout")?;
+        deck.add_slide(&layout, None)?;
+    }
+    Ok(())
+}
+
 pub fn edit(deck: &mut Presentation, case: usize) -> Result<(), Box<dyn std::error::Error>> {
     let (slide, anchor) = match case {
         0 => (0, CommentAnchor::Slide),
@@ -46,12 +54,7 @@ pub fn edit(deck: &mut Presentation, case: usize) -> Result<(), Box<dyn std::err
                 .id()?;
             (index, CommentAnchor::Shape(id))
         }
-        3 => {
-            let slide = deck.slide_count();
-            let layout = deck.layouts()?.into_iter().next().ok_or("missing layout")?;
-            deck.add_slide(&layout, None)?;
-            (slide, CommentAnchor::Slide)
-        }
+        3 => (deck.slide_count() - 1, CommentAnchor::Slide),
         _ => unreachable!(),
     };
     let author = CommentAuthor {

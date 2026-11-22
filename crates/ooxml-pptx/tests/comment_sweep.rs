@@ -3,11 +3,15 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use ooxml_core::{Package, opc::rels_part_name};
 use ooxml_pptx::{
-    AuthorIdentity, CommentAnchor, CommentAuthor, Error, NewComment, Presentation, ShapeKind,
+    Anchor, AuthorIdentity, CommentAnchor, CommentAuthor, Error, NewComment, Presentation,
+    ShapeKind,
 };
 use sha2::{Digest, Sha256};
 
+const MODERN: &str = "http://schemas.microsoft.com/office/2018/10/relationships/comments";
+const AUTHORS: &str = "http://schemas.microsoft.com/office/2018/10/relationships/authors";
 const LEGACY: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
 
 fn collect(path: &Path, files: &mut Vec<PathBuf>) {
@@ -48,6 +52,45 @@ fn variant(error: &Error) -> &str {
         Error::CommentPartNotEditable { .. } => "CommentPartNotEditable",
         Error::AuthorsPartNotEditable { .. } => "AuthorsPartNotEditable",
         _ => "Unexpected",
+    }
+}
+
+fn check_locality(input_bytes: Vec<u8>, output_bytes: &[u8], output: &Package, slide: &str) {
+    let input = Package::from_bytes(input_bytes.clone()).unwrap();
+    let main = output.main_document_part().unwrap();
+    let slide_rels = output.relationships(slide).unwrap();
+    let comments = slide_rels
+        .resolve(slide_rels.by_type(MODERN).next().unwrap())
+        .unwrap();
+    let main_rels = output.relationships(&main).unwrap();
+    let authors = main_rels
+        .resolve(main_rels.by_type(AUTHORS).next().unwrap())
+        .unwrap();
+    let mut allowed = vec![comments.as_str(), authors.as_str(), "[Content_Types].xml"];
+    let slide_rels_part = rels_part_name(Some(slide));
+    let main_rels_part = rels_part_name(Some(&main));
+    if !input.contains(&comments) {
+        allowed.extend([slide, &slide_rels_part]);
+    }
+    if !input.contains(&authors) {
+        allowed.push(&main_rels_part);
+    }
+    let mut input_zip = zip::ZipArchive::new(std::io::Cursor::new(input_bytes)).unwrap();
+    let mut output_zip = zip::ZipArchive::new(std::io::Cursor::new(output_bytes)).unwrap();
+    for part in input.part_names().filter(|part| !allowed.contains(part)) {
+        // The sweep includes packages whose untouched entries have bad CRCs.
+        // ZIP raw readers compare what the lossless writer passes through.
+        let mut original = input_zip.by_name_raw(part.as_bytes()).unwrap();
+        let mut saved = output_zip.by_name_raw(part.as_bytes()).unwrap();
+        assert_eq!(original.crc32(), saved.crc32(), "{part}");
+        let mut original_bytes = Vec::new();
+        let mut saved_bytes = Vec::new();
+        std::io::Read::read_to_end(&mut original, &mut original_bytes).unwrap();
+        std::io::Read::read_to_end(&mut saved, &mut saved_bytes).unwrap();
+        assert_eq!(original_bytes, saved_bytes, "changed {part}");
+    }
+    for part in output.part_names().filter(|part| !input.contains(part)) {
+        assert!(allowed.contains(&part), "unexpected new part {part}");
     }
 }
 
@@ -126,12 +169,16 @@ fn add_comments_to_corpus() {
             ),
         ] {
             let before = presentation.to_bytes().unwrap();
+            let expected = anchor.as_ref().ok().map(|anchor| match anchor {
+                CommentAnchor::Slide => Anchor::Slide,
+                CommentAnchor::Shape(id) => Anchor::Shapes(vec![*id]),
+            });
             let result =
                 anchor.and_then(|anchor| presentation.add_comment(0, anchor, new_comment()));
             match result {
                 Ok(id) => {
-                    let mut reopened =
-                        Presentation::from_bytes(presentation.to_bytes().unwrap()).unwrap();
+                    let saved = presentation.to_bytes().unwrap();
+                    let mut reopened = Presentation::from_bytes(saved.clone()).unwrap();
                     let view = reopened.deck().unwrap();
                     let slide = view.slide(0).unwrap();
                     let comments = slide.comments().unwrap();
@@ -139,8 +186,11 @@ fn add_comments_to_corpus() {
                         .iter()
                         .find(|entry| entry.id == Some(id.as_str()))
                         .unwrap();
+                    assert_eq!(Some(&entry.anchor), expected.as_ref());
                     assert_eq!(entry.text, "Corpus comment");
                     assert_eq!(entry.author.as_ref().unwrap().name, "Corpus Author");
+                    let source = presentation.slide(0).unwrap().info().part_name.clone();
+                    check_locality(before, &saved, reopened.package(), &source);
                     added += 1;
                 }
                 Err(error) => {

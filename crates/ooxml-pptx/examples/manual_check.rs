@@ -928,6 +928,7 @@ fn main() -> R {
 
     for (case, (name, source, edit)) in comments_case::CASES.into_iter().enumerate() {
         let mut deck = Presentation::open(fixture(source))?;
+        comments_case::prepare(&mut deck, case)?;
         comments_case::edit(&mut deck, case)?;
         items.push(Item {
             file: save(&out, name, &deck)?,

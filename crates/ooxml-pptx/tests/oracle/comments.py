@@ -49,9 +49,14 @@ def read(package, part):
     return parse(package.read(part))
 
 
-def relationships(package, source):
+def rels_part(source):
     directory, name = posixpath.split(source)
-    part = f"{directory}/_rels/{name}.rels"
+    return f"{directory}/_rels/{name}.rels"
+
+
+def relationships(package, source):
+    directory = posixpath.dirname(source)
+    part = rels_part(source)
     if part not in package.namelist():
         return {}
     return {
@@ -114,7 +119,20 @@ def structure(deck):
     ]
 
 
-def check_sdk_attributes(element, schemas):
+def sdk_order(particle):
+    slots = []
+    for child in particle.get("Items", []):
+        if "Name" in child:
+            name = child["Name"].split("/")[-1].replace("oac:", "ac:", 1)
+            slots.append({tag(name)})
+        elif child.get("Kind") == "Choice":
+            slots.append(set().union(*sdk_order(child)))
+        else:
+            slots.extend(sdk_order(child))
+    return slots
+
+
+def check_sdk(element, schemas):
     for item in element.iter():
         for name, schema in schemas.items():
             if item.tag == tag(name):
@@ -123,6 +141,10 @@ def check_sdk_attributes(element, schemas):
                     if any(v.get("Name") == "RequiredValidator" for v in a.get("Validators", []))
                 ]
                 assert all((tag(a) if ":" in a else a) in item.attrib for a in required), name
+                if "Particle" in schema:
+                    slots = sdk_order(schema["Particle"])
+                    ranks = [next(i for i, names in enumerate(slots) if child.tag in names) for child in item]
+                    assert ranks == sorted(ranks), name
 
 
 def check(before, after, schemas):
@@ -136,6 +158,7 @@ def check(before, after, schemas):
     assert new_types[authors_part] == AUTHOR_CT
     authors = read(after, authors_part)
     assert authors.tag == tag("p188:authorLst")
+    allowed = {"[Content_Types].xml", authors_part, rels_part("ppt/presentation.xml")}
     seen_keys = set()
     first_by_key = {}
     for author in authors:
@@ -143,7 +166,7 @@ def check(before, after, schemas):
         if author.get("id", "").upper() in new_ids:
             assert author_key and author_key not in seen_keys
             assert {"id", "name", "userId", "providerId"} <= author.attrib.keys()
-            check_sdk_attributes(author, schemas)
+            check_sdk(author, schemas)
         if author_key:
             seen_keys.add(author_key)
             first_by_key.setdefault(author_key, author.attrib["id"])
@@ -169,7 +192,10 @@ def check(before, after, schemas):
                 if thread.get("id", "").upper() not in new_ids:
                     continue
                 new_threads += 1
-                check_sdk_attributes(thread, schemas)
+                allowed.add(part)
+                if part not in old_types:
+                    allowed.update((slide_part, rels_part(slide_part)))
+                check_sdk(thread, schemas)
                 assert {"id", "authorId", "created"} <= thread.attrib.keys()
                 author = author_by_id[thread.attrib["authorId"]]
                 assert first_by_key[key(author)] == author.attrib["id"]
@@ -204,6 +230,11 @@ def check(before, after, schemas):
                 creation = shape.find("a:extLst/a:ext/a16:creationId", NS)
                 assert moniker.get("creationId") == (None if creation is None else creation.get("id"))
     assert new_threads == 1
+    old_parts, new_parts = set(before.namelist()), set(after.namelist())
+    assert not old_parts - new_parts
+    assert new_parts - old_parts <= allowed
+    for part in old_parts - allowed:
+        assert before.read(part) == after.read(part), part
 
 
 def main(out, fixtures):
@@ -212,11 +243,12 @@ def main(out, fixtures):
     schemas = {item["Name"].split("/")[-1]: item for item in data["Types"] if "/" in item["Name"]}
     cases = json.loads((out / "comments.json").read_text())
     for name, fixture, adds_slide in cases:
-        input_file, output_file = fixtures / fixture, out / f"{name}.pptx"
+        input_file = out / f"{name}.input.pptx" if adds_slide else fixtures / fixture
+        output_file = out / f"{name}.pptx"
         with ZipFile(input_file) as before, ZipFile(output_file) as after:
             check(before, after, schemas)
         previous, current = structure(input_file), structure(output_file)
-        assert previous == (current[:-1] if adds_slide else current), name
+        assert previous == current, name
     print(f"{len(cases)} modern comment cases passed")
 
 
