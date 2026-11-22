@@ -1359,7 +1359,8 @@ mod tests {
 
     #[test]
     fn invalid_shape_anchors_are_refused_atomically() {
-        let cases: [(&str, fn(Error)); 3] = [
+        type AnchorRefusal = (&'static str, fn(Error));
+        let cases: [AnchorRefusal; 3] = [
             (
                 r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="p"><p:sp><p:nvSpPr><p:cNvPr id="42" name="Wrapped"/></p:nvSpPr></p:sp></mc:Choice></mc:AlternateContent>"#,
                 |e| assert_matches!(e, Error::InsideAlternateContent),
