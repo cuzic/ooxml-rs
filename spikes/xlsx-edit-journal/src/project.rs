@@ -384,11 +384,14 @@ pub fn cached_in(out: &[u8]) -> BTreeSet<CellKey> {
 /// empty one. Style is not content: an input whose only change is its style
 /// makes no cache stale unless the workbook is style-sensitive (which the
 /// fixtures are not; see README "Revision 8 verification", a).
-pub fn content_map(bytes: &[u8]) -> BTreeMap<(usize, u32, u32), (Option<String>, Option<CellValue>)> {
+/// (formula text, value) of a cell.
+pub type Content = (Option<String>, Option<CellValue>);
+
+pub fn content_map(bytes: &[u8]) -> BTreeMap<(usize, u32, u32), Content> {
     model(bytes).cells.into_iter().map(|(k, c)| (k, (c.formula, c.value))).collect()
 }
 
-fn empty_content() -> (Option<String>, Option<CellValue>) {
+fn empty_content() -> Content {
     (None, Some(CellValue::Empty))
 }
 
@@ -400,7 +403,7 @@ pub fn content_diff(a: &[u8], b: &[u8]) -> BTreeSet<(usize, u32, u32)> {
         .filter(|k| {
             let ca = ma.get(k).cloned().unwrap_or_else(empty_content);
             let cb = mb.get(k).cloned().unwrap_or_else(empty_content);
-            let norm = |c: (Option<String>, Option<CellValue>)| if c.1 == Some(CellValue::String(String::new())) { empty_content() } else { c };
+            let norm = |c: Content| if c.1 == Some(CellValue::String(String::new())) { empty_content() } else { c };
             norm(ca) != norm(cb)
         })
         .collect()

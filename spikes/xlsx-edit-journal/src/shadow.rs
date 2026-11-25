@@ -822,9 +822,9 @@ fn apply_structural(wb: &mut Workbook, st: &mut ShadowState, s: crate::op::Struc
     st.chain_removed |= moved_formula;
     st.closed_sst_delta += sst_delta - if cfg!(feature = "mutant_no_sst_removed") { 0 } else { tss_deleted };
     st.structural.push(s);
-    for i in 0..n {
+    for (i, text) in texts.into_iter().enumerate().take(n) {
         if !cfg!(feature = "mutant_close_own_sheet") || i == s.sheet() {
-            st.epoch_src[i] = Some(std::sync::Arc::new(texts[i].clone()));
+            st.epoch_src[i] = Some(std::sync::Arc::new(text));
         }
     }
     st.calc = None;

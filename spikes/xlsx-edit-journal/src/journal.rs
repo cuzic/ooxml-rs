@@ -298,8 +298,8 @@ impl Journal {
                         for sq in v {
                             let ops = &self.log[self.log.binary_search_by_key(&sq, |l| l.seq).expect("logged")].op;
                             for f in ops.echo_fields() {
-                                if !self.echo_end.contains_key(&(sq, *f)) {
-                                    self.echo_end.insert((sq, *f), seq);
+                                if let std::collections::hash_map::Entry::Vacant(e) = self.echo_end.entry((sq, *f)) {
+                                    e.insert(seq);
                                     new_ends.push((sq, *f));
                                 }
                             }
