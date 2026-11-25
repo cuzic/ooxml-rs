@@ -639,7 +639,7 @@ was made before the C7 fix below, which they could hit rarely).
 | `adr_r3_seed_raw` | R3 seeded from raw `f` attributes (as written) | 3: round 8 M1 (⊄), round 7 M2, the group proptest |
 | `adr_r3_formula_only` | R3 strips only cells holding `f` (as written) | 3: `G3` keeps a stale cache |
 | `adr_missing_is_content` | a created empty `c` counts as content (as written) | 1: its fixed case |
-| `adr_dead_mark_drops_fx` | a dead mark loses its formula change (as written) | its fixed case (calcChain kept) |
+| `adr_dead_mark_drops_fx` | a dead mark loses its formula change (as written) | 2: its fixed case (calcChain kept), the oracle workbook's structural proptest |
 | `r1_unvalidated` | R1 judged before validation (F13) | 2: the merge / array-result fixed case, the group proptest |
 | `r1_unvalidated mutant_r1_group_cells` | R1 (b) dropped | equivalent here (same 2 as `r1_unvalidated`): the spike's R1 never judges a group cell |
 | `mutant_r1_skip_group` | R1 judged by P (round 8 M1) | 3: round 8 M1 refusal mismatch |
@@ -655,7 +655,11 @@ was made before the C7 fix below, which they could hit rarely).
 | `mutant_tf_from_mark` | `truncate_fast` re-applies from the commit mark (round 7 M4) | 2: the M4 fixed case, the cut proptest across epochs |
 | `mutant_tf_no_restore` | `truncate_fast` re-applies without restoring | 3 |
 | `mutant_no_rebase` | restores read the first Base after a save (no C6, round 7 M1) | 6: both second-session cases, their bisimulation, replay and bisimulation proptests |
-MORE3
+| `mutant_c7_created_keeps_s0` | C7 keeps `s="0"` on a created cell | 1: its fixed case |
+
+The compiled-Commit mutants (`EJ_MODE=compile`, Appendix A) still fail after these changes:
+`mutant_noop_missing` (2 tests), `mutant_merge_missing` (3), `mutant_style_last_wins` (2),
+`mutant_cond_last_wins` (3), `mutant_keep_shadow` (1), `mutant_fold_at_append` (8) and `adr_literal_placement` (2).
 
 ### Long runs (after the fixes)
 
@@ -685,12 +689,12 @@ has a fixed case now.
 | second session (the same ops reversed), A | append 25 µs/op (R1 off: every write-back is applied and restored), save 129 ms (1.91×) | 8 µs/op, 107–112 ms |
 | second session, A′ | append 81 µs/op (includes the dependency graph build on the reopened shadow), save 142 ms (2.11×) | — |
 | `truncate` to 1,000: fast vs replay | 43 ms vs 307 ms (7×) | 19–22 vs 305 ms |
-| `insert_rows(0, 1)` through the Journal | **799 ms per op**, all of it the substitutes (materialize, reopen, record on a copy) | bare `Workbook`: 149 ms per op |
+| `insert_rows(0, 1)` through the Journal (3 ops) | **799 ms per op**, all of it the substitutes (materialize, reopen, record on a copy); the same op on a bare `Workbook`: 149 ms | — |
 
 Reading:
 
 - **A vs A′.** Reopening the output after each save costs one `from_bytes` (≈ 2.3× a
-  `to_bytes`): 4.6× against 2.0×. The 2× target holds only with a kept shadow, so C6 (or its
+  `to_bytes`): 4.6× against 2.0×. The 2× target is met (just) only with a kept shadow, so C6 (or its
   reparse fallback limited to the re-rendered parts) is what the target depends on.
 - **Structural ops.** The substitutes cost 5.4× the bare op: a serialize, two parses and a
   copy's op. In core, C2 restores in the tree and C3 returns the record from the op itself, so
