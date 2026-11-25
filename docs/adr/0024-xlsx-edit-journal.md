@@ -1,13 +1,15 @@
 # ADR-0024: xlsx Edit Journal — immutable base, typed journal, view, shadow commit
 
 - Status: **Accepted** (revision 7; Opus review rounds 1–6, owner decisions 2026-11-25);
-  revision 8 (Commit = serialization of the shadow, §7) **Proposed**: amended after Opus review
+  revision 8 (Commit = serialization of the shadow, §7) **Accepted** (owner confirmed Q7 as
+  (A) reached through (A′), 2026-11-25): amended after Opus review
   rounds 7 (1 Blocker, 5 Major), 8 (6 Major) and 9 (2 Major), then **spike-verified**: instead
   of a tenth review round the owner had the spike run revision 8's rules, and the four rule
   wordings that failed there are corrected (Appendix B.2). Opus review round 10 checked the
   document against the spike and converged (0 Blocker, 0 Major; its 5 Minor and 6 nit are
-  applied). It awaits the owner's confirmation of Q7. Until Q7 is confirmed, revision 7's compiled Commit (now Appendix A) is the accepted
-  decision, and the sections revision 8 rewrote are marked "(proposed, revision 8)".
+  applied). The owner confirmed Q7 on 2026-11-25, so revision 8's sections are the decision
+  and revision 7's compiled Commit (Appendix A) is a rejected alternative, kept as a test-only
+  second reference for oracle 1 until J2 (Q7's side question).
 - Date: 2026-11-25
 - Repository baseline: `f88d02c` (main after PR #140). The spike of revision 8 builds against
   the same crates (PR #153 changed only this ADR).
@@ -405,6 +407,12 @@ moved revision 7's §4.2 `start`, §4.4, §7, §7.1, §7.2 and the Commit-time p
   condition, recorded as `StructuralCalc.needs_full_calc`, and oracle 1 checks the flag in both
   directions (m3); the still-unproven lists are completed (m4); C6 is a prerequisite of (A), not
   of J1, which may ship under (A′) (m5); nits n1–n6.
+- **Revision 8, owner decision** (2026-11-25). Status: **Accepted**. Q7 is decided as (A)
+  reached through (A′): J1 may ship with the reopen after each save, and C6 then switches the
+  save to the kept shadow under oracles 12 and 13. Q7's side question is decided yes: the
+  compiled Commit (Appendix A, in the spike) stays a test-only second reference for oracle 1
+  until J2, then is dropped unless it found a bug the sequential reference did not. Sections
+  headed "(proposed, revision 8)" lose that mark; no rule changes.
 
 ## Context
 
@@ -544,7 +552,7 @@ API of native callers that want today's behaviour.
 - Every row of the grid (1..1,048,576) has an id, stored as one run (§5.2), so writing to an
   empty row needs no allocation.
 
-#### 3.2 Shadow (proposed, revision 8)
+#### 3.2 Shadow (revision 8)
 
 - The shadow is `Workbook::from_bytes(Base)`. An op is **accepted** iff its sequential API
   call returns `Ok` on the shadow (validation first, then §7.1's R1; §4.5). An accepted op that
@@ -662,7 +670,7 @@ whether it moved or deleted a formula cell, and the `t="s"` cells it deleted;
 `mutant_drop_records` fails 10 tests). The record of a real `Deferred` op is not compared
 white-box, and sheet ops are not run: those parts stay **to be verified in J2**.
 
-#### 4.3 Log and key index (proposed, revision 8)
+#### 4.3 Log and key index (revision 8)
 
 - The log is the **history**: every accepted op, in `seq` order, including those R1 skipped.
   Nothing is folded, replaced or removed at append. `truncate` cuts it (§10.3).
@@ -680,7 +688,7 @@ white-box, and sheet ops are not run: those parts stay **to be verified in J2**.
 - No folding exists in the body. Revision 7 folded a copy of the log at Commit (N1); that is
   Appendix A.2.
 
-#### 4.4 Snapshots and the changed set (proposed, revision 8)
+#### 4.4 Snapshots and the changed set (revision 8)
 
 - **Targets.** A call's **targets** are the cells its plan targets (passes `plan_target`), the
   "written cells" of review round 6, m2: the op's own cell; every cell of a `write_cells`; the
@@ -776,7 +784,7 @@ white-box, and sheet ops are not run: those parts stay **to be verified in J2**.
   `dimension` grow it on `main`, but not on the Journal's shadow (C5: decided at the save from
   the changed set, §7.2 step 4).
 
-#### 4.5 Validation (proposed, revision 8)
+#### 4.5 Validation (revision 8)
 
 - **At append, on the shadow.** An op is validated by the sequential API's own checks on the
   shadow, plus the adapter's own argument checks (ADR-0021 "scalar validation"). `Err` → that
@@ -983,14 +991,14 @@ structural edits.
 | pending strip set | asked per cell from the changed set and the recorded structural strips (C3 `would_strip`); the whole set only at the save (R3) |
 | census, merges, arrays, tables, `!ref`, `sst` reverse lookup | the shadow's own (today's sequential machinery) |
 
-### 7. Commit = serialization of the shadow (proposed, revision 8; Q7)
+### 7. Commit = serialization of the shadow (revision 8; Q7)
 
 Commit writes the shadow out once. It does not open the Base again, does not compile the log,
 and does not reopen its output. What makes the output equal to what a careful compilation would
-write is four rules on the shadow, R1–R4, plus the canonical cell form of C7; once Q7 is
-confirmed each is a **normative** part of this ADR. Revision 7's compiled Commit is Appendix A.
+write is four rules on the shadow, R1–R4, plus the canonical cell form of C7; since the owner confirmed Q7 (2026-11-25) each is a
+**normative** part of this ADR. Revision 7's compiled Commit is Appendix A.
 
-#### 7.1 The four rules (proposed, revision 8; normative once Q7 is confirmed)
+#### 7.1 The four rules (revision 8; normative)
 
 | Rule | When | Statement |
 |---|---|---|
@@ -1205,8 +1213,8 @@ whole-row API "have different semantics".
 
 #### 8.3 Formula caches
 
-The cache rule is **Q1 (A)** (decided): ADR-0018 §3.7 + ADR-0003 §3.3. Revision 8 (proposed,
-Q7) applies it once at the save over the changed set and the structural ops' recorded strips
+The cache rule is **Q1 (A)** (decided): ADR-0018 §3.7 + ADR-0003 §3.3. Revision 8 (Q7)
+applies it once at the save over the changed set and the structural ops' recorded strips
 (R3, §7.1).
 
 ### 9. Locality and atomicity
@@ -1259,7 +1267,7 @@ reaches the output. A poisoning is still caught (`JournalInternal` + replay). Th
 Test oracle 1 against the sequential reference, 11 (history independence), 12 (replay from the
 Base gives the same bytes as the live shadow) and 13 (bisimulation after a save).
 
-### 10. Compaction, second save, truncation (proposed, revision 8)
+### 10. Compaction, second save, truncation (revision 8)
 
 #### 10.1 After a successful Commit
 
@@ -1884,8 +1892,8 @@ until C1 lands, R1 is off (§4.5).
 ## Open questions for the project owner
 
 **Owner decisions 2026-11-25** (Q1–Q6): every question is decided as its recommended option
-(A). The options are kept below as the record of what was weighed. **Q7** (revision 8) awaits
-the owner's confirmation.
+(A). The options are kept below as the record of what was weighed. **Owner decision 2026-11-25**
+(Q7, revision 8): (A) reached through (A′), with the side question answered yes.
 
 - **Q1. Formula caches (`<v>`) at Commit.**
   - Options:
@@ -2066,7 +2074,8 @@ the owner's confirmation.
     for oracle 1 in J0/J1 (it exists in the spike, keyed ops and one epoch), relaxing §9.3's
     "no second engine" for tests only? Recommended: yes until J2, then drop it unless it finds
     a bug the sequential reference does not.
-  - **Recommended: (A)**, not yet decided, **reached through (A′)** if C6 is not ready when J1's
+  - **Decided (owner, 2026-11-25): (A), reached through (A′)**; side question: yes (the compiled
+    Commit stays a test-only reference until J2). Recommended was the same: **(A)**, **reached through (A′)** if C6 is not ready when J1's
     Commit is: (A′) is the same design with a reopen, so nothing is built twice. (A) is the only
     option that can meet ADR-0018 §3.8's 2× target, and each rule has an oracle and a mutant to
     catch it (the round-7 to round-9 mutants and the verification's `adr_*` mutants included,
