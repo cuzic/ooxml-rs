@@ -11,6 +11,8 @@
   変異テストやコーパス走査は CI かスクリプトの結果を読む（レビュー中に長時間回さない）。
 - **実装と修正は Codex に渡す**: `.claude/skills/codex-task` でタスク仕様を書く。
   Claude 自身が実装するのは、仕様に落とせない判断を含む小さな変更だけ。
+  **例外**: ADR-0024（xlsx Edit Journal）の実装（core API C1–C8、J0 以降）は Codex ではなく
+  Claude の Sonnet サブエージェントが行う（owner 決定 2026-11-25）。タスク仕様・レビュー・マージは上と同じ。
 - **マージ**: `.claude/skills/merge-pr` の手順（収束後のコミット確認、CI 全緑、積み上げ PR の付け替え、マージ後の片付け）。
   main の取り込みと衝突解消は Claude がせず、Codex に渡す。
 
