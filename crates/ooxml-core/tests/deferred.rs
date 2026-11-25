@@ -156,3 +156,14 @@ fn deferred_siblings_restore_the_inherited_namespace() {
     assert!(row.is_deferred());
     assert_eq!(row.elements().next().unwrap().name().ns(), "u1");
 }
+
+#[test]
+fn built_element_redeclaring_a_prefix_invalidates_the_shared_snapshot() {
+    let xml = "<r xmlns:p='u1'><row/><x xmlns:p='u2'><row><p:a/></row></x></r>";
+    let options = ParseOptions::default().with_defer(&[ROW]);
+    let doc = XmlDocument::parse_with(xml.as_bytes(), &options).unwrap();
+    let x = doc.root().elements().nth(1).unwrap();
+    let row = x.elements().next().unwrap();
+    assert!(row.is_deferred());
+    assert_eq!(row.elements().next().unwrap().name().ns(), "u2");
+}

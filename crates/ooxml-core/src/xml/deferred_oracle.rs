@@ -18,6 +18,9 @@ struct Oracle {
     // ParseOptions requires static slices. Share the test-only allocations
     // across parts that use the same set of names.
     name_sets: BTreeMap<NameSet, &'static [QName]>,
+    single_names: BTreeMap<(String, String), &'static [QName]>,
+    // Parts with more distinct names than this skip the per-name run.
+    max_single_names: usize,
 }
 
 fn count_names<'a>(node: &'a RawNode, names: &mut BTreeMap<(&'a str, &'a str), usize>) {
@@ -147,6 +150,37 @@ fn release_all(node: &mut RawNode) {
 }
 
 impl Oracle {
+    // Defer each element name on its own. Unlike the all-names run, the
+    // ancestors that declare prefixes stay built, so a snapshot shared between
+    // deferred siblings has to be invalidated by them.
+    fn compare_single_names(
+        &mut self,
+        input: &[u8],
+        full: &XmlDocument,
+        counts: &BTreeMap<(&str, &str), usize>,
+        context: &str,
+    ) {
+        let base = ParseOptions::default();
+        for (&(ns, local), &count) in counts {
+            let one = *self
+                .single_names
+                .entry((ns.to_owned(), local.to_owned()))
+                .or_insert_with_key(|(ns, local)| {
+                    Vec::from([QName::new(ns.clone().leak(), local.clone().leak())]).leak()
+                });
+            let context = format!("{context}: only {one:?} deferred");
+            let options = base.with_defer(one).with_count(one);
+            let mut lazy = XmlDocument::parse_with(input, &options)
+                .unwrap_or_else(|err| panic!("{context}: {err}"));
+            assert_eq!(lazy.serialize().as_bytes(), input, "{context}: T1");
+            assert_eq!(lazy.census(one[0]), Some(count), "{context}: census");
+            compare_tree(full.root(), lazy.root(), &context);
+            release_all(&mut lazy.root);
+            assert_eq!(lazy.serialize().as_bytes(), input, "{context}: release");
+            compare_tree(full.root(), lazy.root(), &context);
+        }
+    }
+
     fn compare(&mut self, input: &[u8], context: &str) -> bool {
         let base = ParseOptions::default();
         let Ok(mut full) = XmlDocument::parse(input) else {
@@ -197,6 +231,10 @@ impl Oracle {
                 Some(counts[&(name.ns, name.local)]),
                 "{context}: census of {name:?}"
             );
+        }
+
+        if counts.len() <= self.max_single_names {
+            self.compare_single_names(input, &full, &counts, context);
         }
 
         let mut edited_full = full.clone();
@@ -257,7 +295,10 @@ fn deferred_parser_matches_on_every_fixture_part() {
     fixture_packages::collect(&root.join("round_trip_corpus"), &mut files);
     files.sort();
 
-    let mut oracle = Oracle::default();
+    let mut oracle = Oracle {
+        max_single_names: 6,
+        ..Oracle::default()
+    };
     let mut checked = 0;
     for file in files {
         let pkg = match Package::from_bytes(std::fs::read(&file).unwrap()) {
@@ -289,7 +330,10 @@ fn deferred_parser_matches_on_xml_fuzz_seeds() {
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/support/xml_seeds"),
         PathBuf::from,
     );
-    let mut oracle = Oracle::default();
+    let mut oracle = Oracle {
+        max_single_names: usize::MAX,
+        ..Oracle::default()
+    };
     let mut replayed = 0;
     for entry in std::fs::read_dir(&corpus)
         .unwrap_or_else(|err| panic!("XML seed replay unavailable at {}: {err}", corpus.display()))
