@@ -313,3 +313,27 @@ round 7 の B1（strip 集合から引くのは content-changed だけ）は R3 
 ## 判定
 
 converged: no（Blocker 0 / Major 6 / Minor 6 / nit 4）
+
+## Owner response（revision 8 の修正, round 8 対応）
+
+spike のコードは変えていない。round 7 の修正が新しい穴を作った点は、より単純で保守的な規則か、replay への退避で直した。
+spike が通らない経路は ADR の Appendix B（"Review round 8"）と spike の README に書いた。
+
+- **M1**: 採用。R1 は §4.4 の状態の等しさで判定し、さらに「以後の検証が読む状態（census の kind と group、依存、merge、table、array、`cm`/`vm`）を変えない」ことを C1 が報告する場合に限る。shared/array のセル（master と member）への書き込みは R1 で飛ばさない（両側で group が割れる）。R1 は出力にも拒否にも影響しない最適化になった（§4.5、§7.1、Consequences）。oracle 1 の固定ケースを「member の書き戻しの後に master と member を 1 回の `write_cells`」に直し、除外行の理由から R1 を消し、oracle 9 に変異を足した。
+- **M2**: 採用。snapshot がセルの派生状態（census の `FCell`、依存、`vm`、行の索引）を持ち、`restore_cell` がノードと一緒に戻す（§4.4、R2、C2）。oracle 12 に shadow の派生状態の白箱比較、oracle 1 に `has_cache` の固定ケース、oracle 14 に `truncate_fast` 後の `delete_sheet_strict` の固定ケース、oracle 9 に変異を足した。
+- **M3**: 採用（修正案どおり）。所属を「前の epoch からの持ち越しの印（死ぬか保存まで消えない）」と「今の epoch の差分」に分け、restore は後者だけを消す（§4.4、R2、§6.1、§6.3、§7.2 step 4、§9.1、§9.2、oracle 4）。`dimension` の Journal 側の述語に、changed set に頼らない「target になり、Base のセルと値・型・解決スタイル・有無・数式かどうかが違うセルを覆う」を足した（数式の text は構造操作が書き換えるので外した）。J2 に `F20` の固定ケース、oracle 9 に変異。
+- **M4**: 採用。C6 は再描画した part の**すべての**ノードとテキストについて出力上の span を記録する（raw-copy した部分木の中は差分を足す）。代替（その part を出力から parse し直し、census を作り直す）を明記し、J1 で選ぶ。C6 が入るまでは保存後に開き直す（Q7 (A′)）。oracle 12 に `A1`/`A3` → `A5` の固定ケース、oracle 9 に変異、oracle 10 にコストを足した。
+- **M5**: 採用。`truncate_fast` は、切る op か再適用する op が複数の target を持つ呼び出しに属するか、shared/array のセルを target にするとき replay に退く（§10.3、§4.5）。oracle 14 の生成器に hand-off の切断（J3）、oracle 9 に変異。
+- **M6**: 採用（前者の案）。oracle 1 のキャッシュ述語に構造の向きを足した: 逐次側の構造操作が strip したセル（参照側の白箱記録、id で）のうち、Journal の出力で `f` を持つものはキャッシュを持たない。生成器に `ROW()` などの位置依存の数式、列全体の参照、名前付き範囲、3-D 範囲を足し（J2）、固定ケースを足した。「構造 strip 記録を捨てる」変異は生成ケースで捕まる。
+- **m1**: 採用。`StructuralCalc.strips` を「その操作の ADR（ADR-0018 §3.7 か ADR-0009 §12）が逐次で strip する集合」とし、`formula_moved` を `removes_calc_chain` に改名して `delete_sheet` を含めた（§4.2、R3、oracle 1）。J2 に `move_sheet` と 3-D 範囲、`delete_sheet` と calcChain の固定ケース。
+- **m2**: 採用。`would_strip(cell)` は「R3 の strip 集合に入る」とだけ定義した（§6.1）。
+- **m3**: 採用。前文を「C2 は J0 まで、残りは J1 の Commit まで」にし、§10.1 の最小部分を J1 に移し、oracle 13 の固定ケースを J1、生成ケースを J3 にした。oracle 10 は steps 2–7。
+- **m4**: 採用。§10.2 に text layer の pin によること（C6 の証拠ではない）を書き、§7.3 は「J0 で測る save に含める」にした。README にも注記。
+- **m5**: 採用。C7 は `ooxml-xlsx` で子の無い `c` を空要素のノードに置き換え、Layer 2 の既定の出力は変えない。C2 と C6 は `ooxml-core` の変更で、全形式の ADR-0001 テストと python-pptx オラクルを通すと §7.4 と Q7 に書いた。
+- **m6**: 採用。Q7 に (B) の証拠も同じ半分の述語であること、C1〜C8 の規模（crate と不変条件。行数の見積もりはしない）、R1 が任意になったこと、選択肢 (A′)（C6 までは開き直す、推定約 4×）を足した。推奨は (A) を (A′) 経由で。
+- **n1**: R1 は §4.4 の状態の等しさに加え、ノードの残り（h1、`cm`/`vm`）を変えないことを求める形にし、P の列挙をやめた。
+- **n2**: `sst/@count` は、Base の `sst` に `@count` が無ければ出力にも無く、`sst` part が無ければ Base の count を 0 とする（R4、oracle 1）。
+- **n3**: R4 に「part A では session の項目を参照できるのは `c` だけ（`row/@s`、`col/@style` を設定する op が無い）。C4 はそれでも両方を走査する」と書いた。
+- **n4**: 「carried strip」を「保存で strip されたノード（`f` があり `v` が無い）」に直した（§4.4、R3、oracle 9）。
+
+まだ証明されていないもの: 持ち越しの印、構造 strip の記録と構造の向きの述語、C6 の span の付け替え、派生状態の restore、hand-off をまたぐ `truncate_fast` の退避は、どれも spike で走っていない。J0〜J3 の固定ケースと変異で確かめる。

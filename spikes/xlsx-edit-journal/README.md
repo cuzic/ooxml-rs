@@ -483,6 +483,13 @@ every save, which hides that a kept shadow's spans point into the first Base. AD
 adds a content restore to `restore_cell`, a canonical cell form (C7), a rebase after save (C6)
 and cell state reads (C8).
 
+Correction (ADR-0024 review round 8, m4, M2, M5): the "second session" row above passes
+because the text layer opens the new Base and carries pins, not because a kept shadow alone
+would be right, so it is not evidence for C6. The layer never touched the shadow's census, so
+restoring a cell's census entry with its node (C2) is untested here. `truncate_fast` fell back
+to replay for shared-formula cells, so a cut across a shared-group hand-off is untested; the
+ADR now makes the fast path fall back for any multi-target call or group cell (§10.3).
+
 ### ADR revision 8 へのフィードバック
 
 - **F9. Alternative 9 with remedies 1–4 meets ADR-0018 §3.8's 2× target where §7 does not.**
