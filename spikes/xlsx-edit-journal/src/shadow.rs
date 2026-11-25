@@ -1277,7 +1277,10 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
         for (k, s, sst) in cell_refs.iter().filter(|c| c.0.sheet == i) {
             let xf = if *s >= reg.origin[0] { reg.maps[0][s] } else { *s };
             let sst = sst.map(|v| if v >= reg.origin_sst { reg.sst_map[&v] } else { v });
-            let zero = st.base_pos(*k).and_then(|b| base_s.get(&a1(b)).copied());
+            // C7 (review round 9, n1): `xf` 0 is written without `s` when the
+            // Base node has none or there is no Base node; the spike before
+            // revision 8 kept a created cell's own form (the mutant)
+            let zero = st.base_pos(*k).and_then(|b| base_s.get(&a1(b)).copied()).or(if cfg!(feature = "mutant_c7_created_keeps_s0") { None } else { Some(false) });
             let act = match st.touched.get(k) {
                 // restored (or content-restored) to this epoch's snapshot,
                 // after a structural op: the snapshot's bytes with the

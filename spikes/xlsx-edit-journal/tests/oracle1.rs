@@ -159,7 +159,14 @@ fn datetime_and_number_both_orders_on_missing_cells_under_a_bold_column() {
 #[test]
 fn style_index_zero_on_missing_b5_under_a_bold_column_is_not_a_noop() {
     let (s, j) = oracle1(&base(), &[patch(k("B5"), Patch::Index(0))]);
-    assert_eq!(raw_cell(&j.bytes, S1, "B5"), raw_cell(&s.bytes, S1, "B5"));
+    // the sequential side writes `s="0"`; the Journal writes none (C7, review
+    // round 9 n1); both are a present cell with `xf` 0 (equal in P)
+    if j.journal.mode() == Mode::Shadow && !cfg!(feature = "mutant_c7_created_keeps_s0") {
+        assert_eq!(raw_cell(&s.bytes, S1, "B5").as_deref(), Some(r#"<c r="B5" s="0"/>"#));
+        assert_eq!(raw_cell(&j.bytes, S1, "B5").as_deref(), Some(r#"<c r="B5"/>"#));
+    } else {
+        assert_eq!(raw_cell(&j.bytes, S1, "B5"), raw_cell(&s.bytes, S1, "B5"));
+    }
     assert!(raw_cell(&j.bytes, S1, "B5").is_some(), "the Journal writes the cell");
     assert_eq!(j.report.skipped_noops, 0);
 }

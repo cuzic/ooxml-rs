@@ -527,3 +527,20 @@ fn a_formula_overwritten_then_deleted_drops_calc_chain() {
         assert!(!ooxml_core::Package::from_bytes(out.clone()).unwrap().contains("xl/calcChain.xml"));
     }
 }
+
+/// Found by the 3,000-case history run: a cell the session created (no
+/// Base node) is restyled to `xf` 0 in a later epoch (`s="0"` on the
+/// shadow). C7 writes it without `s` (review round 9, n1), so the noise
+/// leaves no trace. Fails with `mutant_c7_created_keeps_s0`.
+#[test]
+fn c7_created_cell_restyled_in_a_later_epoch() {
+    if !shadow_only() {
+        return;
+    }
+    let base = base();
+    let f = vec![num(b("B2"), 1.0), Op::Structural(Structural::InsertCols { sheet: 1, at: 0, count: 1 }), Op::Content(b("C2"), Content::String("s".into()))];
+    let mut l = f[..2].to_vec();
+    l.extend([Op::Content(b("C2"), Content::String("n".into())), num(b("C2"), 1.0), Op::Style(b("C2"), Patch::Fill(red())), Op::Style(b("C2"), Patch::Index(0))]);
+    l.push(f[2].clone());
+    assert!(journaled(&base, &f).bytes == journaled(&base, &l).bytes);
+}

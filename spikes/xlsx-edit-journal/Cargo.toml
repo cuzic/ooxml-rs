@@ -52,6 +52,7 @@ mutant_drop_records = []        # structural strip records dropped (round 7 M3, 
 mutant_close_own_sheet = []     # a structural op closes only its own sheet's snapshots (round 9 M1)
 mutant_restore_clears_mark = []  # R2 restore clears the carried mark (round 8 M3)
 mutant_no_sst_removed = []       # sst/@count not decremented by a structural delete (round 7 m2)
+mutant_c7_created_keeps_s0 = []   # C7: a created cell keeps the shadow's s="0" (rev 8 n1 not applied)
 mutant_no_rebase = []             # restores read the first Base after a save (no C6; round 7 M1)
 mutant_tf_from_mark = []          # truncate_fast re-applies from the commit mark, not the snapshot (round 7 M4)
 mutant_tf_no_restore = []         # truncate_fast re-applies the kept ops without restoring first

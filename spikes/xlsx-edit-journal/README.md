@@ -625,7 +625,20 @@ MUTANTS
 
 ### Long runs (after the fixes)
 
-LONGRUNS
+Run in parallel with the mutant run on the same machine (so the times are long):
+
+| Suite | Cases per proptest | Result | Time |
+|---|---|---|---|
+| `oracle1` (oracle 1 on the oracle workbook, full predicate) | 20,000 | pass | 295 s |
+| `shadow_mode` (oracles 11–14, one epoch) | 20,000 | pass | 179 s |
+| `groups` (shared and array formulas) | 5,000 | pass | 75 s |
+| `structural` (two fixtures, oracles 1, 11, 12, 14 across epochs) | 5,000 | STRUCTURAL | 199 s |
+
+The first 5,000-case `structural` runs found the calcChain counterexample above, a spike gap
+(a content restore was made physical only at save, so a restyled write-back lost its cache at
+the next epoch boundary), and two spike bugs after a structural op (a content restore written
+without R4's renumbering; a created cell keeping `s="0"`, which C7 as written removes). Each
+has a fixed case now.
 
 ### Measurements (10,000 rows, same fixture, ops and machine as above)
 
