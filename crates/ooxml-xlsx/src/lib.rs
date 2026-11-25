@@ -83,6 +83,7 @@ mod reference;
 mod sheet_ops;
 mod registry;
 mod setters;
+mod cell_state;
 mod snapshot;
 mod workbook;
 mod worksheet;
