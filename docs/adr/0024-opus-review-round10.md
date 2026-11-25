@@ -208,3 +208,27 @@ round 9 の Owner response（M1, M2, m1〜m5, n1, n2）は、どれも本文に�
 converged: yes（Blocker 0 / Major 0 / Minor 5 / nit 6）
 
 Minor と nit は、CI が通れば直してよい（再レビュー不要）。この文書は、「revision 7 Accepted / revision 8 Proposed（Q7 待ち）」として PR にしてよい。
+
+## Owner response
+
+Minor 5 件と nit 6 件を、すべて本文に入れた。Status 行と改訂履歴に、round 10 の項を足した。
+
+- **m1**: 2.01× は 1 回の計測なので、「2× の目標には雑音の範囲でしか届いていない（spike では満たすと言えない）」と書き直した。J1 が C2–C8 の上で示す、とした（改訂履歴、§7.3、Q7、Consequences）。
+  §7.3 の第 2 表に「one run」を足した。`ad74d32` の「meets 2× at both sizes」は「At `ad74d32` (historical; …) the save met …」とした。spike の README も同じに直した。
+- **m2**: (A′) のコストに、次のセッションでの依存グラフの作り直し（81 対 25 µs/op、2,000 op で `to_bytes` の約 1.7 倍）を足した（Q7 の (A′) と Facts、§7.3 の箇条書き、Consequences、改訂履歴）。
+  §7.3 の表の (A′) の 2 行に、何を含むかを書いた（1 行目: save と reopen、作り直しは次のセッション。2 行目: save only, reopen not included）。
+- **m3**: `StructuralCalc` に `needs_full_calc` を足した（ADR-0018 §3.7: op の依存先に数式が 1 つでもあれば、キャッシュの有無に関係なく立つ）。
+  R3 の `fullCalcOnLoad` の条件に、この句を足した。同時に、formula-cell 集合の変化を「セルの書き込みによる変化」に限った。構造操作は、その op 自身の条件で扱う。
+  spike の「calcChain を消すなら立てる」は、`main` と同じ条件ではないと書いた。キャッシュの無い数式がずれるだけの場合を逃す。また、生き残る数式が読まない数式セルを消す op では、`main` より強い。
+  C3 の行と B.2 の C3 の行に、spike が `needs_full_calc` を記録しないことを書いた。oracle 1 の `fullCalcOnLoad` は両方向（if and only if）にした。
+  J2 の固定ケースとして、`=B!A1`（`<v>` なし）と `insert_rows(B, 0, 1)` を足した。未証明の一覧にも足した。
+- **m4**: 指摘の 7 項目と m3 の項目を、3 か所の「Still unproven」に足した（改訂履歴、B.2、Q7。Q7 はまとめて 1 文）。
+- **m5**: §7.4 と Delivery と Consequences をそろえた。C1–C5、C7、C8 は J1 の Commit の前提（C2 は J0 の前提、C3 の構造の部分は J2 の前提）。C6 は (A) の前提で、J1 は C6 なしに (A′) で出してよい。
+- **n1**: §6.1 を R3 の文言（result cell of an array (or spill) anchor in the strip set）にそろえた。
+- **n2**: R3 の calcChain に、「死んだ id は最後の書き込みが与えた formula-ness で数え、構造操作が消した Base の数式セルは `removes_calc_chain` が扱う」と足した。
+- **n3**: §7.1 に `mutant_r1_skip_group`（P で判定）と書いた。oracle 9 には、R1 (b) を外しただけの変異は J1 でも等価になりうることを添えた。
+- **n4**: §4.5 の Cost と Consequences の第 1 項目に、「`ad74d32` で R1 あり」と、R1 を止めている間は 25 µs/op であることを書いた。
+- **n5**: oracle 1 の固定ケースに、`set_number(G3, 4)`（配列の結果セル、`ArrayResultCell`）を足した。
+- **n6**: `mutants.sh` の既定の一覧に、`mutant_c7_created_keeps_s0` を足した。
+
+Rust のコードは変えていない。

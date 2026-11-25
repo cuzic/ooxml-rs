@@ -451,7 +451,7 @@ Two runs per size, same machine and build as before.
 
 Reading:
 
-- **Save.** The 2× target is met at both sizes. The extra cost over `to_bytes` is the text
+- **Save.** At this commit (historical; see "Revision 8 verification" below) the 2× target was met at both sizes. The extra cost over `to_bytes` is the text
   layer: inflating the Base part and two linear scans. The scans' `Vec<CellAt>` and the three
   part-sized strings cause the 260 MiB peak at 1.1M cells; a streaming scan would cut it. In
   core, remedies 2–4 would edit the tree before serializing, and this whole term would go.
@@ -679,7 +679,7 @@ the next epoch boundary), and two spike bugs after a structural op (a content re
 without R4's renumbering; a created cell keeping `s="0"`, which C7 as written removes). Each
 has a fixed case now.
 
-### Measurements (10,000 rows, same fixture, ops and machine as above)
+### Measurements (10,000 rows, same fixture, ops and machine as above; one run per row)
 
 | | revision 8 rules (R1 off, epochs) | before (table above) |
 |---|---|---|
@@ -694,8 +694,10 @@ has a fixed case now.
 Reading:
 
 - **A vs A′.** Reopening the output after each save costs one `from_bytes` (≈ 2.3× a
-  `to_bytes`): 4.6× against 2.0×. The 2× target is met (just) only with a kept shadow, so C6 (or its
-  reparse fallback limited to the re-rendered parts) is what the target depends on.
+  `to_bytes`): 4.6× against 2.0×, and the next session pays the dependency graph rebuild
+  (81 vs 25 µs/op, ≈ 1.7× a `to_bytes` at 2,000 ops). The 2× target is reached only within noise
+  (2.01×, one run) and only with a kept shadow, so C6 (or its reparse fallback limited to the
+  re-rendered parts) is what the target depends on; J1 must show it on C2–C8.
 - **Structural ops.** The substitutes cost 5.4× the bare op: a serialize, two parses and a
   copy's op. In core, C2 restores in the tree and C3 returns the record from the op itself, so
   none of this is the design's cost; the number only bounds the spike.

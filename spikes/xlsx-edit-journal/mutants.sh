@@ -16,7 +16,7 @@ if [ $# -eq 0 ]; then
         mutant_no_handoff_target mutant_r2_no_derived \
         mutant_drop_marks mutant_drop_records "mutant_drop_records mutant_no_structural_clause" \
         mutant_close_own_sheet "mutant_close_own_sheet mutant_no_probe_clause" \
-        mutant_restore_clears_mark mutant_no_sst_removed \
+        mutant_restore_clears_mark mutant_no_sst_removed mutant_c7_created_keeps_s0 \
         mutant_tf_from_mark mutant_tf_no_restore mutant_no_rebase
 fi
 for f in "$@"; do
