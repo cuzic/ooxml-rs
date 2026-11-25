@@ -52,11 +52,26 @@ pub(crate) struct FormulaState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RichRun {
     /// The run's `t` text as written (not trimmed, `_xHHHH_` not decoded).
+    /// Not the display text and not what the value API returns: compare it
+    /// together with the cell value, never alone.
     pub(crate) text: String,
     /// The run's `rPr` in a canonical form (see [`canonical`]); `None` when
     /// the run has no `rPr`. A run with an empty `<rPr/>` differs from one
     /// without, as the file does.
     pub(crate) props: Option<String>,
+}
+
+/// The state of a string cell beyond its value: rich runs and phonetic data.
+/// Two strings with the same text but different phonetics (`rPh`,
+/// `phoneticPr`) are different states, as the file differs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct StringState {
+    /// The `r` runs; `None` for a plain string (no `r` child).
+    pub(crate) runs: Option<Vec<RichRun>>,
+    /// The `rPh` and `phoneticPr` children of the item in canonical form
+    /// (see [`canonical`]), in document order, concatenated; `None` when it
+    /// has neither.
+    pub(crate) phonetic: Option<String>,
 }
 
 /// Canonical text of an element, for equality: names by namespace URI (not
@@ -89,6 +104,14 @@ fn write_canonical(n: &RawNode, out: &mut String) {
         }
     }
     out.push_str("</>");
+}
+
+impl FormulaState {
+    /// The state of the `f` child of a `c` node (live or a snapshot's);
+    /// `None` when it has none.
+    pub(crate) fn of(c: &RawNode) -> Option<FormulaState> {
+        c.elements().find(|e| e.is(sml::CellFormula::QNAME)).map(formula_state)
+    }
 }
 
 fn formula_state(f: &RawNode) -> FormulaState {
@@ -163,9 +186,10 @@ fn formula_state(f: &RawNode) -> FormulaState {
     s
 }
 
-/// The runs of an `is` or `si`: `None` when it has no `r` child (a plain
-/// string, whatever its `t`).
-fn runs_of(item: &RawNode) -> Option<Vec<RichRun>> {
+/// The string state of an `is` or `si`. `runs` is `None` when it has no `r`
+/// child (a plain string, whatever its `t`); `phonetic` is `None` when it has
+/// neither `rPh` nor `phoneticPr`.
+fn string_state_of_item(item: &RawNode) -> StringState {
     let runs: Vec<RichRun> = item
         .elements()
         .filter(|c| c.is(sml::Run::QNAME))
@@ -174,7 +198,13 @@ fn runs_of(item: &RawNode) -> Option<Vec<RichRun>> {
             props: r.elements().find(|c| c.is(sml::RunProperties::QNAME)).map(canonical),
         })
         .collect();
-    (!runs.is_empty()).then_some(runs)
+    let ns = item.name().ns();
+    let phonetic: String = item
+        .elements()
+        .filter(|c| c.name().ns() == ns && matches!(c.name().local(), "rPh" | "phoneticPr"))
+        .map(canonical)
+        .collect();
+    StringState { runs: (!runs.is_empty()).then_some(runs), phonetic: (!phonetic.is_empty()).then_some(phonetic) }
 }
 
 impl Workbook {
@@ -192,32 +222,42 @@ impl Workbook {
     }
 
     /// The cell's `f` element as a typed value; `None` for a missing cell or
-    /// a cell without a formula.
+    /// a cell without a formula. For a snapshot's node use
+    /// [`FormulaState::of`].
     pub(crate) fn cell_formula_state(&mut self, sheet: usize, at: CellIndex) -> Result<Option<FormulaState>> {
-        let r = self.with_cell(sheet, at, |c| c.elements().find(|e| e.is(sml::CellFormula::QNAME)).map(formula_state))?;
+        let r = self.with_cell(sheet, at, FormulaState::of)?;
         Ok(r.flatten())
     }
 
-    /// The cell's rich runs: those of its `is` (`t="inlineStr"`) or of the
-    /// shared-string item its `v` points at (`t="s"`). `None` when the cell
-    /// is missing, is not a string cell, or its string is plain (no `r`).
+    /// [`string_state_of`](Self::string_state_of) for the live cell at
+    /// `sheet!at`; `None` for a missing cell.
+    pub(crate) fn cell_string_state(&mut self, sheet: usize, at: CellIndex) -> Result<Option<StringState>> {
+        // a clone of one `c`, so the shared-string table can be read next
+        let Some(c) = self.with_cell(sheet, at, RawNode::clone)? else { return Ok(None) };
+        self.string_state_of(&c, at)
+    }
+
+    /// The string state of a `c` node, live or a snapshot's
+    /// (`CellSnapshot::node`): that of its `is` (`t="inlineStr"`) or of the
+    /// shared-string item its `v` points at (`t="s"`), resolved against the
+    /// workbook's current table. `at` only names the cell in errors.
+    ///
+    /// `None` when the node is not a string cell, or is `t="s"` without a
+    /// `v` (the value API reads that as empty, so does this).
     /// `Err` for a shared-string index that resolves to nothing, or a table
     /// whose items sit behind `mc:AlternateContent` (the index is then
-    /// reader-dependent, as for the registry).
-    pub(crate) fn cell_rich_runs(&mut self, sheet: usize, at: CellIndex) -> Result<Option<Vec<RichRun>>> {
-        enum Found {
-            Done(Option<Vec<RichRun>>),
-            Shared(String),
-        }
-        let found = self.with_cell(sheet, at, |c| match c.attr(sml::Cell::ATTR_T) {
-            Some("inlineStr") => Found::Done(c.elements().find(|e| e.is(sml::InlineString::QNAME)).and_then(runs_of)),
-            Some("s") => Found::Shared(c.elements().find(|e| e.is(sml::CellValue::QNAME)).map(|v| v.text().into_owned()).unwrap_or_default()),
-            _ => Found::Done(None),
-        })?;
-        let v = match found {
-            None | Some(Found::Done(None)) => return Ok(None),
-            Some(Found::Done(runs)) => return Ok(runs),
-            Some(Found::Shared(v)) => v,
+    /// reader-dependent, as for the registry); a caller comparing states
+    /// should treat `Err` as "unequal" (the cost is one needless restore).
+    pub(crate) fn string_state_of(&mut self, c: &RawNode, at: CellIndex) -> Result<Option<StringState>> {
+        let v = match c.attr(sml::Cell::ATTR_T) {
+            Some("inlineStr") => {
+                return Ok(c.elements().find(|e| e.is(sml::InlineString::QNAME)).map(string_state_of_item));
+            }
+            Some("s") => match c.elements().find(|e| e.is(sml::CellValue::QNAME)) {
+                Some(v) => v.text().into_owned(),
+                None => return Ok(None),
+            },
+            _ => return Ok(None),
         };
         let bad = |m: String| Error::InvalidValue { cell: at.to_string(), message: m };
         let i = ooxml_core::value::parse_u32(&v).ok_or_else(|| bad(format!("shared-string index {v:?}")))? as usize;
@@ -237,7 +277,7 @@ impl Workbook {
             .filter(|c| c.is(sml::SharedStringItem::QNAME))
             .nth(i)
             .ok_or_else(|| bad(format!("shared-string index {i} out of range")))?;
-        Ok(runs_of(si))
+        Ok(Some(string_state_of_item(si)))
     }
 }
 
@@ -246,6 +286,7 @@ mod tests {
     use ooxml_core::Package;
 
     use super::*;
+    use crate::edit::CellOp;
     use crate::workbook::TEMPLATE;
 
     const SHEET: &str = "xl/worksheets/sheet1.xml";
@@ -289,6 +330,10 @@ mod tests {
         open_with(&sheet_xml(), &sst_xml(""))
     }
 
+    fn runs(wb: &mut Workbook, a1: &str) -> Option<Vec<RichRun>> {
+        wb.cell_string_state(0, at(a1)).unwrap().and_then(|s| s.runs)
+    }
+
     fn at(a1: &str) -> CellIndex {
         CellIndex::parse(a1).unwrap()
     }
@@ -304,7 +349,7 @@ mod tests {
     #[test]
     fn a_shared_rich_string_gives_its_runs() {
         let (mut wb, _) = open();
-        let runs = wb.cell_rich_runs(0, at("A1")).unwrap().expect("rich");
+        let runs = runs(&mut wb, "A1").expect("rich");
         assert_eq!(runs.len(), 2);
         assert_eq!(runs[0].text, "Bo");
         assert_eq!(runs[1].text, "ld ", "not trimmed");
@@ -316,41 +361,42 @@ mod tests {
     #[test]
     fn a_plain_shared_string_and_a_plain_inline_string_have_no_runs() {
         let (mut wb, _) = open();
-        assert_eq!(wb.cell_rich_runs(0, at("B1")).unwrap(), None);
-        assert_eq!(wb.cell_rich_runs(0, at("B2")).unwrap(), None);
+        for a1 in ["B1", "B2"] {
+            assert_eq!(wb.cell_string_state(0, at(a1)).unwrap(), Some(StringState::default()), "{a1}");
+        }
         // not string cells, and a missing cell
-        assert_eq!(wb.cell_rich_runs(0, at("D4")).unwrap(), None);
-        assert_eq!(wb.cell_rich_runs(0, at("A3")).unwrap(), None);
-        assert_eq!(wb.cell_rich_runs(0, at("F9")).unwrap(), None);
+        for a1 in ["D4", "A3", "F9"] {
+            assert_eq!(wb.cell_string_state(0, at(a1)).unwrap(), None, "{a1}");
+        }
     }
 
     #[test]
     fn an_inline_rich_string_gives_its_runs() {
         let (mut wb, _) = open();
-        let runs = wb.cell_rich_runs(0, at("A2")).unwrap().expect("rich");
-        assert_eq!(runs.iter().map(|r| r.text.as_str()).collect::<Vec<_>>(), ["a ", "b"]);
-        assert!(runs[0].props.is_some() && runs[1].props.is_none());
-        assert_ne!(runs[0].props, wb.cell_rich_runs(0, at("A1")).unwrap().unwrap()[0].props, "italic vs bold");
+        let a2 = runs(&mut wb, "A2").expect("rich");
+        assert_eq!(a2.iter().map(|r| r.text.as_str()).collect::<Vec<_>>(), ["a ", "b"]);
+        assert!(a2[0].props.is_some() && a2[1].props.is_none());
+        assert_ne!(a2[0].props, runs(&mut wb, "A1").unwrap()[0].props, "italic vs bold");
     }
 
     #[test]
     fn run_properties_compare_by_namespace_not_prefix_and_not_attribute_order() {
         let (mut wb1, _) = open();
         let (mut wb2, _) = open_with(&sheet_xml(), &sst_xml("x"));
-        assert_eq!(wb1.cell_rich_runs(0, at("A1")).unwrap(), wb2.cell_rich_runs(0, at("A1")).unwrap());
+        assert_eq!(runs(&mut wb1, "A1"), runs(&mut wb2, "A1"));
         let sst = sst_xml("").replace(r#"<color rgb="FFFF0000"/>"#, r#"<color rgb="FFFF0000" theme="1"/>"#);
         let (mut a, _) = open_with(&sheet_xml(), &sst);
         let sst2 = sst_xml("").replace(r#"<color rgb="FFFF0000"/>"#, r#"<color theme="1" rgb="FFFF0000"/>"#);
         let (mut b, _) = open_with(&sheet_xml(), &sst2);
-        assert_eq!(a.cell_rich_runs(0, at("A1")).unwrap(), b.cell_rich_runs(0, at("A1")).unwrap());
-        assert_ne!(a.cell_rich_runs(0, at("A1")).unwrap(), wb1.cell_rich_runs(0, at("A1")).unwrap());
+        assert_eq!(runs(&mut a, "A1"), runs(&mut b, "A1"));
+        assert_ne!(runs(&mut a, "A1"), runs(&mut wb1, "A1"));
     }
 
     #[test]
     fn a_dangling_shared_index_is_an_error() {
         let sheet = sheet_xml().replace("<v>1</v></c><c r=\"B1\"", "<v>9</v></c><c r=\"B1\"");
         let (mut wb, _) = open_with(&sheet, &sst_xml(""));
-        assert!(wb.cell_rich_runs(0, at("A1")).is_err());
+        assert!(wb.cell_string_state(0, at("A1")).is_err());
     }
 
     fn state(wb: &mut Workbook, a1: &str) -> FormulaState {
@@ -407,7 +453,7 @@ mod tests {
         let (mut wb, bytes) = open();
         for a1 in ["A1", "B1", "A2", "B2", "A3", "B3", "C3", "B4", "C4", "D4", "F9"] {
             wb.cell_formula_state(0, at(a1)).unwrap();
-            let _ = wb.cell_rich_runs(0, at(a1)).unwrap();
+            let _ = wb.cell_string_state(0, at(a1)).unwrap();
         }
         for part in [SHEET, SST] {
             let doc = wb.pkg.xml_part(part).unwrap();
@@ -415,5 +461,92 @@ mod tests {
             assert!(doc.dirty_counts_consistent());
         }
         assert_eq!(wb.to_bytes().unwrap(), bytes, "the output is the input, byte for byte");
+    }
+
+    const PH: &str = r#"<rPh sb="0" eb="2"><t>カンジ</t></rPh><phoneticPr fontId="1"/>"#;
+
+    /// sst with extra items: 2 plain + phonetics, 3 plain, 4 rich + phonetics,
+    /// 5 same rich without, 6 plain + `phoneticPr` only.
+    fn phonetic_workbook() -> Workbook {
+        let items = format!(
+            r#"<si><t>漢字</t>{PH}</si><si><t>漢字</t></si><si><r><rPr><b/></rPr><t>漢</t></r><r><t>字</t></r>{PH}</si><si><r><rPr><b/></rPr><t>漢</t></r><r><t>字</t></r></si><si><t>漢字</t><phoneticPr fontId="1"/></si>"#
+        );
+        let sst = sst_xml("").replace("</sst>", &format!("{items}</sst>"));
+        let cells = r#"<c r="B1" t="s"><v>0</v></c><c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c><c r="E1" t="s"><v>4</v></c><c r="F1" t="s"><v>5</v></c><c r="G1" t="s"><v>6</v></c><c r="H1" t="inlineStr"><is><t>漢字</t></is></c><c r="I1" t="inlineStr"><is><t>漢字</t>PHX</is></c><c r="J1" t="s"/>"#.replace("PHX", PH);
+        let sheet = sheet_xml().replace(r#"<c r="B1" t="s"><v>0</v></c>"#, &cells);
+        open_with(&sheet, &sst).0
+    }
+
+    #[test]
+    fn phonetic_data_is_part_of_the_string_state() {
+        let mut wb = phonetic_workbook();
+        let get = |wb: &mut Workbook, a1: &str| wb.cell_string_state(0, at(a1)).unwrap().expect(a1);
+        let (plain_ph, plain, rich_ph, rich, pr_only) = (get(&mut wb, "C1"), get(&mut wb, "D1"), get(&mut wb, "E1"), get(&mut wb, "F1"), get(&mut wb, "G1"));
+        assert_ne!(plain_ph, plain, "same text, only the phonetics differ");
+        assert_ne!(rich_ph, rich);
+        assert_ne!(pr_only, plain, "phoneticPr alone counts");
+        assert_ne!(pr_only, plain_ph);
+        assert_eq!(plain, StringState::default());
+        assert!(plain_ph.runs.is_none() && plain_ph.phonetic.as_deref().unwrap().contains("カンジ"));
+        assert_eq!(rich_ph.runs, rich.runs, "the runs alone are equal");
+        assert!(rich_ph.phonetic.is_some() && rich.phonetic.is_none());
+        // inline strings too
+        let (inline_plain, inline_ph) = (get(&mut wb, "H1"), get(&mut wb, "I1"));
+        assert_ne!(inline_plain, inline_ph);
+        assert_eq!(inline_ph.phonetic, plain_ph.phonetic, "inline and shared agree on the same phonetics");
+    }
+
+    #[test]
+    fn a_shared_string_cell_without_v_reads_as_empty_not_an_error() {
+        let mut wb = phonetic_workbook();
+        assert_eq!(wb.cell_string_state(0, at("J1")).unwrap(), None);
+    }
+
+    #[test]
+    fn a_snapshot_node_reads_like_the_live_cell_before_a_write_and_differs_after() {
+        let (mut wb, _) = open();
+        let snap = wb.snapshot_cell(0, at("A1")).unwrap();
+        let node = snap.node().unwrap().clone();
+        assert_eq!(wb.string_state_of(&node, at("A1")).unwrap(), wb.cell_string_state(0, at("A1")).unwrap());
+        let snap3 = wb.snapshot_cell(0, at("B3")).unwrap();
+        assert_eq!(FormulaState::of(snap3.node().unwrap()), wb.cell_formula_state(0, at("B3")).unwrap());
+        assert!(FormulaState::of(snap3.node().unwrap()).is_some());
+
+        wb.edit_cell(0, at("A1"), CellOp::Text("other".into())).unwrap();
+        wb.edit_cell(0, at("B3"), CellOp::Number("1".into())).unwrap();
+        assert_ne!(wb.string_state_of(&node, at("A1")).unwrap(), wb.cell_string_state(0, at("A1")).unwrap(), "the snapshot still has the rich runs");
+        assert!(wb.string_state_of(&node, at("A1")).unwrap().unwrap().runs.is_some());
+        assert_ne!(FormulaState::of(snap3.node().unwrap()), wb.cell_formula_state(0, at("B3")).unwrap());
+    }
+
+    #[test]
+    fn a_rich_string_written_in_the_session_is_read_from_the_live_table() {
+        let (mut wb, _) = open();
+        let font = crate::Font { bold: true, ..crate::Font::default() };
+        wb.worksheet().unwrap().cell_mut(5, 5).unwrap().set_rich_string(&[(&font, "ab"), (&crate::Font::default(), "cd")]).unwrap();
+        let r = runs(&mut wb, "F6").expect("rich");
+        assert_eq!(r.iter().map(|r| r.text.as_str()).collect::<Vec<_>>(), ["ab", "cd"]);
+        assert!(r[0].props.as_deref().unwrap().contains("}b"));
+        // and an old one still reads
+        assert_eq!(runs(&mut wb, "A1").unwrap()[0].text, "Bo");
+    }
+
+    #[test]
+    fn a_table_behind_alternate_content_is_an_error() {
+        let sst = sst_xml("").replace("<si>", r#"<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x"><si><t>z</t></si></mc:Choice></mc:AlternateContent><si>"#);
+        let (mut wb, _) = open_with(&sheet_xml(), &sst);
+        assert!(wb.cell_string_state(0, at("A1")).is_err());
+    }
+
+    #[test]
+    fn canonical_keeps_text_content() {
+        let parse = |x: &str| ooxml_core::XmlDocument::parse(x.as_bytes()).unwrap();
+        let (a, b, c) = (parse("<x>a</x>"), parse("<x>b</x>"), parse("<x>a</x>"));
+        assert_ne!(canonical(a.root()), canonical(b.root()));
+        assert_eq!(canonical(a.root()), canonical(c.root()));
+        // text next to elements counts, whitespace-only text between elements does not
+        let (d, e, f) = (parse("<x>t<y/></x>"), parse("<x><y/></x>"), parse("<x> <y/>\n</x>"));
+        assert_ne!(canonical(d.root()), canonical(e.root()));
+        assert_eq!(canonical(e.root()), canonical(f.root()));
     }
 }
