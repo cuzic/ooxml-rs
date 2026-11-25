@@ -239,3 +239,19 @@ Q7 の推奨 (A) を変える必要は無い。ただし、どちらも (A) だ�
 ## 判定
 
 converged: no（Blocker 0 / Major 2 / Minor 5 / nit 2）
+
+## Owner response（revision 8 の修正, round 9 対応）
+
+spike のコードは変えていない。どの指摘も、レビューが示した単純で保守的な修正を採った。spike が通らない経路は Appendix B（"Review round 9"）に足した。
+
+- **M1**: 採用。構造操作（行・列の操作、splice、シートの操作）は、**ブック全体のすべての開いた snapshot** を閉じる。閉じたとき snapshot の状態に戻っていないセルには持ち越しの印（内容が違えば content の印も）を付ける（§4.4 "Epochs close snapshots"）。§2 と §4.4 の Snapshot の定義から「in an epoch」を外し、「開いた snapshot を持たないセルの最初の書き込みの前」にした。oracle 1 の構造の向きに、逐次側の記録に頼らない **probe 節**を足した（Base に構造操作だけを当てた probe が strip するセルで、ログの op が target にし、Journal の出力で `f` と `<v>` を持つものは失敗。probe が構造操作を拒否したケースは数えて飛ばす）。J2 の固定ケースに `MATCH(7,B!A:A,0)` と `B!A5*2`（text が同じ）の例、`add_sheet`/`move_sheet`/`rename_sheet`/名前経由の例、別シートの持ち越しの印の例を足し、oracle 9 に「自分のシートと書き換えた数式だけを閉じる」変異を足した。
+- **M2**: 採用。R3 の引き算をやめ、「strip 集合のうち保存時に `f` と `<v>` を持つセルをすべて strip する」にした。逐次の `plan_strip`（`has_cache` があり同じ plan が書かないセル）と同じ規則で、同じ plan が書くセルは新しい内容（キャッシュの無い数式か `f` の無い定数）を持つので、Journal 側でも同じ判定で外れる。round 7 の規則より strip が増えるだけなので、B1 は戻らない。§2 の用語表、§4.4 の content-changed、§6.1 の `would_strip`、§7.3 の記述を合わせた。oracle 1 に `set_number(D2,1)`→`set_number(A2,99)`（と逆順）の固定ケース、oracle 9 に変異を足した。
+- **m1**: 採用。C4 と R4 に「session の項目がすべて落ち、count が Base の値に戻った registry part は Base のノードへ戻し dirty を消す」を足し、R2 の raw-copy の文言がこれを引くようにした。oracle 5 に文字列とスタイルの書いて戻すケース、oracle 9 に変異。
+- **m2**: 採用。§9.1 に行・列の属性の op の行・列を足し、§10.3 の退避の条件に行・列の属性の op を足した。
+- **m3**: 採用。C7（§7.1 と §7.4）の対象を「ノードが Base のものでない changed cell」にし、後の epoch の snapshot へ restore されたセルを含めた。
+- **m4**: 前者の案を採用。J0 の oracle 1 は保存しない比較（shadow と逐次 workbook を P で、拒否の一致）に限り、保存側の述語（キャッシュの述語の全文を含む）は J1 の受け入れ条件に移した。保存のコストの計測も J1 にした（§6.1、§7.3、Q7、Consequences、Delivery）。
+- **m5**: 採用。`truncate`/`truncate_fast` は呼び出しの境界でだけ受け付け、途中は `TruncateInsideCall` で拒否する（§10.3、§12）。R1 は複数の op を持つ呼び出しを全体が no-op のときだけ飛ばす（§7.1）。oracle 9 に変異。
+- **n1**: 採用。C7 の `xf` 0 の規則を「Base のノードに `s` が無いか Base のノードが無ければ無し、それ以外は `s="0"`」にし、snapshot の履歴に依らない形にした。
+- **n2**: 採用。Q7 の Facts に、M1 と M2 が (A) だけが持つ種類の誤り（状態で定義した規則と逐次の履歴の食い違い）であることを足した。推奨は変えない。
+
+まだ証明されていないもの: 全 snapshot を閉じる規則と probe 節、hand-off の新しい master の strip、registry part の Base ノードへの復帰、呼び出し境界での truncate は、どれも spike で走っていない。J1〜J3 の固定ケースと変異で確かめる。
