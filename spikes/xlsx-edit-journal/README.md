@@ -632,7 +632,7 @@ Run in parallel with the mutant run on the same machine (so the times are long):
 | `oracle1` (oracle 1 on the oracle workbook, full predicate) | 20,000 | pass | 295 s |
 | `shadow_mode` (oracles 11–14, one epoch) | 20,000 | pass | 179 s |
 | `groups` (shared and array formulas) | 5,000 | pass | 75 s |
-| `structural` (two fixtures, oracles 1, 11, 12, 14 across epochs) | 5,000 | STRUCTURAL | 199 s |
+| `structural` (two fixtures, oracles 1, 11, 12, 14 across epochs) | 5,000 | pass (after the fixes below; the run before them failed) | 84 s (alone) |
 
 The first 5,000-case `structural` runs found the calcChain counterexample above, a spike gap
 (a content restore was made physical only at save, so a restyled write-back lost its cache at
