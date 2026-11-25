@@ -1,0 +1,36 @@
+# Standalone spike for ADR-0024 (xlsx Edit Journal), J0/J1 keyed-op slice. Its
+# own workspace, so the main workspace never builds it; depends on ooxml-xlsx
+# by path through its public API only and changes no crate.
+[workspace]
+
+[package]
+name = "xlsx-edit-journal-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[features]
+# ADR-0024 §7.1 placement taken literally (a folded full entry at the first
+# content op of its segment, conditional ops included): README feedback F1.
+adr_literal_placement = []
+# Hand-written mutants (ADR-0024 oracle 9). Each must make `cargo test` fail.
+mutant_noop_missing = []      # round 5 M1: an entry on a missing cell may be a no-op
+mutant_merge_missing = []     # round 2 M3: merge content + patch on a cell the content creates
+mutant_style_last_wins = []   # B3: style patches folded last-wins
+mutant_cond_last_wins = []    # round 2 M2: a conditional content op drops earlier content
+mutant_keep_shadow = []       # round 2 M4: shadow kept after a part-way refusal
+mutant_fold_at_append = []    # B2: fold the log at append
+
+[dependencies]
+ooxml-xlsx = { path = "../../crates/ooxml-xlsx" }
+ooxml-core = { path = "../../crates/ooxml-core" }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+proptest = "1"
+# shadow-poison test of oracle 3 (ADR-0003 §7.3 hook)
+ooxml-xlsx = { path = "../../crates/ooxml-xlsx", features = ["fault-injection"] }
+
+[profile.release]
+debug = "line-tables-only"
