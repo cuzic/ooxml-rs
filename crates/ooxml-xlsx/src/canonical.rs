@@ -193,11 +193,12 @@ fn plan(doc: &XmlDocument, path: &[usize; 3]) -> Option<Plan> {
         .attrs()
         .iter()
         .all(|a| COPIED.iter().any(|q| a.name().is(*q)));
-    // whitespace-only text (a pretty-printed source) is no child
+    // whitespace-only text (a pretty-printed source) is no child; only XML
+    // whitespace counts: NBSP and the like are character data
     let childless = cell
         .children()
         .iter()
-        .all(|c| matches!(c, RawItem::Text(t) if t.value().trim().is_empty()));
+        .all(|c| matches!(c, RawItem::Text(t) if is_xml_space(t.value())));
     let rebuild = (childless && copyable).then(|| {
         cell.attrs()
             .iter()
@@ -251,6 +252,11 @@ fn set_s(doc: &mut XmlDocument, path: &[usize; 3], s: Option<&str>) {
         Some(s) => cell.set_attr(sml::Cell::ATTR_S, s),
         None => cell.remove_attr(sml::Cell::ATTR_S).map(|_| ()),
     };
+}
+
+/// XML whitespace only (space, tab, CR, LF); not Unicode `White_Space`.
+fn is_xml_space(s: &str) -> bool {
+    s.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
 }
 
 #[cfg(test)]
@@ -524,6 +530,17 @@ mod tests {
             out.contains("<c r=\"B1\">\n    <v>2</v>\n  </c>"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn a_cell_with_only_nbsp_text_is_not_rebuilt() {
+        let xml = format!(
+            "{HEAD}<row r=\"1\"><c r=\"A1\" s=\"3\">\u{a0}</c></row>{TAIL}"
+        );
+        let mut wb = open(&xml);
+        set_s(&mut wb, [1, 0, 0], "4"); // changed: dirty
+        let out = canon(&mut wb, &["A1"]);
+        assert!(out.contains("\u{a0}</c>"), "{out}");
     }
 
     #[test]
