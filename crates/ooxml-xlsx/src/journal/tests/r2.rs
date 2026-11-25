@@ -149,3 +149,19 @@ fn refusal_takes_no_snapshot() {
     assert!(p.step(num("C4", 1.0)).is_err(), "C4 is in a merge");
     assert_eq!(p.j.open_snapshots(), 0);
 }
+
+#[test]
+fn r2_a_formula_with_the_masters_text_is_not_the_master_back() {
+    // `set_formula` with the master's own text leaves a normal formula (the
+    // hand-off made `C2` the master): equal text, different `f` attributes,
+    // so `D2` is changed and is not restored to `t="shared"` (round 8 M1)
+    let mut p = run(&group_workbook("A1:H6"), [formula("D2", "$A2+D$1")]);
+    let d2 = p.j.cell_key(0, at("D2"));
+    assert!(p.j.changed_cells().contains(&d2));
+    let n = node_of(&mut p.j, 0, "D2").unwrap();
+    let f = n
+        .elements()
+        .find(|e| e.name().local() == "f")
+        .expect("a formula");
+    assert_eq!(f.attr(ooxml_core::QName::new("", "t")), None);
+}

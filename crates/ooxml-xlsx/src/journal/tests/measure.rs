@@ -119,15 +119,12 @@ fn journal(base: &[u8], ops: &[OpInput]) -> (f64, usize) {
 #[ignore = "a measurement, not a gate"]
 fn append_cost() {
     let (rows, n) = (env("OOXML_J0_ROWS", 10_000), env("OOXML_J0_OPS", 2_000));
-    println!(
-        "profile: {}, rustc {}, rows {rows}, ops {n}",
-        if cfg!(debug_assertions) {
-            "debug"
-        } else {
-            "release"
-        },
-        option_env!("RUSTC_VERSION").unwrap_or("see `rustc -V`")
-    );
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    println!("profile: {profile}, rows {rows}, ops {n}");
     let base = large_workbook(rows);
     println!("base: {} KiB", base.len() / 1024);
     // 1. open
