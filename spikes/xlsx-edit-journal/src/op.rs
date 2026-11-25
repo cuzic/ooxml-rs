@@ -71,13 +71,109 @@ pub enum Op {
     NumberWithFormat(CellKey, f64, Format),
     /// P1 (ExcelJS `cell.value = null`): part B, refused with `Unsupported`.
     Clear(CellKey),
+    /// `write_cells`: one sequential call over several cells of one sheet
+    /// (ADR-0024 §4.1: one op per cell in the key index, one call on the
+    /// shadow; R1 skips it only as a whole). Shadow mode only.
+    WriteCells(Vec<(CellKey, Content)>),
+    /// A structural op (ADR-0018 rows/columns). Shadow mode only.
+    Structural(Structural),
+}
+
+/// A structural op, in the positions current when it is appended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Structural {
+    InsertRows { sheet: usize, at: u32, count: u32 },
+    DeleteRows { sheet: usize, at: u32, count: u32 },
+    InsertCols { sheet: usize, at: u32, count: u32 },
+    DeleteCols { sheet: usize, at: u32, count: u32 },
+}
+
+impl Structural {
+    pub fn sheet(self) -> usize {
+        match self {
+            Structural::InsertRows { sheet, .. } | Structural::DeleteRows { sheet, .. } | Structural::InsertCols { sheet, .. } | Structural::DeleteCols { sheet, .. } => sheet,
+        }
+    }
+
+    /// Where a cell at `k` (before the op) is after it; `None` if deleted.
+    pub fn map(self, k: CellKey) -> Option<CellKey> {
+        if k.sheet != self.sheet() {
+            return Some(k);
+        }
+        let shift = |p: u32, at: u32, count: u32, insert: bool| -> Option<u32> {
+            if p < at {
+                Some(p)
+            } else if insert {
+                Some(p + count)
+            } else if p < at + count {
+                None
+            } else {
+                Some(p - count)
+            }
+        };
+        match self {
+            Structural::InsertRows { at, count, .. } => shift(k.row, at, count, true).map(|row| CellKey { row, ..k }),
+            Structural::DeleteRows { at, count, .. } => shift(k.row, at, count, false).map(|row| CellKey { row, ..k }),
+            Structural::InsertCols { at, count, .. } => shift(k.col, at, count, true).map(|col| CellKey { col, ..k }),
+            Structural::DeleteCols { at, count, .. } => shift(k.col, at, count, false).map(|col| CellKey { col, ..k }),
+        }
+    }
+
+    /// The inverse: where a cell at `k` (after the op) was before it;
+    /// `None` for a cell of an inserted band.
+    pub fn unmap(self, k: CellKey) -> Option<CellKey> {
+        if k.sheet != self.sheet() {
+            return Some(k);
+        }
+        let back = |p: u32, at: u32, count: u32, insert: bool| -> Option<u32> {
+            if p < at {
+                Some(p)
+            } else if insert {
+                if p < at + count { None } else { Some(p - count) }
+            } else {
+                Some(p + count)
+            }
+        };
+        match self {
+            Structural::InsertRows { at, count, .. } => back(k.row, at, count, true).map(|row| CellKey { row, ..k }),
+            Structural::DeleteRows { at, count, .. } => back(k.row, at, count, false).map(|row| CellKey { row, ..k }),
+            Structural::InsertCols { at, count, .. } => back(k.col, at, count, true).map(|col| CellKey { col, ..k }),
+            Structural::DeleteCols { at, count, .. } => back(k.col, at, count, false).map(|col| CellKey { col, ..k }),
+        }
+    }
+
+    pub fn apply(self, wb: &mut Workbook) -> ooxml_xlsx::Result<()> {
+        let mut ws = wb.worksheet_by_index(self.sheet())?;
+        match self {
+            Structural::InsertRows { at, count, .. } => ws.insert_rows(at, count),
+            Structural::DeleteRows { at, count, .. } => ws.delete_rows(at, count),
+            Structural::InsertCols { at, count, .. } => ws.insert_cols(at, count),
+            Structural::DeleteCols { at, count, .. } => ws.delete_cols(at, count),
+        }
+        .map(drop)
+    }
 }
 
 impl Op {
+    /// The op's one cell. A `write_cells` call answers its first cell, a
+    /// structural op a dummy key: callers that index by key use `keys()`.
     pub fn key(&self) -> CellKey {
         match self {
             Op::Content(k, _) | Op::Style(k, _) | Op::DateTime(k, _) | Op::NumberWithFormat(k, ..) | Op::Clear(k) => *k,
+            Op::WriteCells(w) => w[0].0,
+            Op::Structural(s) => CellKey::new(s.sheet(), u32::MAX, u32::MAX),
         }
+    }
+    /// The cells the op names (not a hand-off's new master: see `targets`).
+    pub fn keys(&self) -> Vec<CellKey> {
+        match self {
+            Op::WriteCells(w) => w.iter().map(|(k, _)| *k).collect(),
+            Op::Structural(_) => Vec::new(),
+            _ => vec![self.key()],
+        }
+    }
+    pub fn is_structural(&self) -> bool {
+        matches!(self, Op::Structural(_))
     }
     pub fn is_two_half(&self) -> bool {
         matches!(self, Op::DateTime(..) | Op::NumberWithFormat(..))
@@ -95,6 +191,8 @@ impl Op {
             // `EnsureDate` may change the number format
             Op::DateTime(..) => &[Value, NumFmt],
             Op::NumberWithFormat(..) => &[Value, Font, Fill, NumFmt, Border],
+            Op::WriteCells(_) => &[Value],
+            Op::Structural(_) => &[],
         }
     }
 }
@@ -164,6 +262,28 @@ pub fn start_of(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Start> {
 /// sequential reference of oracle 1, and Commit's path for every entry that
 /// `write_cells` cannot carry.
 pub fn apply_seq(wb: &mut Workbook, op: &Op) -> ooxml_xlsx::Result<()> {
+    match op {
+        Op::WriteCells(w) => {
+            let writes: Vec<(ooxml_xlsx::CellIndex, ooxml_xlsx::CellWrite<'_>)> = w
+                .iter()
+                .map(|(k, c)| {
+                    let at = ooxml_xlsx::CellIndex { row: k.row, col: k.col };
+                    let cw = match c {
+                        Content::Number(v) => ooxml_xlsx::CellWrite::Number(*v),
+                        Content::String(s) => ooxml_xlsx::CellWrite::String(s),
+                        Content::Formula(t) => ooxml_xlsx::CellWrite::Formula(t),
+                        Content::RemoveFormula => ooxml_xlsx::CellWrite::RemoveFormula,
+                        Content::Bool(_) | Content::Error(_) => unreachable!("write_cells carries numbers, strings and formulas"),
+                    };
+                    (at, cw)
+                })
+                .collect();
+            let mut ws = wb.worksheet_by_index(w[0].0.sheet)?;
+            return ws.write_cells(&writes);
+        }
+        Op::Structural(s) => return s.apply(wb),
+        _ => {}
+    }
     let k = op.key();
     let mut ws = wb.worksheet_by_index(k.sheet)?;
     let c = ws.cell_mut(k.row, k.col)?;
@@ -180,6 +300,7 @@ pub fn apply_seq(wb: &mut Workbook, op: &Op) -> ooxml_xlsx::Result<()> {
         Op::DateTime(_, d) => c.set_datetime(*d),
         Op::NumberWithFormat(_, v, f) => c.set_number_with_format(*v, f),
         Op::Clear(_) => unreachable!("P1 is refused before it reaches a workbook"),
+        Op::WriteCells(_) | Op::Structural(_) => unreachable!("handled above"),
     }
 }
 

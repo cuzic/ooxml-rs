@@ -220,3 +220,41 @@ fn a_full_patch_in_the_middle_of_a_chain() {
     let at = k("A3");
     oracle1(&base(), &[patch(at, Patch::Fill(red())), patch(at, Patch::Format(Box::new(bold()))), patch(at, Patch::Font(italic())), Op::DateTime(at, date()), patch(at, Patch::NumFmt("0.00".into()))]);
 }
+
+// ------------------------------------------- revision 8 verification (a)
+
+/// Review round 7, B1: `C1 = A1*2` (cache 2), `set_number(A1, 5)`, then
+/// `set_font(C1, italic)`. Both sides strip `C1`'s cache. Fails with
+/// `mutant_r3_subtract_changed` (the spike's R3 before revision 8), and with
+/// that mutant passes only under `mutant_half_cache_predicate`.
+#[test]
+fn b1_number_then_font_on_the_dependent() {
+    let (s, j) = oracle1(&base(), &[content(k("A1"), Content::Number(5.0)), patch(k("C1"), Patch::Font(italic()))]);
+    for out in [&s.bytes, &j.bytes] {
+        let c1 = raw_cell(out, S1, "C1").unwrap();
+        assert!(!c1.contains("<v>"), "C1 keeps a stale cache: {c1}");
+    }
+}
+
+/// The same with the font first, and with a revert of the input in between.
+#[test]
+fn b1_variants() {
+    oracle1(&base(), &[patch(k("C1"), Patch::Font(italic())), content(k("A1"), Content::Number(5.0))]);
+    oracle1(&base(), &[content(k("A1"), Content::Number(5.0)), patch(k("C1"), Patch::Fill(red())), patch(k("C1"), Patch::Index(0))]);
+    // a restored formula (written away and back) under a changed input
+    oracle1(&base(), &[content(k("C1"), Content::Number(1.0)), content(k("C1"), Content::Formula("A1*2".into())), content(k("A1"), Content::Number(5.0))]);
+    // a transitive dependent: Sheet2!A1 = Sheet1!A1+1, restyled
+    oracle1(&base(), &[content(k("A1"), Content::Number(5.0)), patch(k2("A1"), Patch::Font(italic()))]);
+}
+
+/// The cache predicate's "differs in P" read literally (style included)
+/// fails on the sequential side: a style-only change of an input strips
+/// nothing on `main` (no style-sensitive function in the fixture), so `C1`
+/// keeps its cache while `A1` differs in P. The predicate compares content.
+#[test]
+fn a_style_only_input_change_keeps_the_cache_on_both_sides() {
+    let (s, j) = oracle1(&base(), &[patch(k("A1"), Patch::Font(italic()))]);
+    for out in [&s.bytes, &j.bytes] {
+        assert!(raw_cell(out, S1, "C1").unwrap().contains("<v>2</v>"));
+    }
+}

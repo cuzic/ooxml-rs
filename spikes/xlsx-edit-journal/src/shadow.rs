@@ -43,6 +43,8 @@ pub struct Sem {
     pub t: Option<String>,
     pub rich: bool,
     pub s: u32,
+    /// A shared member's own text (expanded from its master), else `None`.
+    pub expanded: Option<String>,
 }
 
 impl Sem {
@@ -56,6 +58,16 @@ impl Sem {
     pub fn same_state(&self, o: &Sem) -> bool {
         self.same_content(o) && self.s == o.s
     }
+    /// Same content as P sees it (a shared member's text expanded; group
+    /// attributes ignored): what R3's strip set is seeded from in the fixed
+    /// rule (README "Revision 8 verification", b).
+    pub fn same_meaning(&self, o: &Sem) -> bool {
+        let text = |s: &Sem| s.expanded.clone().or_else(|| s.formula.clone());
+        if self.formula.is_some() || o.formula.is_some() {
+            return text(self) == text(o);
+        }
+        self.value == o.value && self.t == o.t && self.rich == o.rich
+    }
 }
 
 fn local<'a>(n: &'a RawNode, name: &str) -> Option<&'a RawNode> {
@@ -66,16 +78,20 @@ pub fn read_sem(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Option<Sem>
     let ws = wb.worksheet_by_index(k.sheet)?;
     let Some(c) = ws.cell(k.row, k.col)? else { return Ok(None) };
     let raw = c.raw();
-    let f_attrs = local(raw, "f").map(|f| f.attrs().iter().map(|a| (a.name().local().to_owned(), a.value().to_owned())).collect()).unwrap_or_default();
+    let f_attrs: Vec<(String, String)> = local(raw, "f").map(|f| f.attrs().iter().map(|a| (a.name().local().to_owned(), a.value().to_owned())).collect()).unwrap_or_default();
     let rich = raw.elements().any(|e| e.name().local() == "is" && e.elements().any(|r| r.name().local() == "r"));
-    Ok(Some(Sem {
+    let member = f_attrs.iter().any(|(a, v)| a == "t" && v == "shared") && c.formula().is_some_and(|f| f.is_empty());
+    let sem = Sem {
         value: c.value()?,
         formula: c.formula(),
         f_attrs,
         t: raw.attr(QName::new("", "t")).map(str::to_owned),
         rich,
         s: c.style_index()?,
-    }))
+        expanded: None,
+    };
+    let expanded = if member { expanded_formula(wb, k)? } else { None };
+    Ok(Some(Sem { expanded, ..sem }))
 }
 
 /// The registry numbering of a shadow: counts at its origin, and the Base
@@ -130,10 +146,11 @@ impl RegState {
 /// The deferred calculation decision (remedy 3).
 #[derive(Clone, Debug, Default)]
 pub struct Calc {
-    /// Formula cells whose cache is stripped: dependents of the changed cells
-    /// that are not themselves changed.
+    /// Cells whose cache is stripped (R3).
     pub strips: BTreeSet<CellKey>,
     pub formula_set_changes: bool,
+    /// calcChain is removed.
+    pub chain: bool,
 }
 
 impl Calc {
@@ -163,11 +180,84 @@ pub struct ShadowState {
     pub date1904: bool,
     /// Counters for the measurements.
     pub noops: usize,
+    // ---- epochs (revision 8 §4.4; item c of README "Revision 8 verification")
+    /// Carried marks: set when a structural op closes a snapshot of a cell
+    /// that is not back in its snapshot state. Sticky until the save.
+    pub marks: HashMap<CellKey, Mark>,
+    /// Structural strip records (§4.2 `calc.strips`), at current positions.
+    pub records: BTreeSet<CellKey>,
+    /// A structural op of this session met its calcChain condition.
+    pub chain_removed: bool,
+    /// R4's running `t="s"` delta of closed epochs, minus the `t="s"` cells
+    /// structural ops deleted.
+    pub closed_sst_delta: i64,
+    /// This session's structural ops (positions → Base ids).
+    pub structural: Vec<crate::op::Structural>,
+    /// Per sheet: the worksheet's text right after the last structural op
+    /// that closed its snapshots (`None`: the Base's). Snapshots of the
+    /// current epoch are cells of this text.
+    pub epoch_src: Vec<Option<std::sync::Arc<String>>>,
+    /// The Base this state's shadow was opened from, and its sheet texts.
+    pub base: Option<std::sync::Arc<[u8]>>,
+    pub base_texts: Option<std::sync::Arc<Vec<String>>>,
+    /// Wall time spent in structural ops' materialization and record (the
+    /// substitutes for C2 and C3's structural part), for the measurements.
+    pub t_structural: std::time::Duration,
+}
+
+/// A carried mark (§4.4): `content` if the content differed when the
+/// snapshot was closed; `fx` if the formula-ness did.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Mark {
+    pub content: bool,
+    pub fx: bool,
 }
 
 impl ShadowState {
     pub fn new(wb: &mut Workbook) -> ooxml_xlsx::Result<ShadowState> {
         Ok(ShadowState { reg: RegState::at_origin(wb)?, date1904: wb.date1904()?, ..Default::default() })
+    }
+
+    pub fn with_base(wb: &mut Workbook, base: std::sync::Arc<[u8]>) -> ooxml_xlsx::Result<ShadowState> {
+        let n = wb.sheet_names().count();
+        Ok(ShadowState { base: Some(base), epoch_src: vec![None; n], ..Self::new(wb)? })
+    }
+
+    /// Whether the state carries text-layer state from an earlier save.
+    pub fn has_carried(&self) -> bool {
+        !self.carried_pins.is_empty() || !self.carried_strips.is_empty() || self.reg.maps.iter().any(|m| !m.is_empty()) || !self.reg.sst_map.is_empty()
+    }
+
+    fn base_texts(&mut self, wb: &Workbook) -> ooxml_xlsx::Result<std::sync::Arc<Vec<String>>> {
+        if self.base_texts.is_none() {
+            let base = self.base.clone().ok_or_else(|| malformed("no Base"))?;
+            let pkg = Package::from_bytes(base.to_vec())?;
+            let parts = sheet_parts(wb)?;
+            let texts = parts.iter().map(|p| part_text(&pkg, p).map(|t| t.unwrap_or_default())).collect::<Result<Vec<_>, _>>()?;
+            self.base_texts = Some(std::sync::Arc::new(texts));
+        }
+        Ok(self.base_texts.clone().expect("set"))
+    }
+
+    /// The text a snapshot of the current epoch on sheet `i` is a cell of.
+    fn epoch_text(&mut self, wb: &Workbook, i: usize) -> ooxml_xlsx::Result<std::sync::Arc<String>> {
+        if let Some(Some(t)) = self.epoch_src.get(i) {
+            return Ok(t.clone());
+        }
+        Ok(std::sync::Arc::new(self.base_texts(wb)?[i].clone()))
+    }
+
+    /// Where the cell at current position `k` was in the Base (`None`: a
+    /// cell of an inserted band).
+    pub fn base_pos(&self, k: CellKey) -> Option<CellKey> {
+        self.structural.iter().rev().try_fold(k, |k, s| s.unmap(k))
+    }
+
+    /// The changed set (§4.4): carried marks and current differences.
+    pub fn changed(&self) -> BTreeSet<CellKey> {
+        let mut c = self.effective();
+        c.extend(self.marks.keys().copied());
+        c
     }
 
     /// The Base `xf` index of a shadow index (a session item not yet saved
@@ -194,34 +284,106 @@ impl ShadowState {
     }
 
     /// The deferred calculation decision, computed once per session state.
+    ///
+    /// R3 of ADR-0024 revision 8: the strip set is the dependents
+    /// (transitively) of the content-changed cells, and **nothing is
+    /// subtracted**: every cell of it that holds `f` and a `<v>` in the output
+    /// is stripped. The two mutants put back the earlier wordings.
     pub fn calc(&mut self, wb: &mut Workbook) -> ooxml_xlsx::Result<&Calc> {
         if self.calc.is_none() {
             let eff = self.effective();
             let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
             let mut c = Calc::default();
+            let mut content_changed_set = BTreeSet::new();
+            let mut candidates = BTreeSet::new();
             for &k in &eff {
                 let snap = self.touched[&k].clone();
                 let now = read_sem(wb, k)?;
                 let (had_f, has_f) = (snap.as_ref().is_some_and(|s| s.formula.is_some()), now.as_ref().is_some_and(|s| s.formula.is_some()));
                 c.formula_set_changes |= had_f != has_f;
                 let content_changed = match (&snap, &now) {
-                    (Some(a), Some(b)) => !a.same_content(b),
+                    // revision 8 seeds R3 from §4.4's state equality (raw `f`
+                    // attributes): a hand-off's new master then seeds its
+                    // dependents, which the sequential side does not strip
+                    (Some(a), Some(b)) if cfg!(feature = "adr_r3_seed_raw") => !a.same_content(b),
+                    (Some(a), Some(b)) => !a.same_meaning(b),
+                    (None, None) => false,
                     _ => true,
                 };
                 // a style-only change strips nothing here: the public API
                 // does not say whether the workbook is style-sensitive
                 if content_changed {
+                    content_changed_set.insert(k);
                     for (sh, at) in wb.dependents(&names[k.sheet], CellIndex { row: k.row, col: k.col })? {
-                        let d = CellKey::new(names.iter().position(|n| *n == sh).expect("sheet"), at.row, at.col);
-                        if !eff.contains(&d) {
-                            c.strips.insert(d);
-                        }
+                        candidates.insert(CellKey::new(names.iter().position(|n| *n == sh).expect("sheet"), at.row, at.col));
                     }
+                }
+            }
+            // carried content marks seed like current content changes
+            for (&k, m) in &self.marks {
+                c.formula_set_changes |= m.fx;
+                if m.content && !cfg!(feature = "mutant_drop_marks") {
+                    content_changed_set.insert(k);
+                    for (sh, at) in wb.dependents(&names[k.sheet], CellIndex { row: k.row, col: k.col })? {
+                        candidates.insert(CellKey::new(names.iter().position(|n| *n == sh).expect("sheet"), at.row, at.col));
+                    }
+                }
+            }
+            c.formula_set_changes |= self.chain_removed;
+            c.chain = c.formula_set_changes;
+            // structural strip records (§4.2 `calc.strips`)
+            if !cfg!(feature = "mutant_drop_records") {
+                candidates.extend(self.records.iter().copied());
+            }
+            for d in candidates {
+                if cfg!(feature = "mutant_r3_subtract_changed") && eff.contains(&d) {
+                    continue;
+                }
+                if cfg!(feature = "mutant_r3_subtract_content") && content_changed_set.contains(&d) {
+                    continue;
+                }
+                if self.holds_cache_at_save(wb, d)? {
+                    c.strips.insert(d);
                 }
             }
             self.calc = Some(c);
         }
         Ok(self.calc.as_ref().expect("computed"))
+    }
+
+    /// Whether the output (before R3) holds `f` and a cached value at `k`:
+    /// a restored or pinned cell holds the Base's node, a content-restored
+    /// cell (`Act::BaseStyle`) the Base's content, any other the shadow's.
+    pub fn holds_cache_at_save(&self, wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<bool> {
+        if self.carried_strips.contains(&k) {
+            return Ok(false);
+        }
+        let now = read_sem(wb, k)?;
+        let Some(now) = now else { return Ok(false) };
+        if now.formula.is_none() {
+            // R3 as written in revision 8 strips only cells holding `f`; an
+            // array anchor's result cells hold none, so their caches stay
+            // stale (README "Revision 8 verification", b). The fix: a result
+            // cell of an anchor in the strip set is stripped if it holds `v`.
+            return Ok(!cfg!(feature = "adr_r3_formula_only") && now.value != CellValue::Empty && in_array_result(wb, k)?);
+        }
+        if cfg!(feature = "mutant_r2_no_derived") {
+            // round 8 M2's analogue: R3 reads the shadow's own node (its
+            // `has_cache`), not the state the restore put back
+            return Ok(now.value != CellValue::Empty);
+        }
+        if let Some(snap) = self.touched.get(&k) {
+            if let Some(snap) = snap
+                && snap.same_content(&now)
+            {
+                return Ok(snap.value != CellValue::Empty);
+            }
+            return Ok(now.value != CellValue::Empty);
+        }
+        if let Some(v) = self.carried_pins.get(&k) {
+            return Ok(*v != CellValue::Empty);
+        }
+        Ok(now.value != CellValue::Empty)
     }
 
     /// Strips that apply to the output: this session's and carried ones.
@@ -268,10 +430,139 @@ impl ShadowState {
     }
 }
 
-/// Applies one op on the shadow with remedies 1 and 2. Returns whether it
-/// was applied (`false` = a no-op that only the log records).
+/// Whether a cell holds a shared or array formula, or lies in an array's
+/// result range (R1 (b) of revision 8).
+fn group_cell(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<bool> {
+    let ws = wb.worksheet_by_index(k.sheet)?;
+    for c in ws.cells() {
+        let c = c?;
+        let Some(f) = local(c.raw(), "f") else { continue };
+        let t = f.attr(QName::new("", "t"));
+        let at = CellIndex::parse(c.reference())?;
+        if (at.row, at.col) == (k.row, k.col) && matches!(t, Some("shared" | "array")) {
+            return Ok(true);
+        }
+        if t == Some("array")
+            && let Some((a, b)) = f.attr(QName::new("", "ref")).and_then(range_of)
+            && (a.row..=b.row).contains(&k.row)
+            && (a.col..=b.col).contains(&k.col)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Whether `k` is a result cell (not the anchor) of an array formula.
+fn in_array_result(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<bool> {
+    let ws = wb.worksheet_by_index(k.sheet)?;
+    for c in ws.cells() {
+        let c = c?;
+        let Some(f) = local(c.raw(), "f") else { continue };
+        if f.attr(QName::new("", "t")) == Some("array")
+            && let Some((a, b)) = f.attr(QName::new("", "ref")).and_then(range_of)
+            && (a.row..=b.row).contains(&k.row)
+            && (a.col..=b.col).contains(&k.col)
+            && (a.row, a.col) != (k.row, k.col)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// The cell a write to `k` hands its shared group off to (ADR-0003 §4.2,
+/// `plan_handoff`: the first member in (row, column) order), if `k` is a
+/// master with members. A stand-in for C1's target report (§4.4).
+pub fn handoff_target(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Option<CellKey>> {
+    let Some(sem) = read_sem(wb, k)? else { return Ok(None) };
+    let get = |n: &str| sem.f_attrs.iter().find(|(a, _)| a == n).map(|(_, v)| v.clone());
+    if get("t").as_deref() != Some("shared") || get("ref").is_none() {
+        return Ok(None);
+    }
+    let si = get("si");
+    let ws = wb.worksheet_by_index(k.sheet)?;
+    let mut members = Vec::new();
+    for c in ws.cells() {
+        let c = c?;
+        let Some(f) = local(c.raw(), "f") else { continue };
+        if f.attr(QName::new("", "t")) == Some("shared") && f.attr(QName::new("", "si")).map(str::to_owned) == si && f.attr(QName::new("", "ref")).is_none() {
+            let at = CellIndex::parse(c.reference())?;
+            members.push((at.row, at.col));
+        }
+    }
+    Ok(members.into_iter().min().map(|(row, col)| CellKey::new(k.sheet, row, col)))
+}
+
+/// The expanded text of a shared member (for the round 8 M1 mutant, which
+/// judges R1 by P).
+fn expanded_formula(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Option<String>> {
+    let ws = wb.worksheet_by_index(k.sheet)?;
+    let Some(c) = ws.cell(k.row, k.col)? else { return Ok(None) };
+    let Some(f) = c.formula() else { return Ok(None) };
+    if !f.is_empty() {
+        return Ok(Some(f));
+    }
+    let si = local(c.raw(), "f").and_then(|f| f.attr(QName::new("", "si"))).map(str::to_owned);
+    for c in ws.cells() {
+        let c = c?;
+        let Some(fe) = local(c.raw(), "f") else { continue };
+        if fe.attr(QName::new("", "ref")).is_some() && fe.attr(QName::new("", "si")).map(str::to_owned) == si {
+            let at = CellIndex::parse(c.reference())?;
+            return Ok(Some(crate::project::translate(&fe.text(), i64::from(k.row) - i64::from(at.row), i64::from(k.col) - i64::from(at.col))));
+        }
+    }
+    Ok(None)
+}
+
+fn writes_content(op: &Op) -> bool {
+    matches!(op, Op::Content(..) | Op::DateTime(..) | Op::NumberWithFormat(..) | Op::WriteCells(_))
+}
+
+/// R1 (revision 8, judged on the shadow before the call). In the spike R1
+/// runs **before** validation (C1 does not exist), so it is off by default,
+/// as ADR-0024 §4.5 says until C1 lands; `r1_unvalidated` turns the old
+/// spike's R1 on (F13: it hides refusals). A call is skipped only as a
+/// whole, never on a group cell, never on a missing cell.
+fn r1_skips(wb: &mut Workbook, st: &ShadowState, op: &Op) -> ooxml_xlsx::Result<bool> {
+    if cfg!(feature = "mutant_r1_skip_group")
+        && let Op::Content(k, crate::op::Content::Formula(t)) = op
+        && read_sem(wb, *k)?.is_some_and(|s| !s.f_attrs.is_empty())
+        && expanded_formula(wb, *k)?.as_deref() == Some(t.strip_prefix('=').unwrap_or(t))
+    {
+        // round 8 M1: judged by P, a group cell's own text written back reads equal
+        return Ok(true);
+    }
+    if !cfg!(feature = "r1_unvalidated") || cfg!(feature = "mutant_no_noop") {
+        return Ok(false);
+    }
+    let parts: Vec<Op> = match op {
+        Op::WriteCells(w) => w.iter().map(|(k, c)| Op::Content(*k, c.clone())).collect(),
+        _ => vec![op.clone()],
+    };
+    for p in &parts {
+        let k = p.key();
+        let cell = read_cell(wb, k)?;
+        if cell.is_none() || (!cfg!(feature = "mutant_r1_whole_call_off") && group_cell(wb, k)?) {
+            return Ok(false);
+        }
+        let style_noop = matches!(p, Op::Style(_, Patch::Index(i)) if cell.as_ref().is_some_and(|c| c.s == *i));
+        if !(style_noop || noop_op(&cell, p, st.date1904)) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Applies one op on the shadow with R1 and R2. Returns whether it was
+/// applied (`false` = a no-op that only the log records).
 pub fn apply_tracked(wb: &mut Workbook, st: &mut ShadowState, op: &Op) -> ooxml_xlsx::Result<bool> {
-    let k = op.key();
+    if let Op::Structural(s) = op {
+        let t = std::time::Instant::now();
+        let r = apply_structural(wb, st, *s);
+        st.t_structural += t.elapsed();
+        return r.map(|()| true);
+    }
     // an op names a Base `xf`; after a save the shadow numbers it otherwise
     let translated;
     let op = match op {
@@ -284,16 +575,26 @@ pub fn apply_tracked(wb: &mut Workbook, st: &mut ShadowState, op: &Op) -> ooxml_
         },
         _ => op,
     };
-    if !cfg!(feature = "mutant_no_noop") {
-        let cell = read_cell(wb, k)?;
-        let style_noop = matches!(op, Op::Style(_, Patch::Index(i)) if cell.as_ref().is_some_and(|c| c.s == *i));
-        if style_noop || noop_op(&cell, op, st.date1904) {
-            st.noops += 1;
-            return Ok(false);
+    if r1_skips(wb, st, op)? {
+        st.noops += 1;
+        return Ok(false);
+    }
+    // targets (§4.4): the cells the op names, plus a hand-off's new master
+    let mut targets = op.keys();
+    if writes_content(op) && !cfg!(feature = "mutant_no_handoff_target") {
+        for k in op.keys() {
+            if let Some(h) = handoff_target(wb, k)?
+                && !targets.contains(&h)
+            {
+                targets.push(h);
+            }
         }
     }
-    let first = !st.touched.contains_key(&k);
-    let snap = if first {
+    let mut snaps = Vec::new();
+    for &k in &targets {
+        if st.touched.contains_key(&k) {
+            continue;
+        }
         let mut s = read_sem(wb, k)?;
         // the snapshot is the Base's state: a carried pin's cache, or none
         // where a save stripped it
@@ -304,30 +605,199 @@ pub fn apply_tracked(wb: &mut Workbook, st: &mut ShadowState, op: &Op) -> ooxml_
                 s.value = v.clone();
             }
         }
-        Some(s)
-    } else {
-        None
-    };
+        snaps.push((k, s));
+    }
     apply_seq(wb, op)?;
-    if let Some(s) = snap {
+    for (k, s) in snaps {
         st.touched.insert(k, s);
     }
-    st.carried_pins.remove(&k);
-    st.carried_strips.remove(&k);
-    st.ever.insert(k);
     st.calc = None;
-    let now = read_sem(wb, k)?;
-    let back = match (&st.touched[&k], &now) {
-        (Some(a), Some(b)) => a.same_state(b),
-        (None, None) => true,
-        _ => false,
-    };
-    if back && !cfg!(feature = "mutant_no_revert") {
-        st.reverted.insert(k);
-    } else {
-        st.reverted.remove(&k);
+    for k in targets {
+        st.carried_pins.remove(&k);
+        st.carried_strips.remove(&k);
+        st.ever.insert(k);
+        let now = read_sem(wb, k)?;
+        let back = match (&st.touched[&k], &now) {
+            (Some(a), Some(b)) => a.same_state(b),
+            (None, None) => true,
+            _ => false,
+        };
+        if back && !cfg!(feature = "mutant_no_revert") {
+            st.reverted.insert(k);
+        } else {
+            st.reverted.remove(&k);
+        }
     }
     Ok(true)
+}
+
+// ------------------------------------------------------ structural ops
+
+fn sheet_parts(wb: &Workbook) -> ooxml_xlsx::Result<Vec<String>> {
+    // `worksheet_by_index` needs `&mut`; the part names are in the package's
+    // workbook relationships, read through a clone-free path
+    let pkg = wb.package();
+    let wbx = part_text(pkg, WORKBOOK)?.ok_or_else(|| malformed("workbook"))?;
+    let rels = part_text(pkg, "xl/_rels/workbook.xml.rels")?.ok_or_else(|| malformed("rels"))?;
+    let mut out = Vec::new();
+    let mut pos = 0;
+    while let Some(i) = wbx[pos..].find("<sheet ") {
+        let a = pos + i;
+        let e = a + wbx[a..].find('>').expect("tag");
+        let tag = &wbx[a..e];
+        let rid = attr(tag, "r:id").ok_or_else(|| malformed("r:id"))?;
+        let r = rels.find(&format!("Id=\"{rid}\"")).ok_or_else(|| malformed("rel"))?;
+        let rs = rels[..r].rfind('<').expect("tag");
+        let re = r + rels[r..].find('>').expect("tag");
+        let target = attr(&rels[rs..re], "Target").ok_or_else(|| malformed("Target"))?;
+        out.push(format!("xl/{}", target.trim_start_matches("/xl/")));
+        pos = e;
+    }
+    Ok(out)
+}
+
+/// Cells holding a cached value: formula cells with `v`, and array result
+/// cells with `v`.
+pub fn cached_cells(wb: &mut Workbook) -> ooxml_xlsx::Result<BTreeSet<CellKey>> {
+    let n = wb.sheet_names().count();
+    let mut out = BTreeSet::new();
+    for i in 0..n {
+        let ws = wb.worksheet_by_index(i)?;
+        let mut arrays = Vec::new();
+        let mut cells = Vec::new();
+        for c in ws.cells() {
+            let c = c?;
+            let at = CellIndex::parse(c.reference())?;
+            let f = local(c.raw(), "f");
+            if let Some(f) = f
+                && f.attr(QName::new("", "t")) == Some("array")
+                && let Some(r) = f.attr(QName::new("", "ref")).and_then(range_of)
+            {
+                arrays.push(r);
+            }
+            cells.push((at, f.is_some(), local(c.raw(), "v").is_some()));
+        }
+        for (at, has_f, has_v) in cells {
+            let in_array = arrays.iter().any(|(a, b)| (a.row..=b.row).contains(&at.row) && (a.col..=b.col).contains(&at.col));
+            if has_v && (has_f || in_array) {
+                out.insert(CellKey::new(i, at.row, at.col));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The R2 restores made physical (the substitute for C2 at an epoch
+/// boundary): the shadow's bytes with every restored cell put back as its
+/// snapshot's bytes, and `dimension` put back to the epoch's (C5: writes do
+/// not grow it). The caller reopens the shadow from them (C6's reparse
+/// fallback).
+fn materialize(wb: &mut Workbook, st: &mut ShadowState) -> ooxml_xlsx::Result<Vec<u8>> {
+    let parts = sheet_parts(wb)?;
+    let mut pkg = Package::from_bytes(wb.to_bytes()?)?;
+    for (i, p) in parts.iter().enumerate() {
+        let src = part_text(&pkg, p)?.ok_or_else(|| malformed(p))?;
+        let esrc = st.epoch_text(wb, i)?;
+        let acts: HashMap<String, Act> = st.reverted.iter().filter(|k| k.sheet == i).map(|k| (a1(*k), Act::Base)).collect();
+        let text = sheet_text(&src, &esrc, i, &acts, &HashSet::new(), &[]);
+        if text != src {
+            pkg.set_part(p, text)?;
+        }
+    }
+    Ok(pkg.to_bytes()?)
+}
+
+/// A structural op on the shadow (revision 8 §4.4, §4.2 `calc`, R3, R4):
+///
+/// 1. close every open snapshot in the workbook: a cell not back in its
+///    snapshot state gets a carried mark (content, formula-ness);
+/// 2. make the epoch's restores physical and reopen (C2/C6 substitute);
+/// 3. record the op's own strips on a copy run under
+///    `StripDependentCaches` (the C3 substitute: the cells whose cache the
+///    sequential op strips, by position after the op), whether it moved or
+///    deleted a formula cell (calcChain), and the `t="s"` cells it deleted;
+/// 4. apply the op on the shadow (`KeepStaleCaches`).
+///
+/// `Err` (the op's refusal) leaves the shadow and the state unchanged.
+fn apply_structural(wb: &mut Workbook, st: &mut ShadowState, s: crate::op::Structural) -> ooxml_xlsx::Result<()> {
+    let n = wb.sheet_names().count();
+    let closes = |k: &CellKey| !cfg!(feature = "mutant_close_own_sheet") || k.sheet == s.sheet();
+    // 1. closing marks (read before anything changes)
+    let mut new_marks: Vec<(CellKey, Mark)> = Vec::new();
+    let mut sst_delta = 0i64;
+    for (k, snap) in st.touched.iter().filter(|(k, _)| closes(k)) {
+        if st.reverted.contains(k) {
+            continue;
+        }
+        let now = read_sem(wb, *k)?;
+        let content = match (snap, &now) {
+            (Some(a), Some(b)) if cfg!(feature = "adr_r3_seed_raw") => !a.same_content(b),
+            (Some(a), Some(b)) => !a.same_meaning(b),
+            (None, None) => false,
+            _ => true,
+        };
+        let f = |x: &Option<Sem>| x.as_ref().is_some_and(|x| x.formula.is_some());
+        let tss = |x: &Option<Sem>| x.as_ref().is_some_and(|x| x.t.as_deref() == Some("s"));
+        sst_delta += i64::from(tss(&now)) - i64::from(tss(snap));
+        new_marks.push((*k, Mark { content, fx: f(snap) != f(&now) }));
+    }
+    // 2. restores made physical
+    let mbytes = materialize(wb, st)?;
+    // 3. the op's own record, on a copy
+    let mut copy = Workbook::from_bytes(mbytes.clone())?;
+    copy.set_calc_policy(CalcPolicy::StripDependentCaches);
+    let before = cached_cells(&mut copy)?;
+    let mut moved_formula = false;
+    let mut tss_deleted = 0i64;
+    {
+        let ws = copy.worksheet_by_index(s.sheet())?;
+        for c in ws.cells() {
+            let c = c?;
+            let at = CellIndex::parse(c.reference())?;
+            let k = CellKey::new(s.sheet(), at.row, at.col);
+            if local(c.raw(), "f").is_some() && s.map(k) != Some(k) {
+                moved_formula = true;
+            }
+            if s.map(k).is_none() && c.raw().attr(QName::new("", "t")) == Some("s") {
+                tss_deleted += 1;
+            }
+        }
+    }
+    s.apply(&mut copy)?;
+    let after = cached_cells(&mut copy)?;
+    let record: Vec<CellKey> = before.iter().filter_map(|k| s.map(*k)).filter(|k| !after.contains(k)).collect();
+    // 4. the shadow
+    let mut next = Workbook::from_bytes(mbytes)?;
+    set_shadow_policy(&mut next);
+    s.apply(&mut next).map_err(|e| malformed(format!("the shadow refused a structural op its copy accepted: {e}")))?;
+    *wb = next;
+    let texts: Vec<String> = {
+        let parts = sheet_parts(wb)?;
+        parts.iter().map(|p| part_text(wb.package(), p).map(|t| t.unwrap_or_default())).collect::<Result<_, _>>()?
+    };
+    // the state follows the op
+    let remap_set = |set: &BTreeSet<CellKey>| -> BTreeSet<CellKey> { set.iter().filter_map(|k| s.map(*k)).collect() };
+    for (k, m) in new_marks {
+        let e = st.marks.entry(k).or_default();
+        e.content |= m.content;
+        e.fx |= m.fx;
+    }
+    st.marks = st.marks.drain().filter_map(|(k, m)| s.map(k).map(|n| (n, m))).collect();
+    st.records = remap_set(&st.records);
+    st.records.extend(record);
+    st.ever = remap_set(&st.ever);
+    st.touched = st.touched.drain().filter(|(k, _)| !closes(k)).filter_map(|(k, v)| s.map(k).map(|n| (n, v))).collect();
+    st.reverted = st.reverted.drain().filter(|k| !closes(k)).filter_map(|k| s.map(k)).collect();
+    st.chain_removed |= moved_formula;
+    st.closed_sst_delta += sst_delta - tss_deleted;
+    st.structural.push(s);
+    for i in 0..n {
+        if !cfg!(feature = "mutant_close_own_sheet") || i == s.sheet() {
+            st.epoch_src[i] = Some(std::sync::Arc::new(texts[i].clone()));
+        }
+    }
+    st.calc = None;
+    Ok(())
 }
 
 // ------------------------------------------------------------ text layer
@@ -412,11 +882,11 @@ enum Act {
     /// style changed (the shadow's node may have lost the cache or carry
     /// `s="0"`; the Base's node has neither problem).
     BaseStyle(u32),
-    /// The shadow's bytes in canonical form, registry indices renumbered.
-    /// `in_base`: `xf` 0 is written as the Base cell wrote it (with or
-    /// without `s`; a style reset on the shadow leaves `s="0"`); a created
-    /// cell keeps the shadow's form.
-    Shadow { xf: u32, sst: Option<u32>, in_base: bool },
+    /// The shadow's bytes in canonical form (C7), registry indices
+    /// renumbered. `zero`: the Base node (by id) has `s` (`Some(true)`), has
+    /// none (`Some(false)`), or there is none (`None`): `xf` 0 is written as
+    /// the Base cell wrote it; a created cell keeps the shadow's form.
+    Shadow { xf: u32, sst: Option<u32>, zero: Option<bool> },
 }
 
 fn set_s(tag: &str, x: u32, zero: Option<bool>) -> String {
@@ -441,7 +911,7 @@ fn set_s(tag: &str, x: u32, zero: Option<bool>) -> String {
 /// `Act` says, caches stripped, and `dimension` = the Base's grown by this
 /// session's changed cells only.
 fn sheet_text(src: &str, base: &str, sheet: usize, acts: &HashMap<String, Act>, strips: &HashSet<String>, eff: &[CellKey]) -> String {
-    let needs_base = acts.values().any(|a| !matches!(a, Act::Shadow { in_base: false, .. }));
+    let needs_base = acts.values().any(|a| !matches!(a, Act::Shadow { .. }));
     let base_cells: HashMap<&str, &str> = if needs_base { cells(base).into_iter().filter(|c| acts.contains_key(c.r)).map(|c| (c.r, &base[c.start..c.end])).collect() } else { HashMap::new() };
     let mut out = String::with_capacity(src.len());
     let mut last = 0;
@@ -485,10 +955,9 @@ fn sheet_text(src: &str, base: &str, sheet: usize, acts: &HashMap<String, Act>, 
                 let oe = b.find('>').expect("tag") + 1;
                 format!("{}{}", set_s(&b[..oe], *x, Some(true)), &b[oe..])
             }
-            Some(Act::Shadow { xf, sst, in_base }) => {
+            Some(Act::Shadow { xf, sst, zero }) => {
                 let oe = c.open_end - c.start;
-                let zero = in_base.then(|| { let b = base_of(); attr(&b[..b.find('>').expect("tag")], "s").is_some() });
-                let mut tag = set_s(&src[c.start..c.open_end], *xf, zero);
+                let mut tag = set_s(&src[c.start..c.open_end], *xf, *zero);
                 let mut body = src[c.start + oe..c.end].to_owned();
                 if body == "</c>" {
                     // a node that lost its children keeps the open/close form
@@ -598,7 +1067,10 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
     let t_calc = t0.elapsed();
     let t1 = std::time::Instant::now();
     let mut out = Package::from_bytes(base.to_vec())?;
-    let eff: Vec<CellKey> = st.effective().into_iter().collect();
+    // the changed set: carried marks and current differences (§4.4)
+    let eff: Vec<CellKey> = st.changed().into_iter().collect();
+    let cur: Vec<CellKey> = st.effective().into_iter().collect();
+    let structural = !st.structural.is_empty();
     let mut reg = st.reg.clone();
 
     // ---- registries (remedy 4): references of the cells this shadow wrote
@@ -698,14 +1170,15 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
     }
 
     // sst: new items, and `count` moved by the changed cells' `t="s"`
-    let delta: i64 = eff
+    let delta: i64 = st.closed_sst_delta
+        + cur
         .iter()
         .map(|k| {
             let was = st.touched[k].as_ref().is_some_and(|s| s.t.as_deref() == Some("s"));
             let is = cell_refs.iter().any(|(c, _, i)| c == k && i.is_some());
             i64::from(is) - i64::from(was)
         })
-        .sum();
+        .sum::<i64>();
     if !new_sst.is_empty() || delta != 0 {
         let shadow_t = part_text(wb.package(), SST)?.ok_or_else(|| malformed("no sst part"))?;
         let base_t = part_text(&out, SST)?.ok_or_else(|| malformed("no sst part (Base)"))?;
@@ -737,28 +1210,40 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
     let names: Vec<String> = (0..wb.sheet_names().count()).map(|i| wb.worksheet_by_index(i).map(|w| w.part_name().to_owned())).collect::<Result<_, _>>()?;
     let mut parts_rewritten = 0;
     for (i, p) in names.iter().enumerate() {
-        let dirty = matches!(wb.package().state(p), Some(PartStateKind::Parsed { dirty: true }));
+        // after a structural op the shadow was reopened: every sheet is a
+        // candidate, compared with the Base's text below
+        let dirty = structural || matches!(wb.package().state(p), Some(PartStateKind::Parsed { dirty: true }));
         let strips_here: HashSet<String> = strips.iter().filter(|k| k.sheet == i).map(|k| a1(*k)).collect();
         if !dirty && strips_here.is_empty() {
             continue;
         }
         let base_t = part_text(&out, p)?.ok_or_else(|| malformed(p))?;
         let src = if dirty { part_text(wb.package(), p)?.expect("part") } else { base_t.clone() };
+        // snapshots of the current epoch are cells of the epoch's text
+        let esrc = if structural { st.epoch_text(wb, i)?.as_ref().clone() } else { base_t.clone() };
+        let base_s: HashMap<String, bool> = cells(&base_t).into_iter().map(|c| (c.r.to_owned(), attr(&base_t[c.start..c.open_end], "s").is_some())).collect();
         let mut acts: HashMap<String, Act> = HashMap::new();
         for k in st.reverted.iter().chain(st.carried_pins.keys()).filter(|k| k.sheet == i) {
             acts.insert(a1(*k), Act::Base);
         }
         for (k, s, sst) in cell_refs.iter().filter(|c| c.0.sheet == i) {
             let xf = if *s >= reg.origin[0] { reg.maps[0][s] } else { *s };
+            let sst = sst.map(|v| if v >= reg.origin_sst { reg.sst_map[&v] } else { v });
+            let zero = st.base_pos(*k).and_then(|b| base_s.get(&a1(b)).copied());
             let act = match st.touched.get(k) {
+                // a carried mark: canonical form (C7), a later epoch's restore included
+                None if st.marks.contains_key(k) => Act::Shadow { xf, sst, zero },
+                // restored in an earlier epoch of this session: the node is
+                // the restored one, as the structural ops left it
+                None if structural => continue,
                 // written in an earlier session and not since
                 None => Act::Base,
                 Some(Some(snap)) if read_sem(wb, *k)?.is_some_and(|now| now.same_content(snap)) => Act::BaseStyle(xf),
-                Some(snap) => Act::Shadow { xf, sst: sst.map(|v| if v >= reg.origin_sst { reg.sst_map[&v] } else { v }), in_base: snap.is_some() },
+                Some(_) => Act::Shadow { xf, sst, zero },
             };
             acts.insert(a1(*k), act);
         }
-        let text = sheet_text(&src, &base_t, i, &acts, &strips_here, &eff);
+        let text = sheet_text(&src, &esrc, i, &acts, &strips_here, &eff);
         if text != base_t {
             parts_rewritten += 1;
             out.set_part(p, text)?;
@@ -767,6 +1252,18 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
     let t_sheets = t2.elapsed();
 
     // ---- calculation state (remedy 3)
+    if structural {
+        // structural ops may rewrite defined names: the shadow's
+        // `workbook.xml`, without the calc flag the shadow set on its own
+        let base_wb = part_text(&out, WORKBOOK)?.ok_or_else(|| malformed("workbook"))?;
+        let mut sw = part_text(wb.package(), WORKBOOK)?.ok_or_else(|| malformed("workbook"))?;
+        if !base_wb.contains(r#"fullCalcOnLoad="1""#) {
+            sw = sw.replace(r#" fullCalcOnLoad="1""#, "");
+        }
+        if sw != base_wb {
+            out.set_part(WORKBOOK, sw)?;
+        }
+    }
     let wb_base = part_text(&out, WORKBOOK)?.ok_or_else(|| malformed("workbook"))?;
     if calc.needs_full_calc() && !wb_base.contains(r#"fullCalcOnLoad="1""#) && !wb_base.contains(r#"calcMode="manual""#) {
         // set on the Base's text: the shadow's own flag is not a superset
@@ -789,7 +1286,7 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
         out.set_part(WORKBOOK, text)?;
     }
     let chain = out.part_names().find(|n| n.ends_with("calcChain.xml")).map(str::to_owned);
-    if calc.formula_set_changes
+    if calc.chain
         && let Some(cc) = chain
     {
         out.remove_part(&cc, &[ooxml_core::opc::REL_CALC_CHAIN])?;

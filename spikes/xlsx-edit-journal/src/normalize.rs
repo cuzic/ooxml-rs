@@ -80,6 +80,7 @@ pub fn normalize(log: &[LoggedOp]) -> Vec<Entry> {
                     kept.push(mk(l.seq, EKind::Patch(p.clone())));
                 }
                 Op::Clear(_) => unreachable!("never accepted"),
+                Op::WriteCells(_) | Op::Structural(_) => unreachable!("Compile mode refuses these at append"),
             }
         }
         out.extend(kept);

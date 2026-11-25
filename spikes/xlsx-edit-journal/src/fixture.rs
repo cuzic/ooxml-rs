@@ -86,3 +86,51 @@ pub fn large_workbook(rows: u32) -> Vec<u8> {
     let s1 = format!(r#"<dimension ref="A1:K{rows}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><sheetData>{sd}</sheetData>"#);
     package(&[("Sheet1", s1)], &["x"], None)
 }
+
+/// The group workbook (revision 8 verification, item b). `Sheet1`
+/// (dimension `dim`):
+///
+/// | | A | B | C | D | E | G | H |
+/// |---|---|---|---|---|---|---|---|
+/// | 1 | | | 10 | 20 | 30 | | `=SUM(C2:E3)` (129) |
+/// | 2 | 1 | | member | **master** `$A2+D$1` (`ref` C2:E3) | member | `{=A2:A3*2}` (2) | |
+/// | 3 | 2 | | member | member | member | (4) | |
+/// | 4 | | `=D3+1` (23) | | | | | |
+/// | 6 | 5 | 5 (merge `A6:B6`, a value in the non-anchor cell) | | | | | |
+///
+/// Shared group `si=0` over `C2:E3` with its master at `D2` (ADR-0024 test
+/// oracle 1's round 8/9 cases): member text `$A{r}+{c}$1`, caches
+/// `$A{r} + {c}1`. `Sheet2!A1` = `Sheet1!C2*2` (22). A calcChain lists the
+/// formulas.
+pub fn group_workbook(dim: &str) -> Vec<u8> {
+    let m = |r: &str, v: u32| format!(r#"<c r="{r}"><f t="shared" si="0"/><v>{v}</v></c>"#);
+    let s1 = format!(
+        r#"<dimension ref="{dim}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><sheetData><row r="1"><c r="C1"><v>10</v></c><c r="D1"><v>20</v></c><c r="E1"><v>30</v></c><c r="H1"><f>SUM(C2:E3)</f><v>129</v></c></row><row r="2"><c r="A2"><v>1</v></c>{}<c r="D2"><f t="shared" ref="C2:E3" si="0">$A2+D$1</f><v>21</v></c>{}<c r="G2"><f t="array" ref="G2:G3">A2:A3*2</f><v>2</v></c></row><row r="3"><c r="A3"><v>2</v></c>{}{}{}<c r="G3"><v>4</v></c></row><row r="4"><c r="B4"><f>D3+1</f><v>23</v></c></row><row r="6"><c r="A6"><v>5</v></c><c r="B6"><v>5</v></c></row></sheetData><mergeCells count="1"><mergeCell ref="A6:B6"/></mergeCells>"#,
+        m("C2", 11),
+        m("E2", 31),
+        m("C3", 12),
+        m("D3", 22),
+        m("E3", 32),
+    );
+    let s2 = r#"<dimension ref="A1"/><sheetData><row r="1"><c r="A1"><f>Sheet1!C2*2</f><v>22</v></c></row></sheetData>"#.to_owned();
+    package(&[("Sheet1", s1), ("Sheet2", s2)], &["x"], Some(r#"<c r="H1" i="1"/><c r="D2"/><c r="C2"/><c r="E2"/><c r="C3"/><c r="D3"/><c r="E3"/><c r="G2"/><c r="B4"/><c r="A1" i="2"/>"#))
+}
+
+/// The structural workbook (revision 8 verification, item c). Sheets `A`
+/// and `B` (dimension `dim` on both):
+///
+/// `A`: `A1` = `MATCH(7,B!A:A,0)` (4); `A2` = `B!A5*2` (10); `A3` = 5;
+/// `A4` = `ROW()` (4); `A5` = `SUM(B!A1:A6)` (24); `B1` = `A3*2` (10).
+///
+/// `B`: `A1:A6` = 1, 2, 3, 7, 5, 6; `B1` = `A1*2` (2); `B3` = `ROW()` (3);
+/// `B6` = `SUM(A1:A5)` (18); `C2` = "s" (a shared string); `C5` = 9.
+/// A calcChain lists the formulas.
+pub fn struct_workbook(dim: &str) -> Vec<u8> {
+    let a = format!(
+        r#"<dimension ref="{dim}"/><sheetData><row r="1"><c r="A1"><f>MATCH(7,B!A:A,0)</f><v>4</v></c><c r="B1"><f>A3*2</f><v>10</v></c></row><row r="2"><c r="A2"><f>B!A5*2</f><v>10</v></c></row><row r="3"><c r="A3"><v>5</v></c></row><row r="4"><c r="A4"><f>ROW()</f><v>4</v></c></row><row r="5"><c r="A5"><f>SUM(B!A1:A6)</f><v>24</v></c></row></sheetData>"#
+    );
+    let b = format!(
+        r#"<dimension ref="{dim}"/><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1*2</f><v>2</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="C2" t="s"><v>0</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="B3"><f>ROW()</f><v>3</v></c></row><row r="4"><c r="A4"><v>7</v></c></row><row r="5"><c r="A5"><v>5</v></c><c r="C5"><v>9</v></c></row><row r="6"><c r="A6"><v>6</v></c><c r="B6"><f>SUM(A1:A5)</f><v>18</v></c></row></sheetData>"#
+    );
+    package(&[("A", a), ("B", b)], &["s"], Some(r#"<c r="A1" i="1"/><c r="B1"/><c r="A2"/><c r="A4"/><c r="A5"/><c r="B1" i="2"/><c r="B3"/><c r="B6"/>"#))
+}

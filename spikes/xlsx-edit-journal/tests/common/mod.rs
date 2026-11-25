@@ -47,7 +47,7 @@ pub fn sequential(base: &[u8], ops: &[Op]) -> SeqOut {
                 refused.push(None);
                 let skipped = matches!(op, Op::Content(_, Content::RemoveFormula)) && start != Start::Formula;
                 if !skipped {
-                    written.push(op.key());
+                    written.extend(op.keys());
                 }
             }
             Err(e) => refused.push(Some(std::mem::discriminant(&e))),
@@ -101,6 +101,9 @@ pub fn oracle1(base: &[u8], ops: &[Op]) -> (SeqOut, JOut) {
     predicates(base, &j.bytes, &j.report.written, true).unwrap_or_else(|e| panic!("(iv) journal predicate: {e}"));
     let (ss, js) = (strip_set(base, &s.bytes), strip_set(base, &j.bytes));
     assert!(js.is_subset(&ss), "journal strip set {js:?} ⊄ sequential {ss:?}");
+    if j.journal.mode() == xlsx_edit_journal_spike::Mode::Shadow {
+        xlsx_edit_journal_spike::project::locality(base, &j.bytes, &j.report.written).unwrap_or_else(|e| panic!("oracle 4: {e} for {ops:?}"));
+    }
     (s, j)
 }
 

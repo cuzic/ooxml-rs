@@ -114,6 +114,9 @@ pub struct Journal {
     mode: Mode,
     /// Shadow mode: the per-shadow state of remedies 1–4.
     st: ShadowState,
+    /// Q7 (A′): reopen the output after each save instead of keeping the
+    /// shadow and carrying the difference (README, item e).
+    pub reopen_after_save: bool,
 }
 
 impl Journal {
@@ -127,7 +130,7 @@ impl Journal {
         let base_xf_count = shadow.cell_format_count()?;
         let st = if mode == Mode::Shadow {
             set_shadow_policy(&mut shadow);
-            ShadowState::new(&mut shadow)?
+            ShadowState::with_base(&mut shadow, base.clone())?
         } else {
             ShadowState::default()
         };
@@ -145,6 +148,7 @@ impl Journal {
             replays: 0,
             mode,
             st,
+            reopen_after_save: std::env::var("EJ_REOPEN").is_ok_and(|v| v == "1"),
         })
     }
 
@@ -182,7 +186,7 @@ impl Journal {
             if self.mode == Mode::Shadow {
                 // replay through the same remedies, from a fresh state
                 set_shadow_policy(&mut wb);
-                let mut st = ShadowState::new(&mut wb)?;
+                let mut st = ShadowState::with_base(&mut wb, self.base.clone())?;
                 for l in &self.log {
                     apply_tracked(&mut wb, &mut st, &l.op).map_err(|e| JError::JournalInternal { seq: l.seq, source: format!("replay: {e}") })?;
                 }
@@ -217,12 +221,9 @@ impl Journal {
                 Err(e) => {
                     if i > 0 {
                         // undo the call: log, key index, seq counter, echo ends, shadow
-                        for l in self.log.drain(saved_len..) {
-                            let v = self.key_index.get_mut(&l.op.key()).expect("indexed");
-                            v.pop();
-                            if v.is_empty() {
-                                self.key_index.remove(&l.op.key());
-                            }
+                        let cut: Vec<LoggedOp> = self.log.drain(saved_len..).collect();
+                        for l in &cut {
+                            self.unindex(l);
                         }
                         for k in &new_ends {
                             self.echo_end.remove(k);
@@ -254,11 +255,23 @@ impl Journal {
                 return Err(JError::Unsupported { op: "set_style_index on a session xf (P2)" });
             }
         }
+        if self.mode == Mode::Compile && matches!(op, Op::WriteCells(_) | Op::Structural(_)) {
+            return Err(JError::Unsupported { op: "write_cells / structural ops in Compile mode" });
+        }
         let seq = self.next_seq;
-        let k = op.key();
+        let keys = op.keys();
+        if op.is_structural() && self.mode == Mode::Shadow && self.st.has_carried() {
+            // the text layer's carried state (pins, strips, registry maps)
+            // has no structural support: rebuild the shadow from the current
+            // Base (as A′ would have opened it), then apply
+            self.shadow = None;
+        }
         self.shadow()?;
         let shadow = self.shadow.as_mut().expect("built");
-        let start = start_of(shadow, k)?;
+        let start = match keys.first() {
+            Some(k) if !matches!(op, Op::WriteCells(_)) => start_of(shadow, *k)?,
+            _ => Start::Other,
+        };
         let applied = match self.mode {
             Mode::Shadow => apply_tracked(shadow, &mut self.st, &op).map(drop),
             Mode::Compile => apply_seq(shadow, &op),
@@ -270,21 +283,50 @@ impl Journal {
             }
             return Err(e.into());
         }
-        // echo ends: an earlier op on this key whose fields this op sets
-        if let Some(seqs) = self.key_index.get(&k) {
-            for &s in seqs {
-                let old = &self.log[self.log.binary_search_by_key(&s, |l| l.seq).expect("logged")].op;
-                for f in op.echo_fields() {
-                    if old.echo_fields().contains(f) && !self.echo_end.contains_key(&(s, *f)) {
-                        self.echo_end.insert((s, *f), seq);
-                        new_ends.push((s, *f));
+        if let Op::Structural(s) = &op {
+            // ids move: the key index and echo records follow the op; a key
+            // whose id died ends its echo (§6.1)
+            let old = std::mem::take(&mut self.key_index);
+            for (k, v) in old {
+                match s.map(k) {
+                    Some(n) => {
+                        self.key_index.insert(n, v);
+                    }
+                    None => {
+                        for sq in v {
+                            let ops = &self.log[self.log.binary_search_by_key(&sq, |l| l.seq).expect("logged")].op;
+                            for f in ops.echo_fields() {
+                                if !self.echo_end.contains_key(&(sq, *f)) {
+                                    self.echo_end.insert((sq, *f), seq);
+                                    new_ends.push((sq, *f));
+                                }
+                            }
+                        }
                     }
                 }
             }
+            let old = std::mem::take(&mut self.echo_records);
+            self.echo_records = old.into_iter().filter_map(|((k, f), v)| s.map(k).map(|n| ((n, f), v))).collect();
         }
-        for f in op.echo_fields() {
-            self.echo_records.remove(&(k, *f));
+        for k in &keys {
+            let k = *k;
+            // echo ends: an earlier op on this key whose fields this op sets
+            if let Some(seqs) = self.key_index.get(&k) {
+                for &s in seqs {
+                    let old = &self.log[self.log.binary_search_by_key(&s, |l| l.seq).expect("logged")].op;
+                    for f in op.echo_fields() {
+                        if old.echo_fields().contains(f) && !self.echo_end.contains_key(&(s, *f)) {
+                            self.echo_end.insert((s, *f), seq);
+                            new_ends.push((s, *f));
+                        }
+                    }
+                }
+            }
+            for f in op.echo_fields() {
+                self.echo_records.remove(&(k, *f));
+            }
         }
+        let k = op.key();
         self.next_seq += 1;
         #[cfg(feature = "mutant_fold_at_append")]
         {
@@ -297,9 +339,43 @@ impl Journal {
                 }
             }
         }
+        let _ = k;
+        for k in &keys {
+            self.key_index.entry(*k).or_default().push(seq);
+        }
         self.log.push(LoggedOp { seq, origin: Origin::Session { seq, api, raw_input: raw }, start, op });
-        self.key_index.entry(k).or_default().push(seq);
         Ok(seq)
+    }
+
+    /// Takes a cut op out of the key index. After a structural op the index
+    /// is keyed by current positions, so it is rebuilt from the log.
+    fn unindex(&mut self, l: &LoggedOp) {
+        if self.log.iter().any(|x| x.op.is_structural()) || l.op.is_structural() {
+            self.reindex();
+            return;
+        }
+        for k in l.op.keys() {
+            let v = self.key_index.get_mut(&k).expect("indexed");
+            v.pop();
+            if v.is_empty() {
+                self.key_index.remove(&k);
+            }
+        }
+    }
+
+    /// The key index derived from the log (ids followed through its
+    /// structural ops).
+    fn reindex(&mut self) {
+        self.key_index.clear();
+        for l in &self.log {
+            if let Op::Structural(s) = &l.op {
+                let old = std::mem::take(&mut self.key_index);
+                self.key_index = old.into_iter().filter_map(|(k, v)| s.map(k).map(|n| (n, v))).collect();
+            }
+            for k in l.op.keys() {
+                self.key_index.entry(k).or_default().push(l.seq);
+            }
+        }
     }
 
     /// `truncate(t)`: drop every op with `seq > t` (§10.3).
@@ -312,11 +388,7 @@ impl Journal {
         }
         while self.log.last().is_some_and(|l| l.seq > t) {
             let l = self.log.pop().expect("non-empty");
-            let v = self.key_index.get_mut(&l.op.key()).expect("indexed");
-            v.pop();
-            if v.is_empty() {
-                self.key_index.remove(&l.op.key());
-            }
+            self.unindex(&l);
         }
         self.echo_end.retain(|_, end| *end <= t);
         // the seq counter is not rolled back: seqs are never reissued
@@ -337,7 +409,8 @@ impl Journal {
         if t < self.commit_mark {
             return Err(JError::TruncateBeforeCommit { seq: t, committed: self.commit_mark });
         }
-        if self.mode != Mode::Shadow || self.shadow.is_none() {
+        if self.mode != Mode::Shadow || self.shadow.is_none() || self.log.iter().any(|l| l.op.is_structural() || matches!(l.op, Op::WriteCells(_))) {
+            // structural ops and multi-target calls: replay (§10.3)
             self.truncate(t)?;
             return Ok(false);
         }
@@ -367,11 +440,7 @@ impl Journal {
         // the log, key index and echo ends as `truncate` leaves them
         while self.log.last().is_some_and(|l| l.seq > t) {
             let l = self.log.pop().expect("non-empty");
-            let v = self.key_index.get_mut(&l.op.key()).expect("indexed");
-            v.pop();
-            if v.is_empty() {
-                self.key_index.remove(&l.op.key());
-            }
+            self.unindex(&l);
         }
         self.echo_end.retain(|_, end| *end <= t);
         let wb = self.shadow.as_mut().expect("live");
@@ -509,10 +578,17 @@ impl Journal {
             parts_rewritten: s.parts_rewritten,
             ..Default::default()
         };
+        let structural = !st.structural.is_empty();
         st.after_commit(wb, &s.calc, s.reg).map_err(|e| JError::JournalInternal { seq: last, source: e.to_string() })?;
         st.noops = 0;
         self.st = st;
         self.swap(&s.bytes);
+        if structural || self.reopen_after_save {
+            // A′: reopen the output as the next shadow (C6's fallback). After
+            // a structural op the kept shadow has no carried-state support.
+            self.shadow = None;
+            self.st = ShadowState::default();
+        }
         // the new Base's `xf` count (P2 test of `set_style_index`)
         self.base_xf_count = self.st.reg.origin[0] + self.st.reg.maps[0].len() as u32;
         Ok((s.bytes, report))
@@ -527,7 +603,7 @@ impl Journal {
                 for l in &self.log {
                     if let Origin::Session { raw_input: Some(r), .. } = &l.origin {
                         for f in l.op.echo_fields() {
-                            if !self.echo_end.contains_key(&(l.seq, *f)) {
+                            if !self.echo_end.contains_key(&(l.seq, *f)) && !l.op.is_structural() {
                                 self.echo_records.insert((l.op.key(), *f), (l.seq, r.clone()));
                             }
                         }

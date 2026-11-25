@@ -78,11 +78,40 @@ pub fn model(bytes: &[u8]) -> Model {
             let c = c.expect("cell");
             let at = ooxml_xlsx::CellIndex::parse(c.reference()).expect("ref");
             let formula = c.formula();
-            let f_attrs = local(c.raw(), "f").map(|f| f.attrs().iter().map(|a| (a.name().local().to_owned(), a.value().to_owned())).collect()).unwrap_or_default();
+            let f_attrs: Vec<(String, String)> = local(c.raw(), "f").map(|f| f.attrs().iter().map(|a| (a.name().local().to_owned(), a.value().to_owned())).collect()).unwrap_or_default();
             raw_cells.push(((i, at.row, at.col), if formula.is_some() { None } else { Some(c.value().expect("value")) }, formula, f_attrs, c.style_index().expect("s")));
         }
     }
+    // shared members expanded to their own text (oracle 1's P)
+    let mut masters: BTreeMap<(usize, String), (u32, u32, String)> = BTreeMap::new();
+    for ((i, r, c), _, formula, f_attrs, _) in &raw_cells {
+        let get = |n: &str| f_attrs.iter().find(|(a, _)| a == n).map(|(_, v)| v.clone());
+        if get("t").as_deref() == Some("shared") && get("ref").is_some() && let (Some(si), Some(f)) = (get("si"), formula) {
+            masters.insert((*i, si), (*r, *c, f.clone()));
+        }
+    }
+    let raw_cells: Vec<_> = raw_cells
+        .into_iter()
+        .map(|((i, r, c), v, formula, f_attrs, s)| {
+            let get = |n: &str| f_attrs.iter().find(|(a, _)| a == n).map(|(_, v)| v.clone());
+            let formula = match (&formula, get("t").as_deref(), get("si")) {
+                (Some(f), Some("shared"), Some(si)) if f.is_empty() => masters.get(&(i, si)).map(|(mr, mc, t)| translate(t, i64::from(r) - i64::from(*mr), i64::from(c) - i64::from(*mc))).or(formula),
+                _ => formula,
+            };
+            ((i, r, c), v, formula, f_attrs, s)
+        })
+        .collect();
+    let mut arrays: Vec<(usize, ooxml_xlsx::CellIndex, ooxml_xlsx::CellIndex)> = Vec::new();
+    for ((i, _, _), _, _, f_attrs, _) in &raw_cells {
+        let get = |n: &str| f_attrs.iter().find(|(a, _)| a == n).map(|(_, v)| v.clone());
+        if get("t").as_deref() == Some("array") && let Some(r) = get("ref") {
+            let (a, b) = r.split_once(':').unwrap_or((&r, &r));
+            arrays.push((*i, ooxml_xlsx::CellIndex::parse(a).expect("ref"), ooxml_xlsx::CellIndex::parse(b).expect("ref")));
+        }
+    }
     for (k, value, formula, f_attrs, s) in raw_cells {
+        let in_array = arrays.iter().any(|(i, a, b)| *i == k.0 && (a.row..=b.row).contains(&k.1) && (a.col..=b.col).contains(&k.2));
+        let value = if in_array && formula.is_none() { None } else { value };
         let style = match wb.format_of_style(s).expect("style") {
             FormatRead::NotExpressible { reasons, .. } => FormatRead::NotExpressible { style_index: 0, reasons },
             e => e,
@@ -140,12 +169,17 @@ impl Raw {
         local(self.docs[i].root(), "dimension").map(|d| attr(d, "ref").unwrap_or("").to_owned())
     }
     /// formula cells → their `v` text
+    /// Formula cells and array result cells (their values are caches too)
+    /// → their `v` text.
     fn formulas(&self) -> BTreeMap<(usize, String), Option<String>> {
         let mut out = BTreeMap::new();
         for i in 0..self.parts.len() {
+            let arrays = array_ranges(&self.cells(i));
             for c in self.cells(i) {
-                if local(c, "f").is_some() {
-                    out.insert((i, attr(c, "r").unwrap_or("").to_owned()), local(c, "v").map(|v| v.text().into_owned()));
+                let r = attr(c, "r").unwrap_or("");
+                let in_array = ooxml_xlsx::CellIndex::parse(r).is_ok_and(|at| arrays.iter().any(|(a, b)| (a.row..=b.row).contains(&at.row) && (a.col..=b.col).contains(&at.col)));
+                if local(c, "f").is_some() || in_array {
+                    out.insert((i, r.to_owned()), local(c, "v").map(|v| v.text().into_owned()));
                 }
             }
         }
@@ -154,6 +188,21 @@ impl Raw {
 }
 
 /// Formula cells of `base` with a cached value that `out` stripped.
+fn array_ranges(cells: &[&RawNode]) -> Vec<(ooxml_xlsx::CellIndex, ooxml_xlsx::CellIndex)> {
+    cells
+        .iter()
+        .filter_map(|c| {
+            let f = local(c, "f")?;
+            if attr(f, "t") != Some("array") {
+                return None;
+            }
+            let r = attr(f, "ref")?;
+            let (a, b) = r.split_once(':').unwrap_or((r, r));
+            Some((ooxml_xlsx::CellIndex::parse(a).ok()?, ooxml_xlsx::CellIndex::parse(b).ok()?))
+        })
+        .collect()
+}
+
 pub fn strip_set(base: &[u8], out: &[u8]) -> BTreeSet<(usize, String)> {
     let (b, o) = (Raw::new(base).formulas(), Raw::new(out).formulas());
     b.into_iter().filter(|(k, v)| v.is_some() && o.get(k).is_some_and(|ov| ov.is_none())).map(|(k, _)| k).collect()
@@ -238,6 +287,11 @@ pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bo
             return Err(format!("kept cache {v:?} at {k:?} is not the Base's"));
         }
     }
+    // caches, second half (review round 7, B1): no cell a kept `v` reads
+    // (ADR-0003 dependents, transitively) differs in content from the Base
+    if !cfg!(feature = "mutant_half_cache_predicate") {
+        stale_cache_check(base, out)?;
+    }
     // ADR feedback F5: `main` sets `fullCalcOnLoad` when it strips a
     // dependent's cache, not when it writes a formula or strips the written
     // cell's own cache; the predicate is checked in that weaker form.
@@ -246,6 +300,161 @@ pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bo
     let wbx = String::from_utf8(o.pkg.read_part("xl/workbook.xml").expect("wb")).expect("utf8");
     if stripped && !wbx.contains(r#"fullCalcOnLoad="1""#) {
         return Err("cache stripped without fullCalcOnLoad".into());
+    }
+    Ok(())
+}
+
+/// A cell's content for "differs from the Base": the formula text (shared
+/// members expanded), or the value with its type. A missing cell reads as an
+/// empty one. Style is not content: an input whose only change is its style
+/// makes no cache stale unless the workbook is style-sensitive (which the
+/// fixtures are not; see README "Revision 8 verification", a).
+pub fn content_map(bytes: &[u8]) -> BTreeMap<(usize, u32, u32), (Option<String>, Option<CellValue>)> {
+    model(bytes).cells.into_iter().map(|(k, c)| (k, (c.formula, c.value))).collect()
+}
+
+fn empty_content() -> (Option<String>, Option<CellValue>) {
+    (None, Some(CellValue::Empty))
+}
+
+/// The cells whose content differs between two outputs at the same position.
+pub fn content_diff(a: &[u8], b: &[u8]) -> BTreeSet<(usize, u32, u32)> {
+    let (ma, mb) = (content_map(a), content_map(b));
+    let keys: BTreeSet<_> = ma.keys().chain(mb.keys()).copied().collect();
+    keys.into_iter()
+        .filter(|k| {
+            let ca = ma.get(k).cloned().unwrap_or_else(empty_content);
+            let cb = mb.get(k).cloned().unwrap_or_else(empty_content);
+            let norm = |c: (Option<String>, Option<CellValue>)| if c.1 == Some(CellValue::String(String::new())) { empty_content() } else { c };
+            norm(ca) != norm(cb)
+        })
+        .collect()
+}
+
+/// Every formula cell of `out` that holds a cached value which is the Base's
+/// (`base` aligned by position: the Base itself, or the probe with only the
+/// structural ops applied) while a cell it reads, transitively, differs in
+/// content from `base`; or whose own content differs. The second half of
+/// oracle 1's cache predicate.
+pub fn stale_cache_check(base: &[u8], out: &[u8]) -> Result<(), String> {
+    let diff = content_diff(base, out);
+    if diff.is_empty() {
+        return Ok(());
+    }
+    let mut wb = Workbook::from_bytes(out.to_vec()).expect("open");
+    let names: Vec<String> = wb.sheet_names().map(str::to_owned).collect();
+    let mut stale: BTreeSet<(usize, u32, u32)> = BTreeSet::new();
+    for &(s, r, c) in &diff {
+        for (sh, at) in wb.dependents(&names[s], ooxml_xlsx::CellIndex { row: r, col: c }).expect("dependents") {
+            stale.insert((names.iter().position(|n| *n == sh).expect("sheet"), at.row, at.col));
+        }
+    }
+    let o = Raw::new(out);
+    for ((i, r), v) in o.formulas() {
+        {
+            if v.is_none() {
+                continue;
+            }
+            let at = ooxml_xlsx::CellIndex::parse(&r).expect("r");
+            let key = (i, at.row, at.col);
+            if stale.contains(&key) {
+                return Err(format!("stale cache kept at {key:?}: an input differs from the Base"));
+            }
+            if diff.contains(&key) {
+                return Err(format!("cache kept at {key:?} although its formula differs from the Base"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Shifts the relative parts of the A1 references in `text` by `(dr, dc)`:
+/// a stand-in for the crate's private shared-formula translation, enough for
+/// the fixtures' formulas (plain references, no names, no sheet prefixes
+/// that look like references).
+pub fn translate(text: &str, dr: i64, dc: i64) -> String {
+    let b = text.as_bytes();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < b.len() {
+        let start = i;
+        let prev_ok = start == 0 || !(b[start - 1].is_ascii_alphanumeric() || b[start - 1] == b'_' || b[start - 1] == b'.');
+        let mut j = i;
+        let col_abs = j < b.len() && b[j] == b'$';
+        if col_abs {
+            j += 1;
+        }
+        let cs = j;
+        while j < b.len() && b[j].is_ascii_uppercase() && j - cs < 3 {
+            j += 1;
+        }
+        let ce = j;
+        let row_abs = j < b.len() && b[j] == b'$';
+        if row_abs {
+            j += 1;
+        }
+        let rs = j;
+        while j < b.len() && b[j].is_ascii_digit() {
+            j += 1;
+        }
+        let re = j;
+        let next_ok = j >= b.len() || !(b[j].is_ascii_alphanumeric() || b[j] == b'(' || b[j] == b'_');
+        if prev_ok && ce > cs && re > rs && next_ok {
+            let col = ooxml_xlsx::CellIndex::parse(&format!("{}1", &text[cs..ce])).expect("column").col;
+            let row: i64 = text[rs..re].parse().expect("row");
+            let col = if col_abs { i64::from(col) } else { i64::from(col) + dc };
+            let row = if row_abs { row } else { row + dr };
+            let letters = ooxml_xlsx::CellIndex { row: 0, col: col as u32 }.to_string();
+            let letters = letters.trim_end_matches('1');
+            out.push_str(&format!("{}{letters}{}{row}", if col_abs { "$" } else { "" }, if row_abs { "$" } else { "" }));
+            i = re;
+        } else {
+            let ch = text[i..].chars().next().expect("char");
+            out.push(ch);
+            i += ch.len_utf8();
+        }
+    }
+    out
+}
+
+/// Each `<c>` of a worksheet text, by `r`, as bytes.
+pub fn cell_bytes(text: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    let Some(sd) = text.find("<sheetData") else { return out };
+    let stop = text[sd..].find("</sheetData>").map_or(text.len(), |e| sd + e);
+    let mut pos = sd;
+    while let Some(i) = text[pos..stop].find("<c ") {
+        let start = pos + i;
+        let open_end = start + text[start..].find('>').expect("tag end") + 1;
+        let end = if text.as_bytes()[open_end - 2] == b'/' { open_end } else { open_end + text[open_end..].find("</c>").expect("close") + 4 };
+        let tag = &text[start..open_end];
+        let r = tag.find(" r=\"").map(|a| { let a = a + 4; tag[a..a + tag[a..].find('"').expect("quote")].to_owned() }).unwrap_or_default();
+        out.insert(r, text[start..end].to_owned());
+        pos = end;
+    }
+    out
+}
+
+/// Oracle 4 (locality) for one epoch: every Base cell that is not in the
+/// changed set and was not stripped keeps its bytes, and every cell that is
+/// new or gone is in the changed set.
+pub fn locality(base: &[u8], out: &[u8], changed: &[CellKey]) -> Result<(), String> {
+    let (b, o) = (Raw::new(base), Raw::new(out));
+    let stripped = strip_set(base, out);
+    for (i, p) in b.parts.iter().enumerate() {
+        let (bt, ot) = (part_str(&b.pkg, p), part_str(&o.pkg, p));
+        let (bc, oc) = (cell_bytes(&bt), cell_bytes(&ot));
+        let keys: BTreeSet<&String> = bc.keys().chain(oc.keys()).collect();
+        for r in keys {
+            let at = ooxml_xlsx::CellIndex::parse(r).expect("r");
+            let key = CellKey::new(i, at.row, at.col);
+            if changed.contains(&key) || stripped.contains(&(i, r.clone())) {
+                continue;
+            }
+            if bc.get(r) != oc.get(r) {
+                return Err(format!("locality: {r} on sheet {i} changed outside the changed set: {:?} -> {:?}", bc.get(r), oc.get(r)));
+            }
+        }
     }
     Ok(())
 }

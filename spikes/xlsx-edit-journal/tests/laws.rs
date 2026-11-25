@@ -183,7 +183,10 @@ fn get_put_empty_and_all_noop_journals_save_the_base() {
     let (out, report) = j.commit().unwrap();
     // Compile: 7 entries skipped after folding. Shadow: 5 ops skipped at
     // append (remedy 1); B1 and A1 are restored (remedy 2)
-    assert_eq!(report.skipped_noops, if j.mode() == Mode::Compile { 7 } else { 5 }, "{report:?}");
+    // (R1 is off by default since revision 8 until C1: every op is applied
+    // and R2 restores; `r1_unvalidated` turns the old R1 back on)
+    let shadow_skips = if cfg!(feature = "r1_unvalidated") { 5 } else { 0 };
+    assert_eq!(report.skipped_noops, if j.mode() == Mode::Compile { 7 } else { shadow_skips }, "{report:?}");
     assert_eq!(out, base, "all no-ops: byte-identical");
     // second save of an empty Journal: the first output
     assert_eq!(j.commit().unwrap().0, out);

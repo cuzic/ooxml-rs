@@ -26,6 +26,25 @@ mutant_no_noop = []           # remedy 1: no no-op judgment at append
 mutant_no_revert = []         # remedy 2: a reverted cell is not restored
 mutant_no_defer = []          # remedy 3: the shadow strips caches at each write
 mutant_no_gc = []             # remedy 4: every session sst/xf item is kept, in shadow order
+# Revision 8 verification (README): rules as written in ADR-0024 rev 8 and
+# the earlier wordings they replaced. Each must make a test fail.
+mutant_half_cache_predicate = []  # oracle 1 cache predicate with its first half only (harness)
+mutant_r3_subtract_changed = []   # R3 as in the spike before rev 8: subtract the changed set (round 7 B1)
+mutant_r3_subtract_content = []   # R3 as fixed in round 7: subtract the content-changed cells (round 9 M2)
+# R1 judged before validation (the spike before revision 8; F13). Off by
+# default: ADR-0024 §4.5 keeps R1 off until C1 (plan without apply) lands.
+r1_unvalidated = []
+# R3 as written in rev 8: strip only cells holding `f` (array result cells keep stale caches)
+adr_r3_formula_only = []
+# R3 as written in rev 8: seed the strip set from §4.4's raw content change (a hand-off's new master seeds its dependents)
+adr_r3_seed_raw = []
+mutant_r1_skip_group = []         # R1 judged by P: a group cell's own text written back is skipped (round 8 M1)
+mutant_r1_whole_call_off = []     # with r1_unvalidated: R1 (b) dropped (group cells may be skipped)
+mutant_r2_no_derived = []         # R3 reads the shadow's node, not the restored state (round 8 M2 analogue)
+mutant_drop_marks = []          # a carried mark does not seed R3 (round 8 M3)
+mutant_drop_records = []        # structural strip records dropped (round 7 M3, round 8 M6)
+mutant_close_own_sheet = []     # a structural op closes only its own sheet's snapshots (round 9 M1)
+mutant_no_handoff_target = []     # snapshots for the op's own cells only, not a hand-off's new master (round 7 M2)
 
 [dependencies]
 ooxml-xlsx = { path = "../../crates/ooxml-xlsx" }
