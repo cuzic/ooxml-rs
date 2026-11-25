@@ -21,6 +21,11 @@ mutant_style_last_wins = []   # B3: style patches folded last-wins
 mutant_cond_last_wins = []    # round 2 M2: a conditional content op drops earlier content
 mutant_keep_shadow = []       # round 2 M4: shadow kept after a part-way refusal
 mutant_fold_at_append = []    # B2: fold the log at append
+# Commit = shadow serialization (README): each remedy removed
+mutant_no_noop = []           # remedy 1: no no-op judgment at append
+mutant_no_revert = []         # remedy 2: a reverted cell is not restored
+mutant_no_defer = []          # remedy 3: the shadow strips caches at each write
+mutant_no_gc = []             # remedy 4: every session sst/xf item is kept, in shadow order
 
 [dependencies]
 ooxml-xlsx = { path = "../../crates/ooxml-xlsx" }

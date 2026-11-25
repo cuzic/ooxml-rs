@@ -7,6 +7,27 @@ use std::sync::Arc;
 use ooxml_xlsx::{CellValue, FormatRead, Workbook};
 
 use crate::op::{Api, CellKey, EchoField, LoggedOp, Op, Origin, Patch, RawInput, Start, apply_seq, start_of};
+use crate::shadow::{ShadowState, apply_tracked, set_shadow_policy};
+
+/// How Commit produces the output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    /// ADR-0024 §7: normalize, open the Base, compile, serialize, (reopen).
+    Compile,
+    /// Alternative 9 with remedies 1–4 (README "Commit = shadow
+    /// serialization"): the shadow is serialized and kept; no reopen.
+    Shadow,
+}
+
+impl Mode {
+    /// The default: `Shadow`, or `EJ_MODE=compile`.
+    pub fn from_env() -> Mode {
+        match std::env::var("EJ_MODE").as_deref() {
+            Ok("compile") => Mode::Compile,
+            _ => Mode::Shadow,
+        }
+    }
+}
 
 /// Errors of the Journal (ADR-0024 §12). `Xlsx` is "the same error" the
 /// sequential API returned on the shadow.
@@ -65,6 +86,12 @@ pub struct CommitReport {
     pub t_open: std::time::Duration,
     pub t_apply: std::time::Duration,
     pub t_serialize: std::time::Duration,
+    /// Shadow mode: the deferred calc decision, the registries, the sheets'
+    /// text layer, and the zip writing.
+    pub t_calc: std::time::Duration,
+    pub t_registries: std::time::Duration,
+    pub t_sheets: std::time::Duration,
+    pub parts_rewritten: usize,
 }
 
 pub struct Journal {
@@ -84,13 +111,26 @@ pub struct Journal {
     pub fault: Option<Fault>,
     /// Number of shadow rebuilds (replays), for tests and measurements.
     pub replays: usize,
+    mode: Mode,
+    /// Shadow mode: the per-shadow state of remedies 1–4.
+    st: ShadowState,
 }
 
 impl Journal {
     pub fn open(bytes: impl Into<Arc<[u8]>>) -> JResult<Self> {
+        Self::open_with(bytes, Mode::from_env())
+    }
+
+    pub fn open_with(bytes: impl Into<Arc<[u8]>>, mode: Mode) -> JResult<Self> {
         let base: Arc<[u8]> = bytes.into();
         let mut shadow = Workbook::from_bytes(base.clone())?;
         let base_xf_count = shadow.cell_format_count()?;
+        let st = if mode == Mode::Shadow {
+            set_shadow_policy(&mut shadow);
+            ShadowState::new(&mut shadow)?
+        } else {
+            ShadowState::default()
+        };
         Ok(Journal {
             base,
             log: Vec::new(),
@@ -103,7 +143,16 @@ impl Journal {
             base_xf_count,
             fault: None,
             replays: 0,
+            mode,
+            st,
         })
+    }
+
+    pub fn mode(&self) -> Mode {
+        self.mode
+    }
+    pub fn shadow_state(&self) -> &ShadowState {
+        &self.st
     }
 
     pub fn base(&self) -> &Arc<[u8]> {
@@ -130,8 +179,18 @@ impl Journal {
         if self.shadow.is_none() {
             self.replays += 1;
             let mut wb = Workbook::from_bytes(self.base.clone())?;
-            for l in &self.log {
-                apply_seq(&mut wb, &l.op).map_err(|e| JError::JournalInternal { seq: l.seq, source: format!("replay: {e}") })?;
+            if self.mode == Mode::Shadow {
+                // replay through the same remedies, from a fresh state
+                set_shadow_policy(&mut wb);
+                let mut st = ShadowState::new(&mut wb)?;
+                for l in &self.log {
+                    apply_tracked(&mut wb, &mut st, &l.op).map_err(|e| JError::JournalInternal { seq: l.seq, source: format!("replay: {e}") })?;
+                }
+                self.st = st;
+            } else {
+                for l in &self.log {
+                    apply_seq(&mut wb, &l.op).map_err(|e| JError::JournalInternal { seq: l.seq, source: format!("replay: {e}") })?;
+                }
             }
             self.shadow = Some(wb);
         }
@@ -197,9 +256,14 @@ impl Journal {
         }
         let seq = self.next_seq;
         let k = op.key();
-        let shadow = self.shadow()?;
+        self.shadow()?;
+        let shadow = self.shadow.as_mut().expect("built");
         let start = start_of(shadow, k)?;
-        if let Err(e) = apply_seq(shadow, &op) {
+        let applied = match self.mode {
+            Mode::Shadow => apply_tracked(shadow, &mut self.st, &op).map(drop),
+            Mode::Compile => apply_seq(shadow, &op),
+        };
+        if let Err(e) = applied {
             if matches!(e, ooxml_xlsx::Error::Poisoned(_)) || shadow.edit_refusal().is_some_and(|r| matches!(r, ooxml_xlsx::Error::Poisoned(_))) {
                 self.shadow = None;
                 return Err(JError::JournalInternal { seq, source: format!("shadow apply: {e}") });
@@ -260,11 +324,92 @@ impl Journal {
         Ok(())
     }
 
+    /// `truncate(t)` in Shadow mode without a replay (README, measured):
+    /// every cell an op after `t` wrote is set back to its first-touch
+    /// snapshot by ordinary writes, then that cell's ops up to `t` are
+    /// applied again. Keyed ops on distinct cells do not interact, and
+    /// remedies 2–4 make the leftovers (a restored node, garbage registry
+    /// items, a grown `dimension`, the shadow's calc state) invisible at
+    /// save. Falls back to `truncate` (replay) when a cell cannot be set
+    /// back by a write: it was missing, empty, rich, inline or shared.
+    /// Returns whether the fast path was taken.
+    pub fn truncate_fast(&mut self, t: u64) -> JResult<bool> {
+        if t < self.commit_mark {
+            return Err(JError::TruncateBeforeCommit { seq: t, committed: self.commit_mark });
+        }
+        if self.mode != Mode::Shadow || self.shadow.is_none() {
+            self.truncate(t)?;
+            return Ok(false);
+        }
+        let keys: std::collections::BTreeSet<CellKey> = self.log.iter().filter(|l| l.seq > t).map(|l| l.op.key()).collect();
+        let mut plan: Vec<Op> = Vec::new();
+        for k in keys {
+            let Some(snap) = self.st.touched.get(&k) else { continue };
+            let restore = snap.as_ref().and_then(|s| {
+                use crate::op::Content as C;
+                let content = match (&s.formula, &s.value, s.t.as_deref()) {
+                    (Some(f), _, _) if s.f_attrs.is_empty() => C::Formula(f.clone()),
+                    (None, CellValue::Number(v), None | Some("n")) => C::Number(*v),
+                    (None, CellValue::String(v), Some("s")) if !s.rich => C::String(v.clone()),
+                    (None, CellValue::Bool(v), Some("b")) => C::Bool(*v),
+                    (None, CellValue::Error(v), Some("e")) => C::Error(v.clone()),
+                    _ => return None,
+                };
+                Some([Op::Content(k, content), Op::Style(k, Patch::Index(self.st.base_xf(s.s)))])
+            });
+            let Some(restore) = restore else {
+                self.truncate(t)?;
+                return Ok(false);
+            };
+            plan.extend(restore);
+            plan.extend(self.log.iter().filter(|l| l.seq <= t && l.op.key() == k).map(|l| l.op.clone()));
+        }
+        // the log, key index and echo ends as `truncate` leaves them
+        while self.log.last().is_some_and(|l| l.seq > t) {
+            let l = self.log.pop().expect("non-empty");
+            let v = self.key_index.get_mut(&l.op.key()).expect("indexed");
+            v.pop();
+            if v.is_empty() {
+                self.key_index.remove(&l.op.key());
+            }
+        }
+        self.echo_end.retain(|_, end| *end <= t);
+        let wb = self.shadow.as_mut().expect("live");
+        for op in &plan {
+            if apply_tracked(wb, &mut self.st, op).is_err() {
+                // not expected: the ops were accepted before; rebuild
+                self.shadow = None;
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     // ---------------------------------------------------------------- View
 
     /// Normalized read: the shadow's cell (§6.1). `None` for a missing cell.
     pub fn normalized(&mut self, k: CellKey) -> JResult<Option<NormCell>> {
-        read_norm(self.shadow()?, k)
+        self.shadow()?;
+        let shadow = self.shadow.as_mut().expect("built");
+        let mut n = read_norm(shadow, k)?;
+        if self.mode == Mode::Shadow
+            && let Some(c) = &mut n
+        {
+            c.style_index = self.st.base_xf(c.style_index);
+        }
+        if self.mode == Mode::Shadow
+            && let Some(c) = &mut n
+            && c.formula.is_some()
+        {
+            // a restored cell reads its Base cache; a deferred strip reads none
+            if let Some(v) = self.st.base_cache(shadow, k)? {
+                c.value = v;
+            }
+            if self.st.all_strips(shadow)?.contains(&k) {
+                c.value = CellValue::Empty;
+            }
+        }
+        Ok(n)
     }
 
     /// Echo read for one field: the newest live Session op's raw input.
@@ -296,10 +441,88 @@ impl Journal {
             return Ok((self.base.to_vec(), CommitReport::default()));
         }
         let fault = self.fault;
+        if self.mode == Mode::Shadow {
+            return self.commit_shadow(fault);
+        }
         let out = crate::commit::compile(&self.base, &self.log, fault);
         match out {
             Ok((bytes, report)) => {
-                // swap: the output is the new Base; echo records survive
+                self.swap(&bytes);
+                self.shadow = None; // reopened lazily from the new Base (§10.1)
+                Ok((bytes, report))
+            }
+            Err(e) => {
+                // Base and log unchanged; the shadow was dropped at step 2 and
+                // is rebuilt by replay on the next read or append
+                self.shadow = None;
+                Err(e)
+            }
+        }
+    }
+
+    /// The output of a Commit in Shadow mode, without the swap (tests).
+    pub fn preview(&mut self) -> JResult<Vec<u8>> {
+        if self.log.is_empty() {
+            return Ok(self.base.to_vec());
+        }
+        self.shadow()?;
+        let wb = self.shadow.as_mut().expect("built");
+        let mut st = self.st.clone();
+        let last = self.log.last().map_or(0, |l| l.seq);
+        Ok(crate::shadow::serialize(wb, &mut st, &self.base).map_err(|e| JError::JournalInternal { seq: last, source: e.to_string() })?.bytes)
+    }
+
+    /// Commit = serialize the shadow (README). The shadow is kept: the
+    /// state of remedies 2–4 carries the difference between its bytes and
+    /// the new Base.
+    fn commit_shadow(&mut self, fault: Option<Fault>) -> JResult<(Vec<u8>, CommitReport)> {
+        let last = self.log.last().expect("non-empty").seq;
+        if fault == Some(Fault::Normalize) || fault == Some(Fault::OpenWorkingCopy) || matches!(fault, Some(Fault::Batch(_) | Fault::PanicInBatch(_))) {
+            // no such step in this mode; the fault fires before anything
+            return Err(JError::JournalInternal { seq: last, source: format!("injected: {fault:?}") });
+        }
+        self.shadow()?;
+        let wb = self.shadow.as_mut().expect("built");
+        let t = std::time::Instant::now();
+        if fault == Some(Fault::Serialize) {
+            return Err(JError::JournalInternal { seq: last, source: "injected: serialize".into() });
+        }
+        // serialize works on a copy of the state: a failure leaves it as is
+        let mut st = self.st.clone();
+        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::shadow::serialize(wb, &mut st, &self.base)));
+        let s = match out {
+            Ok(Ok(s)) => s,
+            Ok(Err(e)) => return Err(JError::JournalInternal { seq: last, source: e.to_string() }),
+            Err(_) => return Err(JError::JournalInternal { seq: last, source: "panic during Commit".into() }),
+        };
+        if fault == Some(Fault::Swap) {
+            return Err(JError::JournalInternal { seq: last, source: "injected: before swap".into() });
+        }
+        let report = CommitReport {
+            entries: self.log.len(),
+            skipped_noops: self.st.noops,
+            written: s.effective.clone(),
+            t_serialize: t.elapsed(),
+            t_calc: s.t_calc,
+            t_registries: s.t_registries,
+            t_sheets: s.t_sheets,
+            parts_rewritten: s.parts_rewritten,
+            ..Default::default()
+        };
+        st.after_commit(wb, &s.calc, s.reg).map_err(|e| JError::JournalInternal { seq: last, source: e.to_string() })?;
+        st.noops = 0;
+        self.st = st;
+        self.swap(&s.bytes);
+        // the new Base's `xf` count (P2 test of `set_style_index`)
+        self.base_xf_count = self.st.reg.origin[0] + self.st.reg.maps[0].len() as u32;
+        Ok((s.bytes, report))
+    }
+
+    /// The swap of §7 step 6: the output is the new Base; echo records
+    /// survive (§10.1).
+    fn swap(&mut self, bytes: &[u8]) {
+        {
+            {
                 let last = self.log.last().expect("non-empty").seq;
                 for l in &self.log {
                     if let Origin::Session { raw_input: Some(r), .. } = &l.origin {
@@ -310,19 +533,11 @@ impl Journal {
                         }
                     }
                 }
-                self.base = bytes.clone().into();
+                self.base = bytes.to_vec().into();
                 self.log.clear();
                 self.key_index.clear();
                 self.echo_end.clear();
                 self.commit_mark = last;
-                self.shadow = None; // reopened lazily from the new Base (§10.1)
-                Ok((bytes, report))
-            }
-            Err(e) => {
-                // Base and log unchanged; the shadow was dropped at step 2 and
-                // is rebuilt by replay on the next read or append
-                self.shadow = None;
-                Err(e)
             }
         }
     }

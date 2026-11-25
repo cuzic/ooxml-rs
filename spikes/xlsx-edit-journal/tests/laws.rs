@@ -8,7 +8,7 @@ use xlsx_edit_journal_spike::exceljs::{EjFill, EjFont, EjStyle, EjWorkbook, Valu
 use xlsx_edit_journal_spike::fixture::oracle_workbook;
 use xlsx_edit_journal_spike::journal::read_norm;
 use xlsx_edit_journal_spike::op::apply_seq;
-use xlsx_edit_journal_spike::{Api, CellKey, Content, Fault, JError, Journal, Op, Patch};
+use xlsx_edit_journal_spike::{Api, CellKey, Content, Fault, JError, Journal, Mode, Op, Patch};
 
 fn wb() -> EjWorkbook {
     EjWorkbook::load(oracle_workbook("A1:C5")).unwrap()
@@ -126,7 +126,8 @@ fn replay_matches_a_sequential_workbook() {
     // truncation
     j.truncate(4).unwrap();
     check(&mut j, 4);
-    assert!(j.replays >= 3);
+    // Shadow mode keeps the shadow across a failed Commit (nothing to replay)
+    assert!(j.replays >= if j.mode() == Mode::Compile { 3 } else { 2 });
 }
 
 #[test]
@@ -180,7 +181,9 @@ fn get_put_empty_and_all_noop_journals_save_the_base() {
         j.append(Api::Native, op, None).unwrap();
     }
     let (out, report) = j.commit().unwrap();
-    assert_eq!(report.skipped_noops, 7, "{report:?}");
+    // Compile: 7 entries skipped after folding. Shadow: 5 ops skipped at
+    // append (remedy 1); B1 and A1 are restored (remedy 2)
+    assert_eq!(report.skipped_noops, if j.mode() == Mode::Compile { 7 } else { 5 }, "{report:?}");
     assert_eq!(out, base, "all no-ops: byte-identical");
     // second save of an empty Journal: the first output
     assert_eq!(j.commit().unwrap().0, out);

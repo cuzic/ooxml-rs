@@ -69,7 +69,7 @@ fn compile_inner(base: &Arc<[u8]>, log: &[LoggedOp], fault: Option<Fault>) -> JR
         let mut phase_c: Vec<&Entry> = Vec::new();
         let mut contents: Vec<&Entry> = Vec::new();
         for w in &b.cells {
-            let cell = read(&mut wc, w.key).map_err(|e| internal(w.content.as_ref().or(w.style.as_ref()).map_or(last, |e| e.seq), e))?;
+            let cell = read_cell(&mut wc, w.key).map_err(|e| internal(w.content.as_ref().or(w.style.as_ref()).map_or(last, |e| e.seq), e))?;
             let content = w.content.as_ref().filter(|c| {
                 let skip = is_noop_content(&cell, c, date1904);
                 report.skipped_noops += skip as usize;
@@ -163,11 +163,11 @@ pub struct Cell {
     formula_plain: bool,
     t: Option<String>,
     rich: bool,
-    s: u32,
+    pub s: u32,
     is_date: bool,
 }
 
-fn read(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Option<Cell>> {
+pub fn read_cell(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Option<Cell>> {
     let mut ws = wb.worksheet_by_index(k.sheet)?;
     let Some(cell) = ws
         .cell(k.row, k.col)?
@@ -195,13 +195,28 @@ fn read(wb: &mut Workbook, k: CellKey) -> ooxml_xlsx::Result<Option<Cell>> {
 
 /// §9.2: only on an **existing** cell, and only when the payload reads equal.
 fn is_noop_content(cell: &Option<Cell>, e: &Entry, date1904: bool) -> bool {
+    noop_kind(cell, &e.kind, date1904)
+}
+
+/// The content no-op test of §9.2 for one op at append (Commit = shadow
+/// serialization, remedy 1). Style patches other than `Index` cannot be
+/// resolved without applying them (F2); the caller tests `Index`.
+pub fn noop_op(cell: &Option<Cell>, op: &Op, date1904: bool) -> bool {
+    match op {
+        Op::Content(_, c) => noop_kind(cell, &EKind::Content(c.clone()), date1904),
+        Op::DateTime(..) => noop_kind(cell, &EKind::TwoHalf(op.clone()), date1904),
+        _ => false,
+    }
+}
+
+fn noop_kind(cell: &Option<Cell>, kind: &EKind, date1904: bool) -> bool {
     let Some(c) = cell else { return false };
     if c.formula.is_some() {
         // a formula never reads equal to a constant
-        return matches!(&e.kind, EKind::Content(Content::Formula(t)) if c.formula_plain && c.formula.as_deref() == Some(t.strip_prefix('=').unwrap_or(t)));
+        return matches!(kind, EKind::Content(Content::Formula(t)) if c.formula_plain && c.formula.as_deref() == Some(t.strip_prefix('=').unwrap_or(t)));
     }
     let t = c.t.as_deref();
-    match &e.kind {
+    match kind {
         EKind::Content(Content::Number(v)) => matches!(t, None | Some("n")) && c.value == CellValue::Number(*v),
         EKind::Content(Content::String(s)) => matches!(t, Some("s" | "inlineStr")) && !c.rich && c.value == CellValue::String(s.clone()),
         EKind::Content(Content::Bool(b)) => c.value == CellValue::Bool(*b),

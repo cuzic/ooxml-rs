@@ -9,7 +9,7 @@ use ooxml_xlsx::{Color, Fill, Font, Workbook};
 use xlsx_edit_journal_spike::commit;
 use xlsx_edit_journal_spike::fixture::large_workbook;
 use xlsx_edit_journal_spike::op::apply_seq;
-use xlsx_edit_journal_spike::{Api, CellKey, Content, Journal, Op, Patch};
+use xlsx_edit_journal_spike::{Api, CellKey, Content, Journal, Mode, Op, Patch};
 
 struct Counting;
 static CUR: AtomicUsize = AtomicUsize::new(0);
@@ -99,7 +99,7 @@ fn main() {
     // shadow (= one parsed workbook)
     let before = reset_peak();
     let t = Instant::now();
-    let mut j = Journal::open(base.clone()).unwrap();
+    let mut j = Journal::open_with(base.clone(), Mode::Compile).unwrap();
     let open = t.elapsed();
     let shadow_mem = CUR.load(Relaxed) - before;
     println!("Journal::open (from_bytes + style registry): {}, heap held {} (peak {})", ms(open), mib(shadow_mem), mib(PEAK.load(Relaxed) - before));
@@ -141,7 +141,7 @@ fn main() {
     // truncation replay: cut half, force the rebuild
     {
         let half = n_ops as u64 / 2;
-        let mut j2 = Journal::open(base.clone()).unwrap();
+        let mut j2 = Journal::open_with(base.clone(), Mode::Compile).unwrap();
         for op in &ops {
             j2.append(Api::Native, op.clone(), None).unwrap();
         }
@@ -188,8 +188,10 @@ fn main() {
     println!("save total (Commit + reopen) {} vs sequential to_bytes {}: {:.1}x", ms(commit_t + reopen), ms(seq_save), (commit_t + reopen).as_secs_f64() / seq_save.as_secs_f64());
     drop(reopened);
 
+    shadow_mode(&base, &ops, seq_save, append);
+
     // a batch-heavy Commit: distinct cells, values only (write_cells path)
-    let mut j3 = Journal::open(base.clone()).unwrap();
+    let mut j3 = Journal::open_with(base.clone(), Mode::Compile).unwrap();
     let n3 = (rows as usize).min(10_000);
     for r in 0..n3 as u32 {
         j3.append(Api::Native, Op::Content(CellKey::new(0, r, 1), Content::Number(-1.0)), None).unwrap();
@@ -207,4 +209,95 @@ fn main() {
     let t = Instant::now();
     let _ = wb.to_bytes().unwrap();
     println!("sequential: {n3} set_number {} + to_bytes {}", ms(calls), ms(t.elapsed()));
+}
+
+/// Commit = shadow serialization (README): append cost with remedies 1–2,
+/// the save and its parts, a second save, and `truncate_fast`.
+fn shadow_mode(base: &[u8], ops: &[Op], seq_save: Duration, compile_append: Duration) {
+    let n_ops = ops.len();
+    println!("--- Commit = shadow serialization");
+    let before = reset_peak();
+    let mut j = Journal::open_with(base.to_vec(), Mode::Shadow).unwrap();
+    j.normalized(CellKey::new(0, 0, 0)).unwrap();
+    let warm = Op::Content(CellKey::new(0, 0, 0), Content::Number(0.0));
+    j.append(Api::Native, warm, None).unwrap();
+    let after_warm = CUR.load(Relaxed);
+    let t = Instant::now();
+    for op in ops {
+        j.append(Api::Native, op.clone(), None).unwrap();
+    }
+    let append = t.elapsed();
+    let after = CUR.load(Relaxed);
+    let st = j.shadow_state();
+    println!(
+        "append {n_ops} ops: {} ({}), Compile mode {} ({}); {} touched cells, {} restored, {} no-ops",
+        ms(append),
+        us_per(append, n_ops),
+        ms(compile_append),
+        us_per(compile_append, n_ops),
+        st.touched.len(),
+        st.reverted.len(),
+        st.noops
+    );
+    println!("heap: after first write {}, after {n_ops} appends {} (+{} over the first write)", mib(after_warm - before), mib(after - before), mib(after - after_warm));
+    let peak0 = reset_peak();
+    let t = Instant::now();
+    let (bytes, rep) = j.commit().unwrap();
+    let save = t.elapsed();
+    println!(
+        "save (no reopen): {} = calc {} + registries {} + sheets {} + zip {}; {} part(s) rewritten; peak heap +{}",
+        ms(save),
+        ms(rep.t_calc),
+        ms(rep.t_registries),
+        ms(rep.t_sheets),
+        ms(rep.t_serialize.saturating_sub(rep.t_calc + rep.t_registries + rep.t_sheets)),
+        rep.parts_rewritten,
+        mib(PEAK.load(Relaxed) - peak0)
+    );
+    println!("save / sequential to_bytes ({}): {:.2}x", ms(seq_save), save.as_secs_f64() / seq_save.as_secs_f64());
+    // the same output check as the tests, cheaply: it opens
+    Workbook::from_bytes(bytes).unwrap();
+    // a second session on the kept shadow
+    let t = Instant::now();
+    for op in ops.iter().rev() {
+        j.append(Api::Native, op.clone(), None).unwrap();
+    }
+    let append2 = t.elapsed();
+    let t = Instant::now();
+    let (_, rep2) = j.commit().unwrap();
+    let save2 = t.elapsed();
+    println!(
+        "second session: append {} ({}), save {} ({:.2}x; calc {}, registries {}, sheets {})",
+        ms(append2),
+        us_per(append2, n_ops),
+        ms(save2),
+        save2.as_secs_f64() / seq_save.as_secs_f64(),
+        ms(rep2.t_calc),
+        ms(rep2.t_registries),
+        ms(rep2.t_sheets)
+    );
+    // truncate: undo from the snapshots vs replay
+    let half = n_ops as u64 / 2;
+    let fresh = || {
+        let mut j = Journal::open_with(base.to_vec(), Mode::Shadow).unwrap();
+        for op in ops {
+            j.append(Api::Native, op.clone(), None).unwrap();
+        }
+        j
+    };
+    let mut a = fresh();
+    let t = Instant::now();
+    let fast = a.truncate_fast(half).unwrap();
+    let t_fast = t.elapsed();
+    let mut b = fresh();
+    let t = Instant::now();
+    b.truncate(half).unwrap();
+    b.shadow().unwrap();
+    let t_replay = t.elapsed();
+    println!("truncate to {half}: from the snapshots {} (fast path: {fast}) vs replay {} ({:.0}x)", ms(t_fast), ms(t_replay), t_replay.as_secs_f64() / t_fast.as_secs_f64());
+    let t = Instant::now();
+    let (oa, _) = a.commit().unwrap();
+    let t_save_a = t.elapsed();
+    let (ob, _) = b.commit().unwrap();
+    println!("  outputs equal: {} (save after the fast truncate {})", oa == ob, ms(t_save_a));
 }

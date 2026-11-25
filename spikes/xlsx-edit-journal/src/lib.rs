@@ -8,6 +8,7 @@ pub mod journal;
 pub mod normalize;
 pub mod op;
 pub mod project;
+pub mod shadow;
 
-pub use journal::{CommitReport, Fault, JError, JResult, Journal, NormCell};
+pub use journal::{CommitReport, Fault, JError, JResult, Journal, Mode, NormCell};
 pub use op::{Api, CellKey, Content, EchoField, Op, Patch, RawInput, Start};

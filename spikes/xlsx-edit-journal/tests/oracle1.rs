@@ -10,7 +10,7 @@ use proptest::prelude::*;
 use xlsx_edit_journal_spike::fixture::oracle_workbook;
 use xlsx_edit_journal_spike::normalize::{EKind, normalize};
 use xlsx_edit_journal_spike::op::{LoggedOp, Origin};
-use xlsx_edit_journal_spike::{CellKey, Content, Op, Patch};
+use xlsx_edit_journal_spike::{CellKey, Content, Mode, Op, Patch};
 
 // ------------------------------------------------------------ generator
 
@@ -107,7 +107,9 @@ fn base() -> Vec<u8> {
 fn formula_then_constant_on_a_formula_cell() {
     let (s, j) = oracle1(&base(), &[content(k("C1"), Content::Formula("=1".into())), content(k("C1"), Content::Number(5.0))]);
     assert_eq!(raw_cell(&j.bytes, S1, "C1"), raw_cell(&s.bytes, S1, "C1"));
-    assert_eq!(j.report.entries, 1, "the full write folded the formula away");
+    if j.journal.mode() == Mode::Compile {
+        assert_eq!(j.report.entries, 1, "the full write folded the formula away");
+    }
 }
 
 #[test]
@@ -122,7 +124,9 @@ fn number_then_num_format_on_a_missing_cell_in_a_styled_column() {
     // B5 is missing under `col/@style` = 1 (bold): the content creates the
     // cell without `s`, so the patch resolves on 0 (no bold)
     let (_, j) = oracle1(&base(), &[content(k("B5"), Content::Number(5.0)), patch(k("B5"), Patch::NumFmt("0.00".into()))]);
-    assert_eq!(j.report.batches, 2, "no merge on a Missing start (§7.1)");
+    if j.journal.mode() == Mode::Compile {
+        assert_eq!(j.report.batches, 2, "no merge on a Missing start (§7.1)");
+    }
 }
 
 #[test]
@@ -134,10 +138,14 @@ fn x_then_y_and_y_then_x_on_existing_and_missing_cells() {
     }
     // an existing cell: value then fill is one write
     let (_, j) = oracle1(&base(), &[content(k("A2"), Content::Number(9.0)), patch(k("A2"), Patch::Fill(red()))]);
-    assert_eq!(j.report.batches, 1);
+    if j.journal.mode() == Mode::Compile {
+        assert_eq!(j.report.batches, 1);
+    }
     // three patches are three batches
     let (_, j) = oracle1(&base(), &[patch(k("A2"), Patch::Fill(red())), patch(k("A2"), Patch::Font(italic())), patch(k("A2"), Patch::Border(thin()))]);
-    assert_eq!(j.report.batches, 3);
+    if j.journal.mode() == Mode::Compile {
+        assert_eq!(j.report.batches, 3);
+    }
 }
 
 #[test]
