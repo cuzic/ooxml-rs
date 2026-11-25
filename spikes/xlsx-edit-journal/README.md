@@ -75,6 +75,10 @@ first part of this README describes it and its results.
 - **Oracle 1 (keyed).**
   - Coverage: 1,024 proptest cases per `cargo test` run, plus one run of **20,000 cases**
     (`EJ_CASES=20000`, 139 s). All pass.
+  - Correction (ADR-0024 review round 7, B1): the cache predicate in `src/project.rs` checks
+    only "a kept `v` is the Base's". The ADR's predicate also requires that no cell the formula
+    reads differs from the Base; that half is not implemented, so these runs do not detect a
+    stale cache kept on a dependent.
   - Generator: 1–32 ops per case on a 7×5 grid, plus hot cells (`B5`, `C3`, `C1`, `A3`, `D7`,
     `B6`) and `Sheet2`. It mixes value, formula, `remove_formula`, error and bool writes with
     style patches, both two-half ops and three refusals: a merged cell, an out-of-range `xf` and
@@ -292,7 +296,10 @@ differences from the new Base are carried as state (pins, strips, registry maps;
    still sets `fullCalcOnLoad` and removes calcChain on its own copy, but the layer ignores
    those. At save, the **changed set** is the touched cells minus the restored ones. The
    strip set is the `Workbook::dependents` of the changed set's content changes, minus the
-   changed set. The layer then applies ADR-0003 §3.3 once:
+   changed set. (This is wrong, ADR-0024 review round 7, B1: a formula cell whose style
+   changed while one of its inputs changed keeps its stale cache. ADR-0024 §7.1 R3 now
+   subtracts only cells whose content changed; this spike's code is left as it was.) The layer
+   then applies ADR-0003 §3.3 once:
    - strip `v`, `is` and `t` from each cell in the strip set;
    - set `fullCalcOnLoad` if the strip set is non-empty or the formula set changes. The
      layer adds the flag to the Base's `calcPr` text; otherwise it keeps the Base's
@@ -378,7 +385,7 @@ strips.
   - Collection and canonical numbering of `sst`/`xf`; the result equals the direct write.
   - A reset to `xf` 0 followed by a write gives the same bytes as the write alone.
 - **Long run.** `EJ_CASES=20000`: `shadow_mode` (all six proptests, 119 s) and `oracle1` in
-  Shadow mode (134 s). All pass. The first long run of `shadow_mode` failed: see
+  Shadow mode (134 s). All pass (with the half cache predicate noted under oracle 1 above). The first long run of `shadow_mode` failed: see
   `fullCalcOnLoad` below.
 - **Mutants.** Every remedy mutant fails. The seven earlier mutants still fail under
   `EJ_MODE=compile`.
@@ -468,6 +475,13 @@ Reading:
 
 With the first four in core, the shadow equals the output after a save, the carried state
 goes away, the View has stable indices, and Commit is literally `to_bytes()`.
+
+Correction (ADR-0024 review round 7, M1, M5): that last sentence overstates it. The layer also
+writes every written cell in a canonical form and restores the cache of a cell whose content
+came back under a new style, which the four APIs above do not do, and it opens the new Base at
+every save, which hides that a kept shadow's spans point into the first Base. ADR-0024 §7.4
+adds a content restore to `restore_cell`, a canonical cell form (C7), a rebase after save (C6)
+and cell state reads (C8).
 
 ### ADR revision 8 へのフィードバック
 

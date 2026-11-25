@@ -305,3 +305,24 @@ round 6 の各点がどこへ移ったかを確かめた。
 ## 判定
 
 converged: no（Blocker 1 / Major 5 / Minor 7 / nit 3）
+
+## Owner response（revision 8 の修正）
+
+spike のコードは変えていない。spike の証拠が弱かった点は ADR の Appendix B（"What the spike does not show"）、§7.3、Q7 と spike の README に明記した。
+
+- **B1**: 採用。R3 の strip 集合から引くのを「内容が snapshot と異なるセル（content-changed）」だけにした（§4.4 の定義、§7.1 R3）。スタイルだけの変更、content restore、R2 で戻したセルは通常どおり strip する。oracle 1 の述語は前半・後半とも必須と明記し、J0 の受け入れ条件に全文実装と shared/array fixture を足した（Delivery）。oracle 1 に固定ケース、oracle 9 に変異を足した。spike にこの誤りがあること、20,000 ケースが覆っていないことを Appendix B、§7.3、Q7、README に書いた。
+- **M1**: 修正案 (b) を採用。C6 `rebase_after_save` を追加（直列化中に新しい span を記録し、parse 元と Package の original を出力に付け替え、dirty を全部消す）。§7.2 step 7、§7.1 R2、§10.1 に反映。oracle 12/13 に「保存した編集を 2 回目のセッションで書いて戻す」固定ケース、oracle 9 に変異、oracle 10 に C6 のコストを足した。
+- **M2**: 採用。snapshot と changed set を「呼び出しの plan の target 全部（hand-off の新しい master を含む）」で定義（§4.4、C1 が target を返す）。§7.1 の R1 の主張に shared/array member の例外を書いた。oracle 11 の noise を R2 が戻せるセルに限り、除いたセルは P で比べる第 4 variant にした。oracle 1 に固定ケース 2 つを足した。
+- **M3**: 採用（保守的な規則 + J2 で検証）。構造操作は Deferred の下で `StructuralCalc`（§3.7 の strip 集合を id で、数式セルを動かしたか、消した `t="s"` セル数）を返し、`LoggedOp.calc` に記録（§4.2、C3）。保存時に、記録した id のうち生きていて `f` を持つものをすべて strip し、数式を動かした構造操作があれば calcChain を外す（§7.1 R3）。oracle 1 の calcChain 述語に条件を足し、J2 の固定ケースと変異を足した。
+- **M4**: 採用。`truncate_fast` が再適用するのは「現在の snapshot を取った op から `seq` まで」に限った（§10.3）。oracle 14 の生成器に構造操作をまたぐ切断を足した（J3）。
+- **M5**: 修正案 (a) を採用。C2 に content restore（内容が戻り `s` だけ違うときは snapshot ノードに現在の `s`）を加え、C7（保存時の正規形: `xf` 0 は snapshot の書き方、`None` snapshot は属性なし、子のない要素は self-closing）を追加。§7.4 に F11 の各痕跡を消す API の表を置いた。「Commit is literally …」を C1〜C8 に直した。oracle 11 に「F の内容 op の後のスタイル往復」variant を足した。round 5 M1 の固定ケース（`B5`）の Journal 側のバイトは `<c r="B5"/>` になる（P は同じ）。
+- **m1**: R1 を「すべての target が存在し、C1 の plan が P のモデル化する内容を変えない（two-half op は両方）」に一本化した。§4.4 の状態の等しさ（R2 用）とは意図して分け、理由を §7.1 に書いた（shared member の同じ text は R1 で飛ばす）。§4.4 に「`s` が無いことは `s="0"` と等しい」を足した。
+- **m2**: 採用。`sst/@count` は shadow の running delta（構造操作が消した `t="s"` を引く）で保ち、Journal 側の述語は出力と Base の `t="s"` セルを直接数える（§7.1 R4、oracle 1）。構造部分は J2 で検証。
+- **m3**: 採用。C5 を 1 案にした（shadow の書き込みは `dimension` に触れず、構造操作が書き換え、保存時に changed set で広げる）。oracle 9 に「shadow の書き込みが広げる」変異を足した。
+- **m4**: 採用。step 2 の最初で stale の印を付け、swap で外す。replay の失敗は `JournalBroken`（§7.2、§9.3、§12、oracle 3）。
+- **m5**: 採用。revision 8 で書き換えた見出しを「(proposed, revision 8)」にし、Q7 の "Default" を "Recommended, not yet decided" にした。Q7 に text layer の数値であること、C1〜C8 未実装、R1 が C1 まで無効、spike の証拠の欠け、compiled Commit をテスト専用の参照として残すかの付帯の問いを足した。
+- **m6**: 採用。§7.4 の表を C1〜C8 にした（snapshot の読み取り、`restore_cell(None)` の動作と「snapshot 記録が無い」との区別、dry run と per-cell の strip 問い合わせ、C4 後の逆引きの再構築、`f` 属性と rich ランの読み取り C8）。
+- **m7**: 採用。normalized read はセル単位の `would_strip` で問い合わせる（§6.1、§6.3、C3）。oracle 10 に setter/getter 交互の負荷を足した。
+- **n1**: revision 8 の項目で oracle 11〜14 の出典に F10 を書いた。
+- **n2**: oracle 11 の noise の対象を id とブロック開始時の Base 内容で定め、oracle 13 の範囲を「fixture の使用範囲と周り 1 行 1 列」にした。
+- **n3**: §9.3 の 1 行目を「before step 2」だけにした。
