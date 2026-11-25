@@ -588,16 +588,17 @@ mutant fails at least one test (`./mutants.sh`, list below).
 | b | Targets incl. the hand-off master (round 7 M2) | **Held.** `mutant_no_handoff_target` fails oracle 4 (locality: `C2`'s bytes change outside the changed set) and the `dimension` check. |
 | b | R2 restores derived state (round 8 M2) | **Held for the spike's analogue only.** The spike's shadow never restores a node (C2 is a text layer), so the census case cannot arise. Its analogue, R3 reading the shadow's node instead of the restored state (`mutant_r2_no_derived`), fails the `F = A1*2` fixed case and 10 other tests. |
 | c | Snapshots closed workbook-wide, carried marks (round 9 M1) | **Held.** The three round 9 M1 cases pass: `A!A1 = MATCH(7,B!A:A,0)` set to 9, `insert_rows(B,2,1)`, text back: no cache on either side; `A!A2 = B!A5*2` with the same text written back: no cache, content-changed; a constant 5→9, insert, 10, 9: carried mark, row in `dimension`. `mutant_close_own_sheet` fails the first two (the first through the probe clause: `main` strips the whole-column reader on a row insert), `mutant_restore_clears_mark` the third. |
-| c | Structural strip records (round 7 M3, round 8 M6) | **Held.** `mutant_drop_records` fails 8 tests; with the structural-direction clause also removed it still fails the generated cases through other clauses, and the `ROW()` fixed case. |
+| c | Structural strip records (round 7 M3, round 8 M6) | **Held.** `mutant_drop_records` fails 10 tests; with the structural-direction clause also removed it still fails the generated cases through other clauses, and the `ROW()` fixed case. |
 | c | `dimension` (round 8 M3), `sst/@count` after deletes (round 7 m2) | **Held.** `F20` case: both sides `A1:F20`. A write at `D10` then its row deleted: `A1:C5`. Base `t="s"` deleted, a string written then deleted, a `t="s"` cell overwritten then deleted: the Journal's `@count` predicate holds; `mutant_no_sst_removed` fails. |
 | c | calcChain removal (round 7 M3) | **Fails as written; fixed.** Counterexample (5,000-case run, `oracle_workbook`): `set_number(A5, 5)` (`A5` was `=1+1`), `delete_rows(4, 1)`. The op deletes no formula (`A5` is a constant by then), and `A5`'s carried mark dies with its id, so R3's "a content-changed cell gained or lost a formula" sees nothing and the Base's calcChain, listing `A5`, is kept. Fix: a mark that dies keeps its formula-set change ("the formula-cell set, by id, dead ids included, differs from the Base's"). `adr_dead_mark_drops_fx` fails the fixed case. |
 | c | R3 seeding on a created cell | **Ambiguous as written; fixed.** A style patch on a missing cell creates an empty `c`. "Content differs from the snapshot (`None`)" reads as a change, and its dependents are stripped (`B!A7` font strips `A!A1 = MATCH(7,B!A:A,0)`; the sequential side does not). Fix: a missing cell's content is empty. `adr_missing_is_content` fails the fixed case. |
-| c | Oracle 1 with structural ops | **Held** after the fixes above: 512 cases per run on two fixtures; probe refused 0 of 2,270 cases with an accepted structural op (3,000-case count). |
-| c | Oracle 11 across epochs | **Byte-identical within an epoch, P-equal across one.** Noise inside epochs (on cells not touched since the last structural op): byte-identical (3,000 cases). A block spanning a structural op (change before, write-back after, at the moved position): always P-equal, byte-identical in 259 of 385 cases; the others differ by the carried mark (`dimension`, extra strips), as §4.4 says. |
-| c | Oracle 12 across epochs | **Held** (replay from the Base gives the same bytes; 3,000 cases). |
-| d | `truncate_fast` (§10.3) | **Held.** Replay when a cut op is structural or a `write_cells`, or a cut or re-applied op touches a group cell (the spike cannot write a member back). Re-application starts at the current epoch. 3,000 random cuts across epochs: 790 on the fast path, all equal to replay in reads and bytes. Round 7 M4 fixed case (`A1 = B5*2`, `insert_rows(2,1)` kept, a write to `A1` cut: `B6*2`): `mutant_tf_from_mark` fails it; `mutant_tf_no_restore` fails it too. The round 8 M5 hand-off cut is not reachable: the spike falls back for any group cell. |
+| c | Oracle 1 with structural ops | **Held** after the fixes above: 5,000 cases on each of two fixtures; probe refused 0 of 2,270 cases with an accepted structural op (3,000-case count). |
+| c | Oracle 11 across epochs | **Byte-identical within an epoch, P-equal across one.** Noise inside epochs (on cells not touched since the last structural op): byte-identical (5,000 cases, after the C7 fix in the next row). A block spanning a structural op (change before, write-back after, at the moved position): always P-equal, byte-identical in 259 of 385 cases; the others differ by the carried mark (`dimension`, extra strips), as §4.4 says. |
+| c | C7 on a created cell (review round 9, n1) | **Held as written; the spike did not follow it.** A cell the session created (no Base node), restyled to `xf` 0 in a later epoch, kept the shadow's `s="0"`; C7 as written removes it. Found by the 3,000-case history run (minimal: `B!B2 = 1`, `insert_cols(B, 0, 1)`, noise on `C2`, then a string). Fixed in the spike; `mutant_c7_created_keeps_s0` restores the old form. The `B5` fixed case now expects the ADR's `<c r="B5"/>` on the Journal side. |
+| c | Oracle 12 across epochs | **Held** (replay from the Base gives the same bytes; 5,000 cases). |
+| d | `truncate_fast` (§10.3) | **Held.** Replay when a cut op is structural or a `write_cells`, or a cut or re-applied op touches a group cell (the spike cannot write a member back). Re-application starts at the current epoch. 3,000 random cuts across epochs: 790 on the fast path, all equal to replay in reads and bytes; ten more runs of 5,000 cuts after the C7 fix also pass (one failure of this proptest, seen in a run before that fix, did not recur). Round 7 M4 fixed case (`A1 = B5*2`, `insert_rows(2,1)` kept, a write to `A1` cut: `B6*2`): `mutant_tf_from_mark` fails it; `mutant_tf_no_restore` fails it too. The round 8 M5 hand-off cut is not reachable: the spike falls back for any group cell. |
 | e | Second session (round 7 M1, round 8 M4) | **Held in both modes.** Session 1 writes `A1`, saves; session 2 writes and writes back: byte-equal to session 1's output. Same with `A1`/`A3` then `A5` and back. Bisimulation of both. `mutant_no_rebase` (restores read the first Base after a save) fails all three. The whole earlier suite also passes with `EJ_REOPEN=1`. |
-| — | Sheet ops, splice, barrier ops, P1 | **Not done.** |
+| — | Not done | Sheet ops (`add_sheet`, `move_sheet`, `rename_sheet`, `delete_sheet`) and their §12 records; splice; barrier ops; P1; the round 8 M5 hand-off cut (the spike falls back for any group cell); the white-box census and dependency comparison of oracles 12 and 14 (the spike's shadow never restores a node, so there is nothing to compare); a real C6 span walk; style-sensitive workbooks; measurements at 1.1M cells. |
 
 ### Proposed changes to the ADR
 
@@ -621,7 +622,40 @@ mutant fails at least one test (`./mutants.sh`, list below).
 
 ### Mutants (`./mutants.sh`, after the fixes)
 
-MUTANTS
+Each line: the switch, what it breaks, and the tests it fails (the full lists are what
+`./mutants.sh` prints; the `*_across_epochs` proptests show up in some lines because the run
+was made before the C7 fix below, which they could hit rarely).
+
+| Switch | Breaks | Fails (count: examples) |
+|---|---|---|
+| `r1_unvalidated mutant_no_noop` | R1 removed (with the old R1 on) | 2: GetPut skip count, `noop_writes_leave_the_shadow_clean` |
+| `mutant_no_revert` | R2 removed | 18: GetPut, both second-session cases, all history and replay tests |
+| `mutant_no_defer` | R3 removed (strip at each write) | 22 |
+| `mutant_no_gc` | R4 removed | 8 |
+| `mutant_r3_subtract_changed` | R3 before revision 8 (round 7 B1) | 10: both B1 cases, round 9 M2, the oracle 1 proptests |
+| `… + mutant_half_cache_predicate` | the same, oracle 1 with its first cache half only | 5: the fixed cases' own assertions, the structural proptests |
+| `mutant_r3_subtract_content` | round 7's R3 (subtract content-changed) | none: equivalent under the fixed seeding (item b) |
+| `… + adr_r3_seed_raw` | the same, seeded as written | 4: round 9 M2, round 8 M1, round 7 M2, the group proptest |
+| `adr_r3_seed_raw` | R3 seeded from raw `f` attributes (as written) | 3: round 8 M1 (⊄), round 7 M2, the group proptest |
+| `adr_r3_formula_only` | R3 strips only cells holding `f` (as written) | 3: `G3` keeps a stale cache |
+| `adr_missing_is_content` | a created empty `c` counts as content (as written) | 1: its fixed case |
+| `adr_dead_mark_drops_fx` | a dead mark loses its formula change (as written) | its fixed case (calcChain kept) |
+| `r1_unvalidated` | R1 judged before validation (F13) | 2: the merge / array-result fixed case, the group proptest |
+| `r1_unvalidated mutant_r1_group_cells` | R1 (b) dropped | equivalent here (same 2 as `r1_unvalidated`): the spike's R1 never judges a group cell |
+| `mutant_r1_skip_group` | R1 judged by P (round 8 M1) | 3: round 8 M1 refusal mismatch |
+| `mutant_no_handoff_target` | targets without the hand-off master (round 7 M2) | 3: oracle 4 locality |
+| `mutant_r2_no_derived` | R3 reads the shadow's node, not the restore (round 8 M2 analogue) | 13 |
+| `mutant_drop_marks` | carried marks seed nothing | 2: round 9 M1 third case (stale `A!B1`), the structural proptest |
+| `mutant_drop_records` | structural strip records dropped (round 7 M3, round 8 M6) | 10 |
+| `… + mutant_no_structural_clause` | the same, oracle 1 without its structural direction | 4: the `ROW()` fixed case's own assertion and the proptests through other clauses |
+| `mutant_close_own_sheet` | snapshots closed on the op's own sheet only (round 9 M1) | 5: both round 9 M1 cases (the `MATCH` case through the probe clause) |
+| `… + mutant_no_probe_clause` | the same, oracle 1 without the probe clause | 5: the fixed cases' own assertions and half 2 (text changed, cache kept) |
+| `mutant_restore_clears_mark` | a restore clears the carried mark (round 8 M3) | 6: round 9 M1 third case, `F20`, the structural proptests |
+| `mutant_no_sst_removed` | `sst/@count` not decremented by a structural delete (round 7 m2) | 3: its fixed case, the structural proptests |
+| `mutant_tf_from_mark` | `truncate_fast` re-applies from the commit mark (round 7 M4) | 2: the M4 fixed case, the cut proptest across epochs |
+| `mutant_tf_no_restore` | `truncate_fast` re-applies without restoring | 3 |
+| `mutant_no_rebase` | restores read the first Base after a save (no C6, round 7 M1) | 6: both second-session cases, their bisimulation, replay and bisimulation proptests |
+MORE3
 
 ### Long runs (after the fixes)
 
@@ -631,6 +665,7 @@ Run in parallel with the mutant run on the same machine (so the times are long):
 |---|---|---|---|
 | `oracle1` (oracle 1 on the oracle workbook, full predicate) | 20,000 | pass | 295 s |
 | `shadow_mode` (oracles 11–14, one epoch) | 20,000 | pass | 179 s |
+| `shadow_mode` with `EJ_REOPEN=1` (A′) | 20,000 | pass | 177 s |
 | `groups` (shared and array formulas) | 5,000 | pass | 75 s |
 | `structural` (two fixtures, oracles 1, 11, 12, 14 across epochs) | 5,000 | pass (after the fixes below; the run before them failed) | 84 s (alone) |
 
