@@ -180,6 +180,7 @@ pub fn oracle1(base: &[u8], ops: &[Op]) -> (SeqOut, JOut) {
         bytes: pr.as_ref().map(|p| p.keep.clone()),
         structural_sheets: structural.iter().map(|o| if let Op::Structural(s) = o { s.sheet() } else { unreachable!() }).collect(),
         chain_allowed: pr.as_ref().is_none_or(|p| p.chain_kept),
+        sst_count: j.journal.mode() == xlsx_edit_journal_spike::Mode::Shadow,
     };
     let tg = targets(ops, &j.refused);
     predicates_aligned(base, &al, &s.bytes, &s.written, &[], false).unwrap_or_else(|e| panic!("(iv) sequential predicate: {e} for {ops:?}"));

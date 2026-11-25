@@ -1,7 +1,8 @@
 # spikes/xlsx-edit-journal
 
 A minimal spike for [ADR-0024](../../docs/adr/0024-xlsx-edit-journal.md) (xlsx Edit Journal,
-revision 7). It is the keyed-op slice of J0 and J1. It shows that ExcelJS-style cell values and
+revision 7; section [Revision 8 verification](#revision-8-verification) runs revision 8's
+rules). It is the keyed-op slice of J0 and J1. It shows that ExcelJS-style cell values and
 styles can be read and written through a Journal. It also checks that the ADR's rules hold on
 real code, and it measures the costs that J0 must measure (Test oracle 10).
 
@@ -532,3 +533,119 @@ ADR now makes the fast path fall back for any multi-target call or group cell (�
   main guard, since no second engine re-derives the output.
 - **For an appendix.** The measurement table, the carried-state mechanism, `truncate_fast`
   (14–28× faster than a replay), and the list of core APIs with their stand-ins.
+
+## Revision 8 verification
+
+Added 2026-11-25. Revision 8's rules (ADR-0024 at `5d4fb9d`: §4.4, §4.5, §7.1 R1–R4, §7.2,
+§10.3, test oracles 1, 4, 5, 11–14) are run as code here, instead of another review round.
+Every rule has a mutant (a `--features` switch) that breaks it, and each mutant must fail a test.
+Where a rule **as written** fails, the rule as written stays behind an `adr_*` switch and the
+spike runs the **fixed** rule by default, so the two stay separate.
+
+```sh
+cd spikes/xlsx-edit-journal
+cargo test --release                                  # all suites, 512 cases per new proptest
+EJ_CASES=20000 cargo test --release --test oracle1    # the long runs below
+EJ_REOPEN=1 cargo test --release                      # A′: reopen the output after each save
+./mutants.sh                                          # one line per switch: the tests it fails
+./mutants.sh adr_r3_formula_only                      # one switch
+EJ_MODE=compile ./mutants.sh mutant_cond_last_wins    # a compiled-Commit mutant
+cargo run --release --bin measure -- 10000 2000       # incl. A′ and structural ops
+```
+
+New: `tests/groups.rs` (item b), `tests/structural.rs` (items c, d), `tests/sessions.rs` (item
+e), `mutants.sh`, and the fixtures `group_workbook` and `struct_workbook` (`src/fixture.rs`).
+
+### Substitutes (no crate was changed)
+
+| ADR | Stand-in in the spike | Limit |
+|---|---|---|
+| C1 targets | `handoff_target`: before a content write on a shared master, the first member in (row, column) order, as `plan_handoff` picks it, is snapshotted and tracked | Shared groups only. No validation before R1, so R1 is off (§4.5) |
+| C2 within an epoch | the text layer, as before: a restored cell is written at save as its snapshot's bytes | The shadow's own node keeps its history (F11) until the next epoch boundary |
+| C2 at an epoch boundary, C6 fallback | `materialize`: before a structural op the shadow is serialized, every restored and content-restored cell is spliced back as its snapshot's bytes, `dimension` is set back to the epoch's, and the shadow is reopened from that | One serialize and two parses per structural op (measurements) |
+| C3 structural part | the op runs first on a copy of the shadow under `StripDependentCaches`; the cells whose cache it removed (at their new positions), whether it moved or deleted a formula cell, and the `t="s"` cells it deleted are its `calc` record | Only cells holding a cache on the materialized shadow are recorded, as `plan_strip` does; the white-box record of a real `Deferred` op is not compared |
+| C6 | (A) kept shadow + the text layer's carried state; (A′) `reopen_after_save` (`EJ_REOPEN=1`) | A session with a structural op always reopens after its save: the carried state has no structural support |
+| C8 | `Sem` with the expanded text of a shared member (`project::translate`, a reference shifter for plain A1 references) | Plain references only |
+| ids | positions remapped through each structural op (`Structural::map` / `unmap`) for the key index, echo records, marks, records and the written cells; the log keeps positions as given | Rows and columns; no sheet op |
+
+The harness has its own stand-ins: P expands shared members with `project::translate`, array
+result cells count as caches, and the sequential side's and the probe's strip records are
+taken by diffing the cached cells before and after each structural op.
+
+### Results
+
+"Held" means: every fixed case passes, the proptests pass at the counts given, and the rule's
+mutant fails at least one test (`./mutants.sh`, list below).
+
+| Item | Rule / oracle | Result |
+|---|---|---|
+| a | Oracle 1 cache predicate, both halves | **Held, with a wording fix.** Second half implemented (`project::stale_cache_check`): no kept `<v>` whose cell reads, transitively, a cell whose **content** differs from the aligned Base. Read literally ("differs **in P**", style included) it fails on the **sequential** side: a style-only change of an input strips nothing on `main` (fixed case `a_style_only_input_change_keeps_the_cache_on_both_sides`). |
+| a | R3, round 7 B1 (`set_number(A1,5); set_font(C1)`, `C1=A1*2`) | **Old R3 fails, revision 8's R3 holds.** `mutant_r3_subtract_changed` (the spike's R3 before revision 8) fails the B1 fixed cases and the oracle 1 proptest; with `mutant_half_cache_predicate` too, the proptest passes and only the fixed case's own assertion catches it, as round 7 said. |
+| b | R3 on array formulas | **Fails as written.** Counterexample (`group_workbook`): `set_number(A2, 99)`; `G2:G3 = {A2:A3*2}`. R3 strips "every cell holding `f` and `<v>`": `G2` is stripped, the result cell `G3` holds no `f` and keeps `<v>4</v>`; the sequential side strips both. Fix: also strip a **result cell of an anchor in the strip set** that holds `<v>` (`Workbook::dependents` already lists them). `adr_r3_formula_only` fails 3 tests. |
+| b | R3 seeding, hand-off (round 9 M2) | **Fails as written; fixed.** Seeded from §4.4's state equality (raw `f` attributes), a hand-off's new master is content-changed and **its** dependents are stripped, which the sequential side does not do: `set_formula(E3, "$A3+E$1")`, `write_cells([D2: 1, E3: 2])` strips `Sheet2!A1 = Sheet1!C2*2` on the Journal side only, so oracle 1's "Journal strip set ⊆ sequential" fails (`adr_r3_seed_raw`). Fix: seed R3 from content **as P sees it** (a member's text expanded, value, type); keep §4.4's raw equality for R2. With that seeding, round 7's "subtract the content-changed cells" gives the same output as "subtract nothing" (`mutant_r3_subtract_content` is an equivalent mutant; it fails only together with `adr_r3_seed_raw`, on the round 9 M2 case). The round 9 M2 case itself (`set_number(D2,1)` then `set_number(A2,99)`, both orders: no cache for `C2`) holds. |
+| b | R1 before validation (F13) | **Confirmed: R1 must stay off until C1.** The spike's old R1 (`r1_unvalidated`) accepts `set_number(B6, 5)` on a merge's non-anchor cell holding 5 and `set_number(G3, 4)` on an array result holding 4; the sequential API refuses both (`MergedCell`, `ArrayResultCell`). R1 is now off by default, as §4.5 says; GetPut and the history oracles still hold (R2 restores the write-backs). |
+| b | R1 narrowing, round 8 M1 | **Held.** `mutant_r1_skip_group` (R1 judged by P skips a member's own text written back) fails the `write_cells([D2, E3])` case: the group stays whole on the shadow and the batch is refused there only. R1 (b) alone (`mutant_r1_group_cells`) is not observable here: the spike's R1 judges only plain formulas, so a group cell is never a candidate. |
+| b | Targets incl. the hand-off master (round 7 M2) | **Held.** `mutant_no_handoff_target` fails oracle 4 (locality: `C2`'s bytes change outside the changed set) and the `dimension` check. |
+| b | R2 restores derived state (round 8 M2) | **Held for the spike's analogue only.** The spike's shadow never restores a node (C2 is a text layer), so the census case cannot arise. Its analogue, R3 reading the shadow's node instead of the restored state (`mutant_r2_no_derived`), fails the `F = A1*2` fixed case and 10 other tests. |
+| c | Snapshots closed workbook-wide, carried marks (round 9 M1) | **Held.** The three round 9 M1 cases pass: `A!A1 = MATCH(7,B!A:A,0)` set to 9, `insert_rows(B,2,1)`, text back: no cache on either side; `A!A2 = B!A5*2` with the same text written back: no cache, content-changed; a constant 5→9, insert, 10, 9: carried mark, row in `dimension`. `mutant_close_own_sheet` fails the first two (the first through the probe clause: `main` strips the whole-column reader on a row insert), `mutant_restore_clears_mark` the third. |
+| c | Structural strip records (round 7 M3, round 8 M6) | **Held.** `mutant_drop_records` fails 8 tests; with the structural-direction clause also removed it still fails the generated cases through other clauses, and the `ROW()` fixed case. |
+| c | `dimension` (round 8 M3), `sst/@count` after deletes (round 7 m2) | **Held.** `F20` case: both sides `A1:F20`. A write at `D10` then its row deleted: `A1:C5`. Base `t="s"` deleted, a string written then deleted, a `t="s"` cell overwritten then deleted: the Journal's `@count` predicate holds; `mutant_no_sst_removed` fails. |
+| c | calcChain removal (round 7 M3) | **Fails as written; fixed.** Counterexample (5,000-case run, `oracle_workbook`): `set_number(A5, 5)` (`A5` was `=1+1`), `delete_rows(4, 1)`. The op deletes no formula (`A5` is a constant by then), and `A5`'s carried mark dies with its id, so R3's "a content-changed cell gained or lost a formula" sees nothing and the Base's calcChain, listing `A5`, is kept. Fix: a mark that dies keeps its formula-set change ("the formula-cell set, by id, dead ids included, differs from the Base's"). `adr_dead_mark_drops_fx` fails the fixed case. |
+| c | R3 seeding on a created cell | **Ambiguous as written; fixed.** A style patch on a missing cell creates an empty `c`. "Content differs from the snapshot (`None`)" reads as a change, and its dependents are stripped (`B!A7` font strips `A!A1 = MATCH(7,B!A:A,0)`; the sequential side does not). Fix: a missing cell's content is empty. `adr_missing_is_content` fails the fixed case. |
+| c | Oracle 1 with structural ops | **Held** after the fixes above: 512 cases per run on two fixtures; probe refused 0 of 2,270 cases with an accepted structural op (3,000-case count). |
+| c | Oracle 11 across epochs | **Byte-identical within an epoch, P-equal across one.** Noise inside epochs (on cells not touched since the last structural op): byte-identical (3,000 cases). A block spanning a structural op (change before, write-back after, at the moved position): always P-equal, byte-identical in 259 of 385 cases; the others differ by the carried mark (`dimension`, extra strips), as §4.4 says. |
+| c | Oracle 12 across epochs | **Held** (replay from the Base gives the same bytes; 3,000 cases). |
+| d | `truncate_fast` (§10.3) | **Held.** Replay when a cut op is structural or a `write_cells`, or a cut or re-applied op touches a group cell (the spike cannot write a member back). Re-application starts at the current epoch. 3,000 random cuts across epochs: 790 on the fast path, all equal to replay in reads and bytes. Round 7 M4 fixed case (`A1 = B5*2`, `insert_rows(2,1)` kept, a write to `A1` cut: `B6*2`): `mutant_tf_from_mark` fails it; `mutant_tf_no_restore` fails it too. The round 8 M5 hand-off cut is not reachable: the spike falls back for any group cell. |
+| e | Second session (round 7 M1, round 8 M4) | **Held in both modes.** Session 1 writes `A1`, saves; session 2 writes and writes back: byte-equal to session 1's output. Same with `A1`/`A3` then `A5` and back. Bisimulation of both. `mutant_no_rebase` (restores read the first Base after a save) fails all three. The whole earlier suite also passes with `EJ_REOPEN=1`. |
+| — | Sheet ops, splice, barrier ops, P1 | **Not done.** |
+
+### Proposed changes to the ADR
+
+1. **Oracle 1, cache predicate:** "no cell it reads differs **in content** (value, type, formula
+   text with shared members expanded) from the Base"; style counts only when the workbook is
+   style-sensitive.
+2. **R3, strip test:** "every cell of the strip set that holds `f` and `<v>`, **and every
+   result cell of an array (or spill) anchor in the strip set that holds `<v>`**".
+3. **R3, seeding:** the content-changed cells for R3 (and carried content marks) compare
+   content as P does (a shared member's text expanded; group attributes ignored). §4.4's raw
+   state equality stays for R2. Under this seeding "nothing subtracted" and round 7's "subtract
+   the content-changed cells" are equivalent; keep "nothing subtracted".
+4. **§4.4, missing cells:** a missing cell's content is empty; creating an empty `c` (a style
+   patch) is a style-only change.
+5. **R3, calcChain:** "removed when the formula-cell set, by id and dead ids included, differs
+   from the Base's (a cell whose carried mark records a formula change counts even after its id
+   dies), or a structural op met its condition".
+6. **R1:** keep it off until C1. The spike shows the hidden refusals (`MergedCell`,
+   `ArrayResultCell`). The cost of R1 off: the measured second session (mostly write-backs)
+   appends at 25 µs/op instead of 8 µs/op.
+
+### Mutants (`./mutants.sh`, after the fixes)
+
+MUTANTS
+
+### Long runs (after the fixes)
+
+LONGRUNS
+
+### Measurements (10,000 rows, same fixture, ops and machine as above)
+
+| | revision 8 rules (R1 off, epochs) | before (table above) |
+|---|---|---|
+| append per op (2,000 ops) | 49.8 µs | 49.5–51.5 µs |
+| save, kept shadow (A) | 135 ms = **2.01×** a sequential `to_bytes` (calc 2.3, registries 2.3, sheets 60, zip 67 ms) | 116–122 ms (1.68–1.80×) |
+| save, A′ (reopen after each save) | 155 ms + reopen 158 ms = 313 ms = **4.64×** | — |
+| second session (the same ops reversed), A | append 25 µs/op (R1 off: every write-back is applied and restored), save 129 ms (1.91×) | 8 µs/op, 107–112 ms |
+| second session, A′ | append 81 µs/op (includes the dependency graph build on the reopened shadow), save 142 ms (2.11×) | — |
+| `truncate` to 1,000: fast vs replay | 43 ms vs 307 ms (7×) | 19–22 vs 305 ms |
+| `insert_rows(0, 1)` through the Journal | **799 ms per op**, all of it the substitutes (materialize, reopen, record on a copy) | bare `Workbook`: 149 ms per op |
+
+Reading:
+
+- **A vs A′.** Reopening the output after each save costs one `from_bytes` (≈ 2.3× a
+  `to_bytes`): 4.6× against 2.0×. The 2× target holds only with a kept shadow, so C6 (or its
+  reparse fallback limited to the re-rendered parts) is what the target depends on.
+- **Structural ops.** The substitutes cost 5.4× the bare op: a serialize, two parses and a
+  copy's op. In core, C2 restores in the tree and C3 returns the record from the op itself, so
+  none of this is the design's cost; the number only bounds the spike.
+- **Save.** The rise from 1.7× to 2.0× is the epoch support in the text layer (Base-node
+  lookups by id for C7, R3's per-candidate cache test).

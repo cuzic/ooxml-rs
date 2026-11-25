@@ -217,7 +217,7 @@ fn covers(dim: &str, k: CellKey) -> bool {
 /// The validity predicates of oracle 1's exclusions, for one side, with no
 /// structural op (the Base is its own aligned Base).
 pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bool) -> Result<(), String> {
-    predicates_aligned(base, &Aligned { bytes: Some(base.to_vec()), structural_sheets: Vec::new(), chain_allowed: true }, out, written, &[], journal_side)
+    predicates_aligned(base, &Aligned { bytes: Some(base.to_vec()), structural_sheets: Vec::new(), chain_allowed: true, sst_count: true }, out, written, &[], journal_side)
 }
 
 /// What the predicates compare with when structural ops ran: the probe (the
@@ -231,6 +231,9 @@ pub struct Aligned {
     pub structural_sheets: Vec<usize>,
     /// No structural op met its calcChain condition (on the probe).
     pub chain_allowed: bool,
+    /// Check the Journal side's `sst/@count` (R4). Off for the compiled
+    /// Commit (Appendix A), which inherits `main`'s count (F4).
+    pub sst_count: bool,
 }
 
 /// The predicates against `al`. `targets`: the cells the side's keyed ops
@@ -259,7 +262,7 @@ pub fn predicates_aligned(base: &[u8], al: &Aligned, out: &[u8], written: &[Cell
     // Journal side only: `@count` = the Base's count + (t="s" cells now −
     // t="s" cells in the Base), counted over every sheet (R4; review round 7,
     // m2). The sequential side is not held to it (F4).
-    if journal_side {
+    if journal_side && al.sst_count {
         let bsst = XmlDocument::parse(&b.pkg.read_part("xl/sharedStrings.xml").expect("sst")).expect("xml");
         let base_refs: i64 = (0..b.parts.len()).map(|i| b.cells(i).iter().filter(|c| attr(c, "t") == Some("s")).count() as i64).sum();
         let want = attr(bsst.root(), "count").map(|c| c.parse::<i64>().expect("count") + refs - base_refs);
