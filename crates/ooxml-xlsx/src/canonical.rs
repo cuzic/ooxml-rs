@@ -10,17 +10,25 @@
 //! Visibility: `pub(crate)`, as the Journal (J0) is in this crate. ooxml-core
 //! is not touched, so Layer 2's default rendering (docx, pptx) is unchanged.
 //!
-//! Which cells count as "changed", and what the Base node had: a cell whose
+//! Which cells count as "changed", and what the Base node had: the caller
+//! passes the changed set (ADR-0024 §4.4); dirty is not changed. A cell whose
 //! node is not `subtree_dirty` is the Base's node (or restored to it) and is
-//! left alone. For a changed cell, the Base node is the node the cell was
-//! parsed from: it has a source span, and the Base's `s` is read from the
-//! original open tag in the part's retained source text
+//! left alone, which is only a filter: a Base cell that a structural op merely
+//! shifted is dirty but not changed, and the caller must not pass it (its
+//! `s="00"` would be rewritten to `s="0"`). For a changed cell, the Base node
+//! is the node the cell was parsed from: it has a source span, and the Base's
+//! `s` is read from the original open tag in the part's retained source text
 //! (`XmlDocument::source`), which edits never alter. A node without a span
 //! was created in the session: there is no Base node. This derives the
-//! answer from the document itself; the Journal need not carry a flag. (A
-//! node restored to a later epoch's snapshot keeps the span of the source it
-//! was parsed from, which is that epoch's own Base; the Journal re-parses the
-//! part at each epoch boundary, B.2.)
+//! answer from the document itself; the Journal need not carry a flag.
+//!
+//! Precondition: `XmlDocument::source()` is the session's Base (epoch 0, or
+//! the output of the previous save once C6 / the (A') reopen replaced it).
+//! The part must never be re-parsed at a structural op or an epoch boundary
+//! (§4.4: a structural op only closes the snapshot; nodes stay dirty and keep
+//! their span). Re-parsing would make the open tag of an intermediate state
+//! the "Base" and the rule would silently read the wrong `s`. The source is
+//! replaced only after a save.
 //!
 //! Call it once per save, on the part as the session left it: a rebuilt
 //! `c` is a created node with no Base, so a second call would see "no Base
@@ -30,7 +38,7 @@
 
 #![cfg_attr(not(test), allow(dead_code))] // the Journal (J0) is the first caller
 
-use ooxml_core::{ElementSpec, RawNode, XmlDocument};
+use ooxml_core::{ElementSpec, RawItem, RawNode, XmlDocument};
 use ooxml_schema::sml;
 
 use crate::error::{Error, Result};
@@ -111,10 +119,11 @@ impl Workbook {
     /// - an `s` that resolves to `xf` 0 (absent, or index 0) is absent when
     ///   the cell has no Base node or its Base node has no `s`, and `s="0"`
     ///   otherwise;
-    /// - a `c` without children is replaced by a fresh empty-element node
+    /// - a `c` without children (whitespace-only text counts as none) is replaced by a fresh empty-element node
     ///   (own-dirty, no source span), which renders `<c …/>`.
     ///
-    /// A cell that is missing, or whose node is clean (the Base's, or restored
+    /// `cells` is the changed set the caller tracks (§4.4), not "every dirty
+    /// cell". A cell that is missing, or whose node is clean (the Base's, or restored
     /// to it), is left untouched. A cell with an attribute other than
     /// `r`, `s`, `t`, `cm`, `vm`, `ph` gets the `s` rule only. Cells may come
     /// in any order and repeat. `Err` for a sheet whose cells cannot be
@@ -161,7 +170,8 @@ impl Workbook {
 struct Plan {
     /// The target `s`: `None` = absent.
     s: Option<String>,
-    /// Replace the node by a fresh empty element with these attributes (but `s`).
+    /// Replace the node by a fresh empty element with these attributes (but
+    /// `s`, which goes in after `r`).
     rebuild: Option<Vec<(ooxml_core::QName, String)>>,
 }
 
@@ -183,7 +193,12 @@ fn plan(doc: &XmlDocument, path: &[usize; 3]) -> Option<Plan> {
         .attrs()
         .iter()
         .all(|a| COPIED.iter().any(|q| a.name().is(*q)));
-    let rebuild = (cell.children().is_empty() && copyable).then(|| {
+    // whitespace-only text (a pretty-printed source) is no child
+    let childless = cell
+        .children()
+        .iter()
+        .all(|c| matches!(c, RawItem::Text(t) if t.value().trim().is_empty()));
+    let rebuild = (childless && copyable).then(|| {
         cell.attrs()
             .iter()
             .filter_map(|a| {
@@ -210,10 +225,13 @@ fn canonicalize_at(doc: &mut XmlDocument, path: [usize; 3]) {
             .lens_mut_at::<sml::Row>(&path[..2])
             .expect("the located row");
         if let Ok(mut fresh) = row.insert_at::<sml::Cell>(path[2]) {
-            let mut ok = attrs.iter().all(|(q, v)| fresh.set_attr(*q, v).is_ok());
+            // usual order: r s t cm vm ph
+            let mut all = attrs.clone();
             if let Some(s) = &s {
-                ok &= fresh.set_attr(sml::Cell::ATTR_S, s).is_ok();
+                all.push((sml::Cell::ATTR_S, s.clone()));
             }
+            all.sort_by_key(|(q, _)| COPIED.iter().position(|c| c == q));
+            let ok = all.iter().all(|(q, v)| fresh.set_attr(*q, v).is_ok());
             if ok {
                 row.remove_at(path[2] + 1);
                 return;
@@ -461,5 +479,124 @@ mod tests {
         let mut wb = open(&xml);
         assert!(wb.canonicalize_cells(0, [at("A1")]).is_err());
         assert_eq!(part(&mut wb), xml);
+    }
+
+    #[test]
+    fn the_base_s_is_the_session_base_across_epochs() {
+        // Base: A1 has no `s`. Epoch 0 writes s="7"; epoch 1 sets s="0".
+        // The part is not re-parsed at the boundary (§4.4), so the Base tag
+        // still says "no s" and the canonical form has none.
+        let mut wb = open(&sheet_xml());
+        wb.edit_cell(0, at("A1"), CellOp::Number("9".into()))
+            .unwrap();
+        set_s(&mut wb, [1, 0, 0], "7");
+        wb.edit_cell(0, at("A1"), CellOp::Number("8".into()))
+            .unwrap();
+        set_s(&mut wb, [1, 0, 0], "0");
+        let out = canon(&mut wb, &["A1"]);
+        assert!(out.contains(r#"<c r="A1"><v>8</v></c>"#), "{out}");
+        // Re-parsing at the boundary would make epoch 0's tag the "Base" and
+        // read `s="7"`: wrong. This is why the precondition forbids it.
+        let mut wb = open(&sheet_xml());
+        wb.edit_cell(0, at("A1"), CellOp::Number("9".into()))
+            .unwrap();
+        set_s(&mut wb, [1, 0, 0], "7");
+        let mid = part(&mut wb);
+        let mut re = open(&mid);
+        re.edit_cell(0, at("A1"), CellOp::Number("8".into()))
+            .unwrap();
+        set_s(&mut re, [1, 0, 0], "0");
+        let out = canon(&mut re, &["A1"]);
+        assert!(out.contains(r#"<c r="A1" s="0"><v>8</v></c>"#), "{out}");
+    }
+
+    #[test]
+    fn a_pretty_printed_cell_that_lost_its_children_is_self_closing() {
+        let xml = format!(
+            "{HEAD}\n<row r=\"1\">\n  <c r=\"A1\" s=\"3\">\n    <v>1</v>\n  </c>\n  <c r=\"B1\">\n    <v>2</v>\n  </c>\n</row>\n{TAIL}"
+        );
+        let mut wb = open(&xml);
+        wb.edit_cell(0, at("A1"), CellOp::Clear).unwrap();
+        let out = canon(&mut wb, &["A1"]);
+        assert!(out.contains(r#"<c r="A1" s="3"/>"#), "{out}");
+        // B1 is unchanged: its bytes, whitespace included, stay
+        assert!(
+            out.contains("<c r=\"B1\">\n    <v>2</v>\n  </c>"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_rebuild_keeps_cm_vm_ph_in_the_usual_order() {
+        let xml = format!(
+            r#"{HEAD}<row r="1"><c r="A1" ph="1" vm="2" cm="3" t="n" s="4"><v>1</v></c></row>{TAIL}"#
+        );
+        let mut wb = open(&xml);
+        // `edit_cell` refuses unknown metadata ids: drop the children by hand
+        wb.pkg
+            .xml_part_mut(PART)
+            .unwrap()
+            .lens_mut_at::<sml::Cell>(&[1, 0, 0])
+            .unwrap()
+            .remove_at(0);
+        let out = canon(&mut wb, &["A1"]);
+        assert!(
+            out.contains(r#"<c r="A1" s="4" t="n" cm="3" vm="2" ph="1"/>"#),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn a_cell_put_back_by_restore_cell_reads_the_base_s() {
+        use crate::snapshot::RestoreStyle;
+        let mut wb = open(&sheet_xml());
+        // A1: Base has no s. B1: Base has s="0".
+        wb.edit_cell(0, at("A1"), CellOp::Number("9".into()))
+            .unwrap();
+        wb.edit_cell(0, at("B1"), CellOp::Number("9".into()))
+            .unwrap();
+        set_s(&mut wb, [1, 0, 0], "0");
+        wb.pkg
+            .xml_part_mut(PART)
+            .unwrap()
+            .lens_mut_at::<sml::Cell>(&[1, 0, 1])
+            .unwrap()
+            .remove_attr(sml::Cell::ATTR_S)
+            .unwrap();
+        // a later epoch's snapshots: dirty nodes that keep their span
+        let a = wb.snapshot_cell(0, at("A1")).unwrap();
+        let b = wb.snapshot_cell(0, at("B1")).unwrap();
+        wb.edit_cell(0, at("A1"), CellOp::Number("8".into()))
+            .unwrap();
+        wb.edit_cell(0, at("B1"), CellOp::Number("8".into()))
+            .unwrap();
+        wb.restore_cell(0, at("A1"), &a, RestoreStyle::Snapshot)
+            .unwrap();
+        wb.restore_cell(0, at("B1"), &b, RestoreStyle::Snapshot)
+            .unwrap();
+        let out = canon(&mut wb, &["A1", "B1"]);
+        assert!(out.contains(r#"<c r="A1"><v>9</v></c>"#), "{out}");
+        assert!(out.contains(r#"<c r="B1" s="0"><v>9</v></c>"#), "{out}");
+    }
+
+    #[test]
+    fn a_base_cell_shifted_by_a_structural_op_keeps_its_base_s() {
+        let mut wb = open(&sheet_xml());
+        wb.worksheet().unwrap().insert_rows(0, 1).unwrap();
+        // B1 (Base s="0") is now B2; its node is dirty with its old span
+        wb.edit_cell(0, at("B2"), CellOp::Number("9".into()))
+            .unwrap();
+        let out = canon(&mut wb, &["B2"]);
+        assert!(out.contains(r#"<c r="B2" s="0"><v>9</v></c>"#), "{out}");
+        // a changed Base cell without s stays without it
+        wb.edit_cell(0, at("A2"), CellOp::Number("9".into()))
+            .unwrap();
+        let doc = wb.pkg.xml_part_mut(PART).unwrap();
+        doc.lens_mut_at::<sml::Cell>(&[1, 0, 0])
+            .unwrap()
+            .set_attr(sml::Cell::ATTR_S, "0")
+            .unwrap();
+        let out = canon(&mut wb, &["A2"]);
+        assert!(out.contains(r#"<c r="A2"><v>9</v></c>"#), "{out}");
     }
 }
