@@ -214,13 +214,34 @@ fn covers(dim: &str, k: CellKey) -> bool {
     (a.row..=b.row).contains(&k.row) && (a.col..=b.col).contains(&k.col)
 }
 
-/// The validity predicates of oracle 1's exclusions, for one side.
+/// The validity predicates of oracle 1's exclusions, for one side, with no
+/// structural op (the Base is its own aligned Base).
 pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bool) -> Result<(), String> {
+    predicates_aligned(base, &Aligned { bytes: Some(base.to_vec()), structural_sheets: Vec::new(), chain_allowed: true }, out, written, &[], journal_side)
+}
+
+/// What the predicates compare with when structural ops ran: the probe (the
+/// Base with only the log's structural ops, `KeepStaleCaches`), whose cells
+/// sit at the output's positions and keep the Base's caches. `None` if the
+/// probe refused an op (those cases skip the aligned checks and are
+/// counted).
+pub struct Aligned {
+    pub bytes: Option<Vec<u8>>,
+    /// Sheets a structural op of the log edited.
+    pub structural_sheets: Vec<usize>,
+    /// No structural op met its calcChain condition (on the probe).
+    pub chain_allowed: bool,
+}
+
+/// The predicates against `al`. `targets`: the cells the side's keyed ops
+/// targeted, at final positions (the journal side's `dimension` clause).
+pub fn predicates_aligned(base: &[u8], al: &Aligned, out: &[u8], written: &[CellKey], targets: &[CellKey], journal_side: bool) -> Result<(), String> {
     let (b, o) = (Raw::new(base), Raw::new(out));
+    let a = al.bytes.as_deref().map(Raw::new);
     // sst
     let sst = XmlDocument::parse(&o.pkg.read_part("xl/sharedStrings.xml").expect("sst")).expect("xml");
     let items = sst.root().elements().count();
-    let mut refs = 0;
+    let mut refs = 0i64;
     for i in 0..o.parts.len() {
         for c in o.cells(i) {
             if attr(c, "t") == Some("s") {
@@ -232,13 +253,19 @@ pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bo
             }
         }
     }
-    // ADR feedback F4: on `main`, a non-string write over a `t="s"` cell
-    // leaves `sst/@count` stale (the registry is not activated), so the
-    // sequential side breaks "count = number of t=s cells"; the spike checks
-    // only `uniqueCount` and the indices.
-    let _ = refs;
     if attr(sst.root(), "uniqueCount") != Some(&items.to_string()) {
         return Err(format!("sst counts: {:?}/{:?} vs {refs}/{items}", attr(sst.root(), "count"), attr(sst.root(), "uniqueCount")));
+    }
+    // Journal side only: `@count` = the Base's count + (t="s" cells now −
+    // t="s" cells in the Base), counted over every sheet (R4; review round 7,
+    // m2). The sequential side is not held to it (F4).
+    if journal_side {
+        let bsst = XmlDocument::parse(&b.pkg.read_part("xl/sharedStrings.xml").expect("sst")).expect("xml");
+        let base_refs: i64 = (0..b.parts.len()).map(|i| b.cells(i).iter().filter(|c| attr(c, "t") == Some("s")).count() as i64).sum();
+        let want = attr(bsst.root(), "count").map(|c| c.parse::<i64>().expect("count") + refs - base_refs);
+        if attr(sst.root(), "count").map(|c| c.parse::<i64>().expect("count")) != want {
+            return Err(format!("sst/@count {:?}, want {want:?} (t=s cells {refs}, Base {base_refs})", attr(sst.root(), "count")));
+        }
     }
     // styles
     let st = XmlDocument::parse(&o.pkg.read_part("xl/styles.xml").expect("styles")).expect("xml");
@@ -251,6 +278,7 @@ pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bo
         }
     }
     // dimension
+    let (mo, ma) = (model(out), al.bytes.as_deref().map(model));
     for i in 0..o.parts.len() {
         let (bd, od) = (b.dimension(i), o.dimension(i));
         if bd.is_some() != od.is_some() {
@@ -263,26 +291,56 @@ pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bo
                     return Err(format!("sheet {i}: dimension {od} misses written {k:?}"));
                 }
             }
+            // Journal side, independent of the changed set (review round 8,
+            // M3): a targeted cell whose value, type, style, presence or
+            // formula-ness differs from the aligned Base cell is covered
+            if journal_side && let Some(ma) = &ma {
+                for k in targets.iter().filter(|k| k.sheet == i) {
+                    let key = (k.sheet, k.row, k.col);
+                    let (x, y) = (mo.cells.get(&key), ma.cells.get(&key));
+                    let differs = match (x, y) {
+                        (Some(x), Some(y)) => x.value != y.value || x.style != y.style || x.formula.is_some() != y.formula.is_some(),
+                        (None, None) => false,
+                        _ => true,
+                    };
+                    if differs && !covers(od, *k) {
+                        return Err(format!("sheet {i}: dimension {od} misses changed target {k:?}"));
+                    }
+                }
+            }
         }
         if journal_side && mine.is_empty() {
             let bytes = |r: &Raw| local(r.docs[i].root(), "dimension").map(|d| { let sp = d.span().expect("span"); r.docs[i].source()[sp.start..sp.end()].to_owned() });
-            if bytes(&b) != bytes(&o) {
-                return Err(format!("sheet {i}: dimension bytes changed without a written cell"));
+            // a sheet with no changed cell keeps the Base's element, as the
+            // structural ops rewrote it (the probe's)
+            let reference = if al.structural_sheets.is_empty() { Some(bytes(&b)) } else { a.as_ref().map(bytes) };
+            if let Some(reference) = reference
+                && reference != bytes(&o)
+            {
+                return Err(format!("sheet {i}: dimension bytes changed without a written cell: {reference:?} -> {:?}", bytes(&o)));
             }
         }
     }
     // calcChain
-    let (bf, of) = (b.formulas(), o.formulas());
     if o.pkg.contains("xl/calcChain.xml") {
-        let same_set = bf.keys().collect::<Vec<_>>() == of.keys().collect::<Vec<_>>();
-        if !same_set || o.pkg.read_part("xl/calcChain.xml").ok() != b.pkg.read_part("xl/calcChain.xml").ok() {
-            return Err("calcChain kept although the formula set changed".into());
+        if !al.chain_allowed {
+            return Err("calcChain kept although a structural op moved or deleted a formula cell".into());
+        }
+        if let Some(a) = &a {
+            let (af, of) = (a.formulas(), o.formulas());
+            let same_set = af.keys().collect::<Vec<_>>() == of.keys().collect::<Vec<_>>();
+            if !same_set || o.pkg.read_part("xl/calcChain.xml").ok() != b.pkg.read_part("xl/calcChain.xml").ok() {
+                return Err("calcChain kept although the formula set changed".into());
+            }
         }
     }
-    // caches: a kept `v` is the Base's
+    let Some(aligned) = al.bytes.as_deref() else { return Ok(()) };
+    let a = a.expect("aligned");
+    // caches, first half: a kept `v` is the Base's (for that cell id)
+    let (af, of) = (a.formulas(), o.formulas());
     for (k, v) in &of {
         if let Some(v) = v
-            && bf.get(k) != Some(&Some(v.clone()))
+            && af.get(k) != Some(&Some(v.clone()))
         {
             return Err(format!("kept cache {v:?} at {k:?} is not the Base's"));
         }
@@ -290,18 +348,32 @@ pub fn predicates(base: &[u8], out: &[u8], written: &[CellKey], journal_side: bo
     // caches, second half (review round 7, B1): no cell a kept `v` reads
     // (ADR-0003 dependents, transitively) differs in content from the Base
     if !cfg!(feature = "mutant_half_cache_predicate") {
-        stale_cache_check(base, out)?;
+        stale_cache_check(aligned, out)?;
     }
     // ADR feedback F5: `main` sets `fullCalcOnLoad` when it strips a
     // dependent's cache, not when it writes a formula or strips the written
     // cell's own cache; the predicate is checked in that weaker form.
     let written_refs: BTreeSet<(usize, String)> = written.iter().map(|k| (k.sheet, ooxml_xlsx::CellIndex { row: k.row, col: k.col }.to_string())).collect();
-    let stripped = strip_set(base, out).iter().any(|k| !written_refs.contains(k));
+    let stripped = strip_set(aligned, out).iter().any(|k| !written_refs.contains(k));
     let wbx = String::from_utf8(o.pkg.read_part("xl/workbook.xml").expect("wb")).expect("utf8");
     if stripped && !wbx.contains(r#"fullCalcOnLoad="1""#) {
         return Err("cache stripped without fullCalcOnLoad".into());
     }
     Ok(())
+}
+
+/// Cells (final positions) that hold `f` (or are array results) and a
+/// cached value in `out`.
+pub fn cached_in(out: &[u8]) -> BTreeSet<CellKey> {
+    Raw::new(out)
+        .formulas()
+        .into_iter()
+        .filter(|(_, v)| v.is_some())
+        .map(|((i, r), _)| {
+            let at = ooxml_xlsx::CellIndex::parse(&r).expect("r");
+            CellKey::new(i, at.row, at.col)
+        })
+        .collect()
 }
 
 /// A cell's content for "differs from the Base": the formula text (shared

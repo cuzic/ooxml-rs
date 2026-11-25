@@ -55,6 +55,10 @@ impl Sem {
         }
         self.value == o.value && self.t == o.t && self.rich == o.rich
     }
+    /// No value and no formula (an empty `c`).
+    pub fn is_empty_content(&self) -> bool {
+        self.formula.is_none() && matches!(self.value, CellValue::Empty)
+    }
     pub fn same_state(&self, o: &Sem) -> bool {
         self.same_content(o) && self.s == o.s
     }
@@ -308,7 +312,9 @@ impl ShadowState {
                     (Some(a), Some(b)) if cfg!(feature = "adr_r3_seed_raw") => !a.same_content(b),
                     (Some(a), Some(b)) => !a.same_meaning(b),
                     (None, None) => false,
-                    _ => true,
+                    // a missing cell's content is empty: a style patch that
+                    // creates an empty `c` changes no content (README, c)
+                    (None, Some(x)) | (Some(x), None) => cfg!(feature = "adr_missing_is_content") || !x.is_empty_content(),
                 };
                 // a style-only change strips nothing here: the public API
                 // does not say whether the workbook is style-sensitive
@@ -543,7 +549,7 @@ fn r1_skips(wb: &mut Workbook, st: &ShadowState, op: &Op) -> ooxml_xlsx::Result<
     for p in &parts {
         let k = p.key();
         let cell = read_cell(wb, k)?;
-        if cell.is_none() || (!cfg!(feature = "mutant_r1_whole_call_off") && group_cell(wb, k)?) {
+        if cell.is_none() || (!cfg!(feature = "mutant_r1_group_cells") && group_cell(wb, k)?) {
             return Ok(false);
         }
         let style_noop = matches!(p, Op::Style(_, Patch::Index(i)) if cell.as_ref().is_some_and(|c| c.s == *i));
@@ -624,6 +630,10 @@ pub fn apply_tracked(wb: &mut Workbook, st: &mut ShadowState, op: &Op) -> ooxml_
         };
         if back && !cfg!(feature = "mutant_no_revert") {
             st.reverted.insert(k);
+            if cfg!(feature = "mutant_restore_clears_mark") {
+                // round 8 M3: a restore that also clears the carried mark
+                st.marks.remove(&k);
+            }
         } else {
             st.reverted.remove(&k);
         }
@@ -734,7 +744,7 @@ fn apply_structural(wb: &mut Workbook, st: &mut ShadowState, s: crate::op::Struc
             (Some(a), Some(b)) if cfg!(feature = "adr_r3_seed_raw") => !a.same_content(b),
             (Some(a), Some(b)) => !a.same_meaning(b),
             (None, None) => false,
-            _ => true,
+            (None, Some(x)) | (Some(x), None) => cfg!(feature = "adr_missing_is_content") || !x.is_empty_content(),
         };
         let f = |x: &Option<Sem>| x.as_ref().is_some_and(|x| x.formula.is_some());
         let tss = |x: &Option<Sem>| x.as_ref().is_some_and(|x| x.t.as_deref() == Some("s"));
@@ -789,7 +799,7 @@ fn apply_structural(wb: &mut Workbook, st: &mut ShadowState, s: crate::op::Struc
     st.touched = st.touched.drain().filter(|(k, _)| !closes(k)).filter_map(|(k, v)| s.map(k).map(|n| (n, v))).collect();
     st.reverted = st.reverted.drain().filter(|k| !closes(k)).filter_map(|k| s.map(k)).collect();
     st.chain_removed |= moved_formula;
-    st.closed_sst_delta += sst_delta - tss_deleted;
+    st.closed_sst_delta += sst_delta - if cfg!(feature = "mutant_no_sst_removed") { 0 } else { tss_deleted };
     st.structural.push(s);
     for i in 0..n {
         if !cfg!(feature = "mutant_close_own_sheet") || i == s.sheet() {
@@ -873,11 +883,13 @@ fn range_of(r: &str) -> Option<(CellIndex, CellIndex)> {
 }
 
 /// What the output holds for one cell the shadow wrote.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Act {
     /// The Base's bytes: a restored cell, or one written in an earlier
     /// session and not since.
     Base,
+    /// Given bytes (a cell restored to a later epoch's snapshot, renumbered).
+    Text(String),
     /// The Base's bytes with `s` set: the content is the Base's, only the
     /// style changed (the shadow's node may have lost the cache or carry
     /// `s="0"`; the Base's node has neither problem).
@@ -950,6 +962,7 @@ fn sheet_text(src: &str, base: &str, sheet: usize, acts: &HashMap<String, Act>, 
         let mut s = match act {
             None => src[c.start..c.end].to_owned(),
             Some(Act::Base) => base_of(),
+            Some(Act::Text(t)) => t.clone(),
             Some(Act::BaseStyle(x)) => {
                 let b = base_of();
                 let oe = b.find('>').expect("tag") + 1;
@@ -1078,7 +1091,9 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
     let mut sst_refs: Vec<u32> = Vec::new();
     let mut cell_refs: Vec<(CellKey, u32, Option<u32>)> = Vec::new();
     for &k in &st.ever {
-        if st.is_pinned(k) {
+        // a cell restored to a later epoch's snapshot may reference a
+        // session item (its snapshot does): its references count (R4)
+        if st.is_pinned(k) && !(structural && st.reverted.contains(&k)) {
             continue;
         }
         let ws = wb.worksheet_by_index(k.sheet)?;
@@ -1231,6 +1246,24 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
             let sst = sst.map(|v| if v >= reg.origin_sst { reg.sst_map[&v] } else { v });
             let zero = st.base_pos(*k).and_then(|b| base_s.get(&a1(b)).copied());
             let act = match st.touched.get(k) {
+                // restored to this epoch's snapshot (after a structural op):
+                // the snapshot's bytes, renumbered, in canonical form
+                Some(_) if structural && st.reverted.contains(k) => {
+                    let cs = cells(&esrc);
+                    let Some(c) = cs.iter().find(|c| c.r == a1(*k)) else { return Err(malformed(format!("no snapshot bytes for {k:?}"))) };
+                    let mut tag = set_s(&esrc[c.start..c.open_end], xf, zero);
+                    let mut body = esrc[c.open_end..c.end].to_owned();
+                    if body == "</c>" {
+                        tag = format!("{}/>", tag.trim_end_matches('>'));
+                        body.clear();
+                    }
+                    if let Some(i) = sst {
+                        let a = body.find("<v>").expect("v") + 3;
+                        let b = a + body[a..].find("</v>").expect("v");
+                        body.replace_range(a..b, &i.to_string());
+                    }
+                    Act::Text(tag + &body)
+                }
                 // a carried mark: canonical form (C7), a later epoch's restore included
                 None if st.marks.contains_key(k) => Act::Shadow { xf, sst, zero },
                 // restored in an earlier epoch of this session: the node is
