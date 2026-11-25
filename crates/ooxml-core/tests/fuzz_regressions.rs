@@ -9,7 +9,7 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::assert_matches;
 use std::io::{Cursor, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -22,6 +22,9 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 #[path = "support/frozen.rs"]
 mod frozen;
+#[path = "support/fixture_packages.rs"]
+mod fixture_packages;
+use fixture_packages::collect;
 
 fn compare_tree(actual: &ooxml_core::RawNode, expected: &frozen::RawNode) {
     fn name(actual: &ooxml_core::XName, expected: &frozen::XName) {
@@ -381,19 +384,6 @@ fn zip_bomb_is_bounded_by_the_limits() {
 
 // ---- every fixture still opens and round-trips ----
 
-fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
-    for e in std::fs::read_dir(dir).unwrap().flatten() {
-        let p = e.path();
-        if p.is_dir() {
-            collect(&p, out);
-        } else if p.extension().and_then(|x| x.to_str()).is_some_and(|x| {
-            matches!(x, "xlsx" | "xlsm" | "pptx" | "pptm" | "ppsx" | "potx" | "docx" | "docm")
-        }) {
-            out.push(p);
-        }
-    }
-}
-
 #[test]
 fn every_fixture_opens_parses_and_round_trips() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference");
@@ -419,7 +409,8 @@ fn every_fixture_opens_parses_and_round_trips() {
             let bytes = pkg.read_part(n).unwrap();
             // Corpus files are untrusted and DTD-bearing parts are excluded.
             if !bytes.windows(b"<!DOCTYPE".len()).any(|window| window == b"<!DOCTYPE") {
-                compare_parsers(&bytes, &format!("{} {n}", f.display()));
+                let context = format!("{} {n}", f.display());
+                compare_parsers(&bytes, &context);
             }
             match pkg.xml_part(n) {
                 Ok(_) => parsed += 1,

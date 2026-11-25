@@ -34,7 +34,7 @@ use std::ops::Range;
 
 use crate::error::Result;
 use crate::lens::{Lens, LensMut};
-use crate::name::XName;
+use crate::name::{QName, XName};
 use crate::schema::ElementSpec;
 
 /// Where a parsed element sits in its part's source text (byte offsets).
@@ -256,6 +256,10 @@ pub struct ParseOptions {
     /// this bounds the total work of reading every part. Default
     /// [`DEFAULT_MAX_PACKAGE_BYTES`].
     pub max_package_bytes: u64,
+    /// Elements whose children are validated now and built on demand.
+    pub defer: &'static [QName],
+    /// Element names to count during the initial parse, including deferred content.
+    pub count: &'static [QName],
 }
 
 impl Default for ParseOptions {
@@ -264,14 +268,28 @@ impl Default for ParseOptions {
             max_depth: DEFAULT_MAX_DEPTH,
             max_part_bytes: DEFAULT_MAX_PART_BYTES,
             max_package_bytes: DEFAULT_MAX_PACKAGE_BYTES,
+            defer: &[],
+            count: &[],
         }
     }
 }
 
 impl ParseOptions {
+    /// Sets the names of elements whose children are built on demand.
+    pub fn with_defer(mut self, defer: &'static [QName]) -> Self {
+        self.defer = defer;
+        self
+    }
+
+    /// Sets the element names to count during parsing.
+    pub fn with_count(mut self, count: &'static [QName]) -> Self {
+        self.count = count;
+        self
+    }
+
     /// Sets [`Self::max_depth`]. See the warning there before raising it.
     pub fn with_max_depth(mut self, max_depth: usize) -> Self {
-        self.max_depth = max_depth;
+        self.max_depth = max_depth.min(u32::MAX as usize);
         self
     }
 
@@ -293,6 +311,7 @@ impl ParseOptions {
 pub struct XmlDocument {
     source: Arc<str>,
     root: RawNode,
+    census: Box<[(QName, usize)]>,
     /// The depth limit the document was parsed with.
     max_depth: usize,
     /// Identity of this tree for same-part copies
@@ -305,7 +324,7 @@ impl Clone for XmlDocument {
     /// original cannot be inserted into the clone (the clone may become
     /// another part, whose relationships differ).
     fn clone(&self) -> Self {
-        XmlDocument { source: self.source.clone(), root: self.root.clone(), max_depth: self.max_depth, token: DocToken::new() }
+        XmlDocument { source: self.source.clone(), root: self.root.clone(), census: self.census.clone(), max_depth: self.max_depth, token: DocToken::new() }
     }
 }
 
@@ -333,6 +352,18 @@ impl XmlDocument {
     /// [`Self::parse`] with explicit options.
     pub fn parse_with(bytes: &[u8], options: &ParseOptions) -> Result<Self> {
         parse::parse(bytes, options)
+    }
+
+    pub(crate) fn parse_inflated(bytes: Vec<u8>, options: &ParseOptions) -> Result<Self> {
+        parse::parse_inflated(bytes, options)
+    }
+
+    /// Number of elements of this name in the original parse, including
+    /// deferred content. Returns `None` for an unrequested name and
+    /// `Some(0)` for a requested name that was absent. Edits do not update
+    /// this snapshot.
+    pub fn census(&self, name: QName) -> Option<usize> {
+        self.census.iter().find(|(q, _)| *q == name).map(|(_, count)| *count)
     }
 
     /// The original source text.
@@ -447,3 +478,6 @@ fn preserve_attribute_spelling_on_edited_start_tag() {
         r#"<root  keep = '&#65;' edit="new"></root >"#
     );
 }
+
+#[cfg(test)]
+mod deferred_oracle;

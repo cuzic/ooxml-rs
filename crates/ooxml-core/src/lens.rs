@@ -611,6 +611,12 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         Lens { root: self.root, node: node_at(self.root, &self.path), path: self.path.clone(), doc: self.doc, _e: PhantomData }
     }
 
+    /// Releases this element's clean expanded children for lazy re-reading.
+    /// Descendant edits and attribute-spelling preferences prevent release.
+    pub fn release_children(&mut self) -> bool {
+        self.node_mut().release_children()
+    }
+
     fn node_mut(&mut self) -> &mut RawNode {
         node_at_mut(self.root, &self.path)
     }
