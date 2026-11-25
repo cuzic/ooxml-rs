@@ -164,8 +164,10 @@ impl RawNode {
     }
 
     /// Clears both dirty flags of this node. The caller has checked that
-    /// nothing below it is dirty and that its own tags and child list are as
-    /// in the source; the parent's count is the caller's to fix.
+    /// nothing below it is dirty, that its own tags are as in the source and
+    /// that its child element count equals the source's. The order of the
+    /// children is not checked (a same-count reorder, as `move_subtree` makes,
+    /// is not detected). The parent's count is the caller's to fix.
     pub(crate) fn clear_dirty(&mut self) {
         self.span.open_end &= MAX_SPAN_OFFSET;
         self.span.close_end &= MAX_SPAN_OFFSET;

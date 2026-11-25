@@ -615,4 +615,22 @@ mod tests {
         assert!(!doc_dirty(&mut other));
         let _ = &mut wb;
     }
+
+    #[test]
+    fn a_snapshot_taken_after_the_removal_does_not_bring_it_back() {
+        // round 2 m2: C1 is snapshotted and written, the barrier op removes `sheetProtection`,
+        // then A1 is snapshotted (the root is dirty only for `sheetData`) and written
+        let xml = format!("{HEAD}<row r=\"1\"><c r=\"A1\"><v>1</v></c><c r=\"C1\"><v>3</v></c></row></sheetData><sheetProtection sheet=\"1\"/></worksheet>");
+        let mut wb = open(&xml);
+        let c1 = wb.snapshot_cell(0, at("C1")).unwrap();
+        write(&mut wb, "C1", CellOp::Number("9".into()));
+        assert!(wb.worksheet_by_index(0).unwrap().unprotect_sheet().unwrap());
+        let a1 = wb.snapshot_cell(0, at("A1")).unwrap();
+        write(&mut wb, "A1", CellOp::Number("7".into()));
+        wb.restore_cell(0, at("C1"), &c1, RestoreStyle::Snapshot).unwrap();
+        wb.restore_cell(0, at("A1"), &a1, RestoreStyle::Snapshot).unwrap();
+        let out = part(&mut wb);
+        assert!(!out.contains("sheetProtection"), "{out}");
+        assert!(doc_dirty(&mut wb));
+    }
 }

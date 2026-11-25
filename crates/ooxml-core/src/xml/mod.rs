@@ -460,8 +460,10 @@ impl XmlDocument {
     /// parent upward: an ancestor loses both dirty flags only when none of its
     /// child elements is dirty any more (the dirty-descendant count, O(depth))
     /// and `may_clean(depth, ancestor)` agrees (root = depth 0), which is how
-    /// the caller says that the ancestor's own tags and child list are as they
-    /// were when the copy was taken. If `node` itself is dirty, the ancestors
+    /// the caller says that the ancestor's own tags are as they were when the
+    /// copy was taken. The ancestor's child element count must also equal the
+    /// source's; the order of its children is not checked, so a same-count
+    /// reorder is not detected. If `node` itself is dirty, the ancestors
     /// are marked dirty instead.
     ///
     /// Returns `false` (and changes nothing) when `path` does not name an
@@ -681,7 +683,7 @@ mod restore_tests {
         let mut d = doc();
         let b = node_at(d.root(), &[0, 0]).clone();
         dirty_a(&mut d, &[0, 0]);
-        node_at_mut(&mut d.root, &[1 - 1]).remove_child(1); // c, a clean child
+        node_at_mut(&mut d.root, &[0]).remove_child(1); // c, a clean child
         mark_path_dirty(&mut d.root, &[0]);
         assert!(d.replace_element_at(&[0, 0], b, |_, _| true));
         assert!(d.is_dirty() && node_at(d.root(), &[0]).subtree_dirty());
