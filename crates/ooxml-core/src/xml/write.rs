@@ -8,6 +8,7 @@ use super::{RawAttr, RawItem, RawNode, XmlDocument};
 use crate::name::XName;
 
 pub(super) fn serialize(doc: &XmlDocument) -> String {
+    debug_assert!(doc.root.dirty_counts_consistent(), "a dirty-child count is out of step with the tree");
     let src = doc.source();
     let mut out = String::with_capacity(src.len() + 64);
     let root = &doc.root;

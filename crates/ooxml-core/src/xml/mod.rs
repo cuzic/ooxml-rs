@@ -193,11 +193,24 @@ pub(crate) fn node_at_mut<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut 
 /// Marks the target and its ancestors dirty, then returns the target.
 pub(crate) fn mark_path_dirty<'a>(root: &'a mut RawNode, path: &[usize]) -> &'a mut RawNode {
     root.mark_subtree_dirty();
-    path.iter().fold(root, |node, &index| {
-        let child = node.child_mut(index).and_then(RawItem::as_element_mut).expect("validated element path");
-        child.mark_subtree_dirty();
-        child
-    })
+    path.iter().fold(root, |node, &index| node.mark_child_dirty(index).expect("validated element path"))
+}
+
+/// Clears the dirty flags of the nodes along `path` (root first) from the
+/// deepest up, while each has no dirty child element left and `may_clean`
+/// agrees. Keeps the parents' counts.
+fn clean_up(node: &mut RawNode, path: &[usize], depth: usize, may_clean: &mut impl FnMut(usize, &RawNode) -> bool) {
+    if let Some((&i, rest)) = path.split_first() {
+        let child = node.child_mut(i).and_then(RawItem::as_element_mut).expect("validated element path");
+        let was_dirty = child.subtree_dirty();
+        clean_up(child, rest, depth + 1, may_clean);
+        if was_dirty && !child.subtree_dirty() {
+            node.sub_dirty_child();
+        }
+    }
+    if node.dirty_child_count() == 0 && node.element_list_unchanged() && node.subtree_dirty() && may_clean(depth, node) {
+        node.clear_dirty();
+    }
 }
 
 /// Default for [`ParseOptions::max_depth`].
@@ -441,6 +454,91 @@ impl XmlDocument {
         self.root.mark_subtree_dirty();
     }
 
+    /// Puts `node` in place of the element at `path` (ADR-0024 C2: a snapshot
+    /// restore). `node` is a copy taken earlier with its spans, cache and
+    /// dirty state, and it keeps them. Then the ancestors are cleaned from the
+    /// parent upward: an ancestor loses both dirty flags only when none of its
+    /// child elements is dirty any more (the dirty-descendant count, O(depth))
+    /// and `may_clean(depth, ancestor)` agrees (root = depth 0), which is how
+    /// the caller says that the ancestor's own tags are as they were when the
+    /// copy was taken. The ancestor's child element count must also equal the
+    /// source's; the order of its children is not checked, so a same-count
+    /// reorder is not detected. If `node` itself is dirty, the ancestors
+    /// are marked dirty instead.
+    ///
+    /// Returns `false` (and changes nothing) when `path` does not name an
+    /// element.
+    pub fn replace_element_at(&mut self, path: &[usize], node: RawNode, may_clean: impl FnMut(usize, &RawNode) -> bool) -> bool {
+        let Some((&index, parent_path)) = path.split_last() else { return false };
+        if !self.is_element_path(path) {
+            return false;
+        }
+        let dirty = node.subtree_dirty();
+        let parent = node_at_mut(&mut self.root, parent_path);
+        parent.splice_children(index..index + 1, [RawItem::Element(node)]);
+        self.after_restore(parent_path, dirty, may_clean);
+        true
+    }
+
+    /// Removes the element at `path`, marks its ancestors dirty (the child
+    /// list changed), then cleans them as [`Self::replace_element_at`] does. Returns the removed element, or
+    /// `None` (changing nothing) when `path` does not name an element.
+    pub fn remove_element_at(&mut self, path: &[usize], may_clean: impl FnMut(usize, &RawNode) -> bool) -> Option<RawNode> {
+        let (&index, parent_path) = path.split_last()?;
+        if !self.is_element_path(path) {
+            return None;
+        }
+        let parent = node_at_mut(&mut self.root, parent_path);
+        let RawItem::Element(removed) = parent.remove_child(index) else { unreachable!("checked above") };
+        // the child list changed: dirty unless `may_clean` says it is as in the source
+        self.after_restore(parent_path, true, |_, _| false);
+        self.after_restore(parent_path, false, may_clean);
+        Some(removed)
+    }
+
+    /// Inserts `node` (a copy taken earlier) as child item `index` of the
+    /// element at `parent_path`. The parent's child list changes, so it and
+    /// its ancestors are marked dirty. Returns `false` (changing nothing) for
+    /// a bad path or index.
+    pub fn insert_element_at(&mut self, parent_path: &[usize], index: usize, node: RawNode) -> bool {
+        if !self.is_element_path(parent_path) || index > node_at(&self.root, parent_path).children().len() {
+            return false;
+        }
+        let parent = node_at_mut(&mut self.root, parent_path);
+        if parent.span().is_some_and(|s| s.close.is_none()) && parent.children().is_empty() {
+            parent.mark_own_dirty(); // a self-closing parent gains its first child
+        }
+        parent.insert_child(index, RawItem::Element(node));
+        mark_path_dirty(&mut self.root, parent_path);
+        true
+    }
+
+    fn is_element_path(&self, path: &[usize]) -> bool {
+        let mut n = &self.root;
+        path.iter().all(|&i| match n.children().get(i).and_then(RawItem::as_element) {
+            Some(c) => {
+                n = c;
+                true
+            }
+            None => false,
+        })
+    }
+
+    fn after_restore(&mut self, parent_path: &[usize], dirty: bool, mut may_clean: impl FnMut(usize, &RawNode) -> bool) {
+        if dirty {
+            mark_path_dirty(&mut self.root, parent_path);
+        } else {
+            clean_up(&mut self.root, parent_path, 0, &mut may_clean);
+        }
+    }
+
+    /// Every node's dirty-child count equals the number of its dirty child
+    /// elements. For tests of code that edits the tree.
+    #[doc(hidden)]
+    pub fn dirty_counts_consistent(&self) -> bool {
+        self.root.dirty_counts_consistent()
+    }
+
     /// Marks every node `own_dirty` + `subtree_dirty` and forgets text spans,
     /// so that [`Self::serialize`] re-renders the whole tree from
     /// names/attributes/children. This is the T1b oracle's set-up
@@ -481,3 +579,114 @@ fn preserve_attribute_spelling_on_edited_start_tag() {
 
 #[cfg(test)]
 mod deferred_oracle;
+
+#[cfg(test)]
+mod restore_tests {
+    use super::*;
+
+    const SRC: &str = "<r><a x='1'><b/><c>t</c></a><d/></r>";
+
+    fn doc() -> XmlDocument {
+        XmlDocument::parse(SRC.as_bytes()).unwrap()
+    }
+
+    fn dirty_a(doc: &mut XmlDocument, path: &[usize]) {
+        mark_path_dirty(&mut doc.root, path).mark_own_dirty();
+    }
+
+    #[test]
+    fn counts_follow_marks_and_child_list_edits() {
+        let mut d = doc();
+        assert_eq!(d.root().dirty_child_count(), 0);
+        dirty_a(&mut d, &[0, 0]);
+        dirty_a(&mut d, &[0, 0]); // marking twice counts once
+        dirty_a(&mut d, &[0, 1]);
+        let a = node_at(d.root(), &[0]);
+        assert_eq!(a.dirty_child_count(), 2);
+        assert_eq!(d.root().dirty_child_count(), 1);
+        assert!(d.dirty_counts_consistent());
+        let b = node_at_mut(&mut d.root, &[0]).remove_child(0);
+        assert!(b.as_element().unwrap().subtree_dirty());
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 1);
+        d.force_rerender();
+        assert!(d.dirty_counts_consistent());
+        assert_eq!(d.root().dirty_child_count(), 2);
+    }
+
+    #[test]
+    fn replace_cleans_ancestors_only_when_no_other_descendant_is_dirty() {
+        let mut d = doc();
+        let (b, c) = (node_at(d.root(), &[0, 0]).clone(), node_at(d.root(), &[0, 1]).clone());
+        dirty_a(&mut d, &[0, 0]);
+        dirty_a(&mut d, &[0, 1]);
+        assert!(d.replace_element_at(&[0, 0], b, |_, _| true));
+        assert!(d.root().subtree_dirty() && node_at(d.root(), &[0]).subtree_dirty(), "c is still dirty");
+        assert!(d.dirty_counts_consistent());
+        assert!(d.replace_element_at(&[0, 1], c, |_, _| true));
+        assert!(!d.is_dirty() && !node_at(d.root(), &[0]).own_dirty());
+        assert!(d.dirty_counts_consistent());
+        assert_eq!(d.serialize(), SRC);
+    }
+
+    #[test]
+    fn may_clean_can_veto_and_a_dirty_replacement_dirties_the_path() {
+        let mut d = doc();
+        let b = node_at(d.root(), &[0, 0]).clone();
+        dirty_a(&mut d, &[0, 0]);
+        assert!(d.replace_element_at(&[0, 0], b.clone(), |depth, _| depth != 1));
+        // depth 1 (`a`) refused: it and the root stay dirty
+        assert!(node_at(d.root(), &[0]).subtree_dirty() && d.is_dirty());
+        assert_eq!(d.root().dirty_child_count(), 1);
+        let mut dirty_b = b;
+        dirty_b.mark_own_dirty();
+        dirty_b.mark_subtree_dirty();
+        let mut d2 = doc();
+        assert!(d2.replace_element_at(&[0, 0], dirty_b, |_, _| true));
+        assert!(d2.is_dirty() && d2.dirty_counts_consistent());
+        assert!(!d2.replace_element_at(&[0, 5], node_at(d2.root(), &[1]).clone(), |_, _| true));
+    }
+
+    #[test]
+    fn remove_and_insert_round_trip() {
+        let mut d = doc();
+        let before = node_at(d.root(), &[0, 1]).clone();
+        let gone = d.remove_element_at(&[0, 1], |_, _| false).unwrap();
+        assert_eq!(d.serialize(), "<r><a x='1'><b/></a><d/></r>");
+        assert!(gone.structurally_eq(&before));
+        assert!(d.insert_element_at(&[0], 1, gone));
+        assert!(d.dirty_counts_consistent());
+        assert_eq!(d.serialize(), SRC);
+        assert!(!d.insert_element_at(&[0], 9, before));
+    }
+
+    #[test]
+    fn retain_splice_and_set_children_keep_the_count() {
+        let mut d = doc();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).retain_children(|c| c.as_element().is_none_or(|e| !e.subtree_dirty()));
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
+        assert!(d.dirty_counts_consistent());
+        let mut d = doc();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).splice_children(0..1, std::iter::empty());
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
+        let mut d = doc();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).set_children(Vec::new());
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
+        assert!(d.dirty_counts_consistent());
+    }
+
+    #[test]
+    fn a_removed_child_keeps_the_ancestor_dirty() {
+        // B1: the parent has no dirty child, but its element list is shorter than the source's
+        let mut d = doc();
+        let b = node_at(d.root(), &[0, 0]).clone();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).remove_child(1); // c, a clean child
+        mark_path_dirty(&mut d.root, &[0]);
+        assert!(d.replace_element_at(&[0, 0], b, |_, _| true));
+        assert!(d.is_dirty() && node_at(d.root(), &[0]).subtree_dirty());
+        assert_eq!(d.serialize(), "<r><a x='1'><b/></a><d/></r>");
+    }
+}
