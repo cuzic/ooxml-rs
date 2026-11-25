@@ -656,4 +656,22 @@ mod restore_tests {
         assert_eq!(d.serialize(), SRC);
         assert!(!d.insert_element_at(&[0], 9, before));
     }
+
+    #[test]
+    fn retain_splice_and_set_children_keep_the_count() {
+        let mut d = doc();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).retain_children(|c| c.as_element().is_none_or(|e| !e.subtree_dirty()));
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
+        assert!(d.dirty_counts_consistent());
+        let mut d = doc();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).splice_children(0..1, std::iter::empty());
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
+        let mut d = doc();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[0]).set_children(Vec::new());
+        assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
+        assert!(d.dirty_counts_consistent());
+    }
 }
