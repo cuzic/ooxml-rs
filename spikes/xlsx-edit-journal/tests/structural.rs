@@ -256,7 +256,6 @@ fn probe_refusal_count() {
     use proptest::test_runner::{Config, TestRunner};
     let mut runner = TestRunner::new(Config { cases: cases(), failure_persistence: None, ..Config::default() });
     let strat = (prop::sample::select(vec!["A1:C6", "A1"]), prop::collection::vec(op_s(), 1..=16));
-    let (mut with_structural, mut skipped) = (0usize, 0usize);
     let counts = std::sync::Mutex::new((0usize, 0usize));
     runner
         .run(&strat, |(dim, ops)| {
@@ -273,7 +272,7 @@ fn probe_refusal_count() {
             Ok(())
         })
         .unwrap();
-    (with_structural, skipped) = *counts.lock().unwrap();
+    let (with_structural, skipped) = *counts.lock().unwrap();
     eprintln!("probe: {with_structural} cases with an accepted structural op, {skipped} skipped (the probe refused)");
 }
 
@@ -495,4 +494,36 @@ fn fast_truncate_equals_replay_across_epochs() {
         .unwrap();
     let (n, fast) = *counts.lock().unwrap();
     eprintln!("truncate_fast across epochs: {n} cuts, {fast} on the fast path, all equal to replay");
+}
+
+/// A style patch on a missing cell creates an empty `c`; its content is
+/// still empty, so R3 seeds nothing from it. Read literally ("content
+/// differs from the snapshot", and the snapshot is `None`), revision 8
+/// would strip `A!A1 = MATCH(7,B!A:A,0)`, which the sequential side keeps:
+/// fails with `adr_missing_is_content` (Journal strip set ⊄ sequential).
+#[test]
+fn a_style_patch_that_creates_a_cell_seeds_no_strip() {
+    if !shadow_only() {
+        return;
+    }
+    let (s, j) = oracle1(&base(), &[Op::Style(b("A7"), Patch::Font(italic()))]);
+    for out in [&s.bytes, &j.bytes] {
+        assert!(raw_cell(out, SA, "A1").unwrap().contains("<v>4</v>"));
+    }
+}
+
+/// A formula cell overwritten with a constant and then deleted by a
+/// structural op: the formula-cell set changed (the Base's `A5 = 1+1` is
+/// gone), so calcChain must go, although the op itself deleted no formula
+/// and the cell's mark died with its id. Fails with
+/// `adr_dead_mark_drops_fx` (the Base's calcChain is kept, listing `A5`).
+#[test]
+fn a_formula_overwritten_then_deleted_drops_calc_chain() {
+    if !shadow_only() {
+        return;
+    }
+    let (s, j) = oracle1(&oracle_workbook("A1:C5"), &[num(k("A5"), 5.0), del_rows(0, 4, 1)]);
+    for out in [&s.bytes, &j.bytes] {
+        assert!(!ooxml_core::Package::from_bytes(out.clone()).unwrap().contains("xl/calcChain.xml"));
+    }
 }

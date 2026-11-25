@@ -708,7 +708,23 @@ fn materialize(wb: &mut Workbook, st: &mut ShadowState) -> ooxml_xlsx::Result<Ve
     for (i, p) in parts.iter().enumerate() {
         let src = part_text(&pkg, p)?.ok_or_else(|| malformed(p))?;
         let esrc = st.epoch_text(wb, i)?;
-        let acts: HashMap<String, Act> = st.reverted.iter().filter(|k| k.sheet == i).map(|k| (a1(*k), Act::Base)).collect();
+        let mut acts: HashMap<String, Act> = st.reverted.iter().filter(|k| k.sheet == i).map(|k| (a1(*k), Act::Base)).collect();
+        // a content restore (only `s` differs) puts the snapshot's node back
+        // with the current `s`, its cache included (C2; review round 7, M5)
+        let content_back: Vec<(CellKey, u32)> = {
+            let mut v = Vec::new();
+            for (k, snap) in st.touched.iter().filter(|(k, _)| k.sheet == i && !st.reverted.contains(k)) {
+                if let (Some(snap), Some(now)) = (snap, read_sem(wb, *k)?)
+                    && now.same_content(snap)
+                {
+                    v.push((*k, now.s));
+                }
+            }
+            v
+        };
+        for (k, x) in content_back {
+            acts.insert(a1(k), Act::BaseStyle(x));
+        }
         let text = sheet_text(&src, &esrc, i, &acts, &HashSet::new(), &[]);
         if text != src {
             pkg.set_part(p, text)?;
@@ -791,6 +807,11 @@ fn apply_structural(wb: &mut Workbook, st: &mut ShadowState, s: crate::op::Struc
         let e = st.marks.entry(k).or_default();
         e.content |= m.content;
         e.fx |= m.fx;
+    }
+    // a mark whose id dies leaves the changed set, but a formula it gained
+    // or lost still changed the formula-cell set (calcChain; README, c)
+    if !cfg!(feature = "adr_dead_mark_drops_fx") && st.marks.iter().any(|(k, m)| m.fx && s.map(*k).is_none()) {
+        st.chain_removed = true;
     }
     st.marks = st.marks.drain().filter_map(|(k, m)| s.map(k).map(|n| (n, m))).collect();
     st.records = remap_set(&st.records);
@@ -1242,7 +1263,13 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
         } else {
             base_t.clone()
         };
-        let base_s: HashMap<String, bool> = cells(&base_t).into_iter().map(|c| (c.r.to_owned(), attr(&base_t[c.start..c.open_end], "s").is_some())).collect();
+        // the Base node's `s` (by id) of the cells C7 writes
+        let needed: HashSet<String> = cell_refs.iter().filter(|c| c.0.sheet == i).filter_map(|c| st.base_pos(c.0)).map(a1).collect();
+        let base_s: HashMap<String, bool> = if needed.is_empty() {
+            HashMap::new()
+        } else {
+            cells(&base_t).into_iter().filter(|c| needed.contains(c.r)).map(|c| (c.r.to_owned(), attr(&base_t[c.start..c.open_end], "s").is_some())).collect()
+        };
         let mut acts: HashMap<String, Act> = HashMap::new();
         for k in st.reverted.iter().chain(st.carried_pins.keys()).filter(|k| k.sheet == i) {
             acts.insert(a1(*k), Act::Base);
@@ -1252,9 +1279,10 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
             let sst = sst.map(|v| if v >= reg.origin_sst { reg.sst_map[&v] } else { v });
             let zero = st.base_pos(*k).and_then(|b| base_s.get(&a1(b)).copied());
             let act = match st.touched.get(k) {
-                // restored to this epoch's snapshot (after a structural op):
-                // the snapshot's bytes, renumbered, in canonical form
-                Some(_) if structural && st.reverted.contains(k) => {
+                // restored (or content-restored) to this epoch's snapshot,
+                // after a structural op: the snapshot's bytes with the
+                // current `s`, renumbered (R4), in canonical form (C7)
+                Some(Some(snap)) if structural && (st.reverted.contains(k) || read_sem(wb, *k)?.is_some_and(|now| now.same_content(snap))) => {
                     let cs = cells(&esrc);
                     let Some(c) = cs.iter().find(|c| c.r == a1(*k)) else { return Err(malformed(format!("no snapshot bytes for {k:?}"))) };
                     let mut tag = set_s(&esrc[c.start..c.open_end], xf, zero);

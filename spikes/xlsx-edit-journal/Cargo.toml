@@ -42,6 +42,8 @@ adr_r3_formula_only = []
 adr_r3_seed_raw = []
 # rev 8 read literally: a cell created by a style patch (missing -> empty c) counts as content-changed for R3
 adr_missing_is_content = []
+# rev 8 as written: a carried mark dies with its id, and its formula-set change with it (calcChain kept)
+adr_dead_mark_drops_fx = []
 mutant_r1_skip_group = []         # R1 judged by P: a group cell's own text written back is skipped (round 8 M1)
 mutant_r1_group_cells = []        # with r1_unvalidated: R1 (b) dropped (a group cell may be skipped)
 mutant_r2_no_derived = []         # R3 reads the shadow's node, not the restored state (round 8 M2 analogue)
