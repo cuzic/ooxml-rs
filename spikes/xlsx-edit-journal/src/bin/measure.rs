@@ -300,4 +300,66 @@ fn shadow_mode(base: &[u8], ops: &[Op], seq_save: Duration, compile_append: Dura
     let t_save_a = t.elapsed();
     let (ob, _) = b.commit().unwrap();
     println!("  outputs equal: {} (save after the fast truncate {})", oa == ob, ms(t_save_a));
+    a_prime(base, ops, seq_save);
+    structural_ops(base);
+}
+
+/// Q7 (A′): the output is reopened after each save (README "Revision 8
+/// verification", e). Save, then the reopen the next read pays.
+fn a_prime(base: &[u8], ops: &[Op], seq_save: Duration) {
+    println!("--- A′ (reopen after each save)");
+    let mut j = Journal::open_with(base.to_vec(), Mode::Shadow).unwrap();
+    j.reopen_after_save = true;
+    for op in ops {
+        j.append(Api::Native, op.clone(), None).unwrap();
+    }
+    let t = Instant::now();
+    j.commit().unwrap();
+    let save = t.elapsed();
+    let t = Instant::now();
+    j.normalized(CellKey::new(0, 0, 0)).unwrap();
+    let reopen = t.elapsed();
+    println!(
+        "save {} + reopen {} = {} ({:.2}x a sequential to_bytes)",
+        ms(save),
+        ms(reopen),
+        ms(save + reopen),
+        (save + reopen).as_secs_f64() / seq_save.as_secs_f64()
+    );
+    let t = Instant::now();
+    for op in ops.iter().rev() {
+        j.append(Api::Native, op.clone(), None).unwrap();
+    }
+    let append2 = t.elapsed();
+    let t = Instant::now();
+    j.commit().unwrap();
+    let save2 = t.elapsed();
+    println!("second session: append {} ({}), save {} ({:.2}x)", ms(append2), us_per(append2, ops.len()), ms(save2), save2.as_secs_f64() / seq_save.as_secs_f64());
+}
+
+/// Structural ops through the Journal (oracle 10's `k` inserts at row 1):
+/// each one closes the epoch, makes the restores physical and reopens the
+/// shadow (C2/C6 substitute), and records its strips on a copy (C3
+/// substitute). Against the same inserts on a bare `Workbook`.
+fn structural_ops(base: &[u8]) {
+    use xlsx_edit_journal_spike::op::Structural;
+    println!("--- structural ops (k inserts at row 1)");
+    let k = 3;
+    let mut j = Journal::open_with(base.to_vec(), Mode::Shadow).unwrap();
+    j.append(Api::Native, Op::Content(CellKey::new(0, 5, 1), Content::Number(-1.0)), None).unwrap();
+    let t = Instant::now();
+    for _ in 0..k {
+        j.append(Api::Native, Op::Structural(Structural::InsertRows { sheet: 0, at: 0, count: 1 }), None).unwrap();
+    }
+    let jt = t.elapsed();
+    let mut wb = Workbook::from_bytes(base.to_vec()).unwrap();
+    let t = Instant::now();
+    for _ in 0..k {
+        wb.worksheet_by_index(0).unwrap().insert_rows(0, 1).unwrap();
+    }
+    let st = t.elapsed();
+    println!("{k} inserts: Journal {} per op, of which materialize + record {} per op; bare Workbook {} per op", ms(jt / k), ms(j.shadow_state().t_structural / k), ms(st / k));
+    let t = Instant::now();
+    j.commit().unwrap();
+    println!("save after the inserts: {}", ms(t.elapsed()));
 }

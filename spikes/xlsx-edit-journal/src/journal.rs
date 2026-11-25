@@ -190,6 +190,8 @@ impl Journal {
                 for l in &self.log {
                     apply_tracked(&mut wb, &mut st, &l.op).map_err(|e| JError::JournalInternal { seq: l.seq, source: format!("replay: {e}") })?;
                 }
+                // a fresh state numbers registries from the current Base
+                self.base_xf_count = st.reg.origin[0];
                 self.st = st;
             } else {
                 for l in &self.log {
@@ -409,11 +411,14 @@ impl Journal {
         if t < self.commit_mark {
             return Err(JError::TruncateBeforeCommit { seq: t, committed: self.commit_mark });
         }
-        if self.mode != Mode::Shadow || self.shadow.is_none() || self.log.iter().any(|l| l.op.is_structural() || matches!(l.op, Op::WriteCells(_))) {
-            // structural ops and multi-target calls: replay (§10.3)
+        // §10.3: replay when a cut op is structural or a multi-target call
+        if self.mode != Mode::Shadow || self.shadow.is_none() || self.log.iter().any(|l| l.seq > t && (l.op.is_structural() || matches!(l.op, Op::WriteCells(_)))) {
             self.truncate(t)?;
             return Ok(false);
         }
+        // the current epoch starts after the last (kept) structural op: the
+        // ops that took the current snapshots are there (review round 7, M4)
+        let epoch_start = self.log.iter().rposition(|l| l.op.is_structural()).map_or(0, |p| p + 1);
         let keys: std::collections::BTreeSet<CellKey> = self.log.iter().filter(|l| l.seq > t).map(|l| l.op.key()).collect();
         let mut plan: Vec<Op> = Vec::new();
         for k in keys {
@@ -434,8 +439,18 @@ impl Journal {
                 self.truncate(t)?;
                 return Ok(false);
             };
-            plan.extend(restore);
-            plan.extend(self.log.iter().filter(|l| l.seq <= t && l.op.key() == k).map(|l| l.op.clone()));
+            if !cfg!(feature = "mutant_tf_no_restore") {
+                plan.extend(restore);
+            }
+            let from = if cfg!(feature = "mutant_tf_from_mark") { 0 } else { epoch_start };
+            for l in self.log[from..].iter().filter(|l| l.seq <= t && l.op.keys().contains(&k)) {
+                if matches!(l.op, Op::WriteCells(_)) {
+                    // a re-applied op of a multi-target call: replay
+                    self.truncate(t)?;
+                    return Ok(false);
+                }
+                plan.push(l.op.clone());
+            }
         }
         // the log, key index and echo ends as `truncate` leaves them
         while self.log.last().is_some_and(|l| l.seq > t) {

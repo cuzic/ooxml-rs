@@ -1235,7 +1235,13 @@ pub fn serialize(wb: &mut Workbook, st: &mut ShadowState, base: &[u8]) -> ooxml_
         let base_t = part_text(&out, p)?.ok_or_else(|| malformed(p))?;
         let src = if dirty { part_text(wb.package(), p)?.expect("part") } else { base_t.clone() };
         // snapshots of the current epoch are cells of the epoch's text
-        let esrc = if structural { st.epoch_text(wb, i)?.as_ref().clone() } else { base_t.clone() };
+        let esrc = if structural || cfg!(feature = "mutant_no_rebase") {
+            // the mutant: restores read the shadow's origin (the first Base),
+            // as a kept shadow without C6 would (review round 7, M1)
+            st.epoch_text(wb, i)?.as_ref().clone()
+        } else {
+            base_t.clone()
+        };
         let base_s: HashMap<String, bool> = cells(&base_t).into_iter().map(|c| (c.r.to_owned(), attr(&base_t[c.start..c.open_end], "s").is_some())).collect();
         let mut acts: HashMap<String, Act> = HashMap::new();
         for k in st.reverted.iter().chain(st.carried_pins.keys()).filter(|k| k.sheet == i) {

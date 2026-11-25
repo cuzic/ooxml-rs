@@ -276,3 +276,223 @@ fn probe_refusal_count() {
     (with_structural, skipped) = *counts.lock().unwrap();
     eprintln!("probe: {with_structural} cases with an accepted structural op, {skipped} skipped (the probe refused)");
 }
+
+// ------------------------------------------ oracles 11 and 12 across epochs
+
+/// A noise block for the cell at `at`, read on `wb` (the sequential state
+/// at the insertion point): a change, then the cell's content and `s`
+/// written back. `None` for a cell that cannot be written back (missing,
+/// empty, a formula with attributes).
+fn noise_for(wb: &mut ooxml_xlsx::Workbook, at: CellKey, change: &Content, patch: &Patch) -> Option<Vec<Op>> {
+    let ws = wb.worksheet_by_index(at.sheet).ok()?;
+    let c = ws.cell(at.row, at.col).ok()??;
+    let s = c.style_index().ok()?;
+    if s >= 4 {
+        // a session `xf` cannot be named by `set_style_index` (P2)
+        return None;
+    }
+    let back = match (c.formula(), c.value().ok()?) {
+        (Some(f), _) if c.raw().elements().find(|e| e.name().local() == "f").is_some_and(|f| f.attrs().is_empty()) => Content::Formula(f),
+        (Some(_), _) => return None,
+        (None, ooxml_xlsx::CellValue::Number(v)) => Content::Number(v),
+        (None, ooxml_xlsx::CellValue::String(v)) if c.raw().attr(ooxml_core::QName::new("", "t")) == Some("s") => Content::String(v),
+        (None, ooxml_xlsx::CellValue::Bool(v)) => Content::Bool(v),
+        _ => return None,
+    };
+    Some(vec![Op::Content(at, change.clone()), Op::Content(at, back), Op::Style(at, patch.clone()), Op::Style(at, Patch::Index(s))])
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: cases(), failure_persistence: None, ..ProptestConfig::default() })]
+
+    /// Oracle 11 across epochs: noise blocks inside epochs (on cells the log
+    /// has not touched since the last structural op, ending in their state
+    /// before the block) leave the output byte-identical.
+    #[test]
+    fn history_independence_across_epochs(
+        dim in prop::sample::select(vec!["A1:C6", "A1"]),
+        f in prop::collection::vec(op_s(), 1..=12),
+        noise in prop::collection::vec((0usize..13, cell(), prop::sample::select(vec![Content::Number(42.0), Content::String("n".into()), Content::Formula("B!A1+5".into())]), prop_oneof![Just(Patch::Font(italic())), Just(Patch::Fill(red()))]), 0..=6),
+    ) {
+        if !shadow_only() {
+            return Ok(());
+        }
+        let base = struct_workbook(dim);
+        // build L, reading each block's write-back on a sequential workbook
+        let mut wb = ooxml_xlsx::Workbook::from_bytes(base.clone()).unwrap();
+        let mut touched: std::collections::BTreeSet<CellKey> = Default::default();
+        let mut long = Vec::new();
+        for i in 0..=f.len() {
+            for (_, at, change, patch) in noise.iter().filter(|n| n.0 == i) {
+                if touched.contains(at) {
+                    continue;
+                }
+                if let Some(block) = noise_for(&mut wb, *at, change, patch) {
+                    for op in &block {
+                        xlsx_edit_journal_spike::op::apply_seq(&mut wb, op).unwrap();
+                    }
+                    long.extend(block);
+                }
+            }
+            if let Some(op) = f.get(i) {
+                if xlsx_edit_journal_spike::op::apply_seq(&mut wb, op).is_ok() {
+                    if op.is_structural() {
+                        touched.clear();
+                    } else {
+                        touched.extend(op.keys());
+                    }
+                }
+                long.push(op.clone());
+            }
+        }
+        let (js, jl) = (journaled(&base, &f), journaled(&base, &long));
+        let (ms, ml) = (xlsx_edit_journal_spike::project::model(&js.bytes), xlsx_edit_journal_spike::project::model(&jl.bytes));
+        prop_assert!(ms == ml, "P differs: F {:?} L {:?}", f, long);
+        prop_assert!(js.bytes == jl.bytes, "bytes differ (P equal): F {:?} L {:?}", f, long);
+    }
+
+    /// Oracle 12 across epochs: the live shadow's output equals a replay's.
+    #[test]
+    fn replay_equality_across_epochs(dim in prop::sample::select(vec!["A1:C6", "A1"]), ops in prop::collection::vec(op_s(), 1..=16)) {
+        if !shadow_only() {
+            return Ok(());
+        }
+        let mut j = xlsx_edit_journal_spike::Journal::open(struct_workbook(dim)).unwrap();
+        for op in &ops {
+            let _ = j.append(xlsx_edit_journal_spike::Api::Native, op.clone(), None);
+        }
+        let live = j.preview().unwrap();
+        j.mark_shadow_stale();
+        let replayed = j.preview().unwrap();
+        prop_assert!(live == replayed, "replay differs for {:?}", ops);
+    }
+}
+
+/// Oracle 11's fourth kind: a block that spans a structural op (a change
+/// before it, the write-back after it, at the cell's new position). The
+/// outputs must be P-equal; this counts how often they are also
+/// byte-identical (printed with `--nocapture`).
+#[test]
+fn history_across_a_structural_op_is_p_equal() {
+    if !shadow_only() {
+        return;
+    }
+    use proptest::test_runner::{Config, TestRunner};
+    let mut runner = TestRunner::new(Config { cases: cases(), failure_persistence: None, ..Config::default() });
+    let strat = (prop::sample::select(vec!["A1:C6", "A1"]), prop::collection::vec(op_s(), 1..=12), cell(), any::<prop::sample::Index>());
+    let counts = std::sync::Mutex::new((0usize, 0usize));
+    runner
+        .run(&strat, |(dim, f, at, pos)| {
+            let Some(si) = f.iter().position(|o| o.is_structural()).map(|p| p + pos.index(f.len() - p)).and_then(|p| f[p..].iter().position(|o| o.is_structural()).map(|q| p + q)) else { return Ok(()) };
+            let base = struct_workbook(dim);
+            let mut wb = ooxml_xlsx::Workbook::from_bytes(base.clone()).unwrap();
+            for op in &f[..si] {
+                let _ = xlsx_edit_journal_spike::op::apply_seq(&mut wb, op);
+            }
+            let Some(block) = noise_for(&mut wb, at, &Content::Number(42.0), &Patch::Font(italic())) else { return Ok(()) };
+            // a formula's text is not its write-back across a structural op
+            // (the op would have rewritten it)
+            if matches!(block[1], Op::Content(_, Content::Formula(_))) {
+                return Ok(());
+            }
+            let Op::Structural(s) = f[si] else { unreachable!() };
+            let Some(moved) = s.map(at) else { return Ok(()) };
+            let back: Vec<Op> = block[1..].iter().map(|o| match o {
+                Op::Content(_, c) => Op::Content(moved, c.clone()),
+                Op::Style(_, p) => Op::Style(moved, p.clone()),
+                _ => unreachable!(),
+            }).collect();
+            let mut long: Vec<Op> = f[..si].to_vec();
+            long.push(block[0].clone());
+            long.push(f[si].clone());
+            long.extend(back);
+            long.extend(f[si + 1..].iter().cloned());
+            let (js, jl) = (journaled(&base, &f), journaled(&base, &long));
+            if js.refused.iter().any(Option::is_some) || jl.refused.iter().any(Option::is_some) {
+                return Ok(());
+            }
+            let (ms, ml) = (xlsx_edit_journal_spike::project::model(&js.bytes), xlsx_edit_journal_spike::project::model(&jl.bytes));
+            assert!(ms == ml, "P differs: F {f:?} L {long:?}");
+            let mut c = counts.lock().unwrap();
+            c.0 += 1;
+            if js.bytes == jl.bytes {
+                c.1 += 1;
+            }
+            Ok(())
+        })
+        .unwrap();
+    let (n, same) = *counts.lock().unwrap();
+    eprintln!("blocks across a structural op: {n} cases P-equal, {same} also byte-identical");
+}
+
+// ------------------------------------------- oracle 14 across epochs (d)
+
+fn grid2() -> Vec<CellKey> {
+    (0..2).flat_map(|s| (0..9).flat_map(move |r| (0..5).map(move |c| CellKey::new(s, r, c)))).collect()
+}
+
+fn compare_truncations(base: &[u8], ops: &[Op], t: u64) -> Result<bool, String> {
+    let mut js = [xlsx_edit_journal_spike::Journal::open(base.to_vec()).unwrap(), xlsx_edit_journal_spike::Journal::open(base.to_vec()).unwrap()];
+    for j in &mut js {
+        for op in ops {
+            let _ = j.append(xlsx_edit_journal_spike::Api::Native, op.clone(), None);
+        }
+    }
+    js[0].truncate(t).unwrap();
+    let fast = js[1].truncate_fast(t).unwrap();
+    let [a, b] = &mut js;
+    for k in grid2() {
+        let (x, y) = (a.normalized(k).unwrap(), b.normalized(k).unwrap());
+        if x != y {
+            return Err(format!("read of {k:?}: replay {x:?}, fast {y:?}"));
+        }
+    }
+    if a.preview().unwrap() != b.preview().unwrap() {
+        return Err("bytes differ".into());
+    }
+    Ok(fast)
+}
+
+/// Review round 7, M4: `A1 = B5*2`, `insert_rows(2, 1)` kept, a write to
+/// `A1` cut: the fast path gives `B6*2`, as replay does. Fails with
+/// `mutant_tf_from_mark`.
+#[test]
+fn m4_round7_fast_truncate_after_a_kept_insert() {
+    if !shadow_only() {
+        return;
+    }
+    let base = oracle_workbook("A1:C5");
+    let ops = [fx(k("A1"), "B5*2"), ins_rows(0, 2, 1), num(k("A1"), 9.0)];
+    assert_eq!(compare_truncations(&base, &ops, 2), Ok(true), "the fast path is taken and equals replay");
+    let mut j = xlsx_edit_journal_spike::Journal::open(base).unwrap();
+    for op in ops {
+        j.append(xlsx_edit_journal_spike::Api::Native, op, None).unwrap();
+    }
+    j.truncate_fast(2).unwrap();
+    assert_eq!(j.normalized(k("A1")).unwrap().unwrap().formula.as_deref(), Some("B6*2"));
+}
+
+/// Counts how often `truncate_fast` takes the fast path (printed with
+/// `--nocapture`) while asserting oracle 14 at random cuts.
+#[test]
+fn fast_truncate_equals_replay_across_epochs() {
+    if !shadow_only() {
+        return;
+    }
+    use proptest::test_runner::{Config, TestRunner};
+    let mut runner = TestRunner::new(Config { cases: cases(), failure_persistence: None, ..Config::default() });
+    let strat = (prop::sample::select(vec!["A1:C6", "A1"]), prop::collection::vec(op_s(), 1..=16), any::<prop::sample::Index>());
+    let counts = std::sync::Mutex::new((0usize, 0usize));
+    runner
+        .run(&strat, |(dim, ops, cut)| {
+            let t = cut.index(ops.len() + 1) as u64;
+            let fast = compare_truncations(&struct_workbook(dim), &ops, t).map_err(|e| proptest::test_runner::TestCaseError::fail(format!("{e} for {ops:?} cut at {t}")))?;
+            let mut c = counts.lock().unwrap();
+            c.0 += 1;
+            c.1 += usize::from(fast);
+            Ok(())
+        })
+        .unwrap();
+    let (n, fast) = *counts.lock().unwrap();
+    eprintln!("truncate_fast across epochs: {n} cuts, {fast} on the fast path, all equal to replay");
+}
