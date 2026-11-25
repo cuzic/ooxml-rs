@@ -33,7 +33,8 @@ impl CompactSpan {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(size_of::<RawNode>() == 64);
+// 64 bytes of node plus the dirty-child count (ADR-0024 C2).
+const _: () = assert!(size_of::<RawNode>() == 72);
 
 pub(super) type Bindings = Arc<[(Option<Range<usize>>, Arc<str>)]>;
 
@@ -81,6 +82,11 @@ pub struct RawNode {
     children: Children,
     /// Original offsets and dirty flags.
     span: CompactSpan,
+    /// How many child elements are `subtree_dirty`. Maintained by every
+    /// operation that changes the child list or marks a child dirty, so a
+    /// caller can ask "is anything below this node still dirty" without a
+    /// walk (ADR-0024 C2).
+    dirty_children: u32,
 }
 
 impl RawNode {
@@ -95,6 +101,7 @@ impl RawNode {
                 close_start: 0,
                 close_end: 0,
             },
+            dirty_children: 0,
         }
     }
 
@@ -115,8 +122,56 @@ impl RawNode {
         self.span.open_end |= FLAG_BIT;
     }
 
+    /// Sets `subtree_dirty` on a node that has no parent in the tree (the
+    /// root, or a detached copy). A node inside a tree is marked through
+    /// [`Self::mark_child_dirty`] on its parent, which keeps the count.
     pub(crate) fn mark_subtree_dirty(&mut self) {
         self.span.close_end |= FLAG_BIT;
+    }
+
+    /// Sets `subtree_dirty` on the child element at `index` and counts it.
+    /// Returns the child.
+    pub(crate) fn mark_child_dirty(&mut self, index: usize) -> Option<&mut RawNode> {
+        let newly = {
+            let child = self.child_mut(index).and_then(RawItem::as_element_mut)?;
+            let newly = !child.subtree_dirty();
+            child.mark_subtree_dirty();
+            newly
+        };
+        self.dirty_children += u32::from(newly);
+        self.child_mut(index).and_then(RawItem::as_element_mut)
+    }
+
+    /// How many child elements are `subtree_dirty`. Zero means nothing below
+    /// this node is dirty (a dirty descendant makes its ancestors dirty).
+    pub fn dirty_child_count(&self) -> usize {
+        self.dirty_children as usize
+    }
+
+    pub(crate) fn sub_dirty_child(&mut self) {
+        self.dirty_children -= 1;
+    }
+
+    /// Clears both dirty flags of this node. The caller has checked that
+    /// nothing below it is dirty and that its own tags and child list are as
+    /// in the source; the parent's count is the caller's to fix.
+    pub(crate) fn clear_dirty(&mut self) {
+        self.span.open_end &= MAX_SPAN_OFFSET;
+        self.span.close_end &= MAX_SPAN_OFFSET;
+    }
+
+    /// Does every node of this subtree count its dirty children right? (For
+    /// tests; a walk of the subtree.)
+    #[doc(hidden)]
+    pub fn dirty_counts_consistent(&self) -> bool {
+        // Unexpanded deferred children are clean source and stay unexpanded.
+        let children: &[RawItem] = match &self.children {
+            Children::Built(children) => children,
+            Children::Deferred(deferred) => deferred.children.get().map_or(&[], Vec::as_slice),
+        };
+        let dirty = children.iter().filter_map(RawItem::as_element).filter(|c| c.subtree_dirty()).count();
+        dirty == self.dirty_children as usize
+            && children.iter().filter_map(RawItem::as_element).all(RawNode::dirty_counts_consistent)
     }
 
     pub(super) fn defer(&mut self, deferred: Deferred) {
@@ -163,22 +218,42 @@ impl RawNode {
 
     pub(crate) fn insert_child(&mut self, index: usize, item: RawItem) {
         self.span.close_start |= ac_bit(&item);
+        self.dirty_children += dirty_item(&item);
         self.edited_children().insert(index, item);
     }
 
     pub(crate) fn remove_child(&mut self, index: usize) -> RawItem {
-        self.edited_children().remove(index)
+        let item = self.edited_children().remove(index);
+        self.dirty_children -= dirty_item(&item);
+        item
     }
 
     pub(crate) fn splice_children(&mut self, range: Range<usize>, items: impl IntoIterator<Item = RawItem>) {
         self.discard_deferral();
         let Children::Built(children) = &mut self.children else { unreachable!() };
         let close_start = &mut self.span.close_start;
-        children.splice(range, items.into_iter().inspect(|item| *close_start |= ac_bit(item)));
+        let mut dirty = self.dirty_children;
+        dirty -= children[range.clone()].iter().map(dirty_item).sum::<u32>();
+        children.splice(
+            range,
+            items.into_iter().inspect(|item| {
+                *close_start |= ac_bit(item);
+                dirty += dirty_item(item);
+            }),
+        );
+        self.dirty_children = dirty;
     }
 
-    pub(crate) fn retain_children(&mut self, keep: impl FnMut(&RawItem) -> bool) {
-        self.edited_children().retain(keep);
+    pub(crate) fn retain_children(&mut self, mut keep: impl FnMut(&RawItem) -> bool) {
+        let mut removed = 0;
+        self.edited_children().retain(|item| {
+            let kept = keep(item);
+            if !kept {
+                removed += dirty_item(item);
+            }
+            kept
+        });
+        self.dirty_children -= removed;
     }
 
     pub(crate) fn set_children(&mut self, children: Vec<RawItem>) {
@@ -191,6 +266,7 @@ impl RawNode {
         if children.iter().any(|item| ac_bit(item) != 0) {
             self.mark_alternate_content();
         }
+        self.dirty_children = children.iter().map(dirty_item).sum();
         self.children = Children::Built(children);
     }
 
@@ -225,6 +301,7 @@ impl RawNode {
                 close_end: FLAG_BIT,
                 ..CompactSpan::default()
             },
+            dirty_children: 0,
         }
     }
 
@@ -371,14 +448,23 @@ impl RawNode {
     pub(super) fn force_rerender(&mut self) {
         self.mark_own_dirty();
         self.mark_subtree_dirty();
+        let mut elements = 0;
         for c in self.edited_children() {
             match c {
-                RawItem::Element(n) => n.force_rerender(),
+                RawItem::Element(n) => {
+                    n.force_rerender();
+                    elements += 1;
+                }
                 RawItem::Text(t) => t.forget_span(),
                 RawItem::Markup(_) => {}
             }
         }
+        self.dirty_children = elements;
     }
+}
+
+fn dirty_item(item: &RawItem) -> u32 {
+    u32::from(item.as_element().is_some_and(RawNode::subtree_dirty))
 }
 
 fn ac_bit(item: &RawItem) -> u32 {
