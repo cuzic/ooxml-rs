@@ -87,6 +87,11 @@ pub struct RawNode {
     /// caller can ask "is anything below this node still dirty" without a
     /// walk (ADR-0024 C2).
     dirty_children: u32,
+    /// Child elements now minus child elements in the source. Zero means the
+    /// element list has the source's length, so a node with no dirty child
+    /// and no own change can be clean again (ADR-0024 C2); a removed child
+    /// makes it non-zero until a restore puts it back.
+    elem_delta: i32,
 }
 
 impl RawNode {
@@ -102,6 +107,7 @@ impl RawNode {
                 close_end: 0,
             },
             dirty_children: 0,
+            elem_delta: 0,
         }
     }
 
@@ -146,6 +152,11 @@ impl RawNode {
     /// this node is dirty (a dirty descendant makes its ancestors dirty).
     pub fn dirty_child_count(&self) -> usize {
         self.dirty_children as usize
+    }
+
+    /// The child element list has the length it had in the source.
+    pub(crate) fn element_list_unchanged(&self) -> bool {
+        self.elem_delta == 0
     }
 
     pub(crate) fn sub_dirty_child(&mut self) {
@@ -219,12 +230,14 @@ impl RawNode {
     pub(crate) fn insert_child(&mut self, index: usize, item: RawItem) {
         self.span.close_start |= ac_bit(&item);
         self.dirty_children += dirty_item(&item);
+        self.elem_delta += element_item(&item);
         self.edited_children().insert(index, item);
     }
 
     pub(crate) fn remove_child(&mut self, index: usize) -> RawItem {
         let item = self.edited_children().remove(index);
         self.dirty_children -= dirty_item(&item);
+        self.elem_delta -= element_item(&item);
         item
     }
 
@@ -233,32 +246,41 @@ impl RawNode {
         let Children::Built(children) = &mut self.children else { unreachable!() };
         let close_start = &mut self.span.close_start;
         let mut dirty = self.dirty_children;
+        let mut delta = self.elem_delta;
         dirty -= children[range.clone()].iter().map(dirty_item).sum::<u32>();
+        delta -= children[range.clone()].iter().map(element_item).sum::<i32>();
         children.splice(
             range,
             items.into_iter().inspect(|item| {
                 *close_start |= ac_bit(item);
                 dirty += dirty_item(item);
+                delta += element_item(item);
             }),
         );
         self.dirty_children = dirty;
+        self.elem_delta = delta;
     }
 
     pub(crate) fn retain_children(&mut self, mut keep: impl FnMut(&RawItem) -> bool) {
-        let mut removed = 0;
+        let (mut removed, mut elements) = (0, 0);
         self.edited_children().retain(|item| {
             let kept = keep(item);
             if !kept {
                 removed += dirty_item(item);
+                elements += element_item(item);
             }
             kept
         });
         self.dirty_children -= removed;
+        self.elem_delta -= elements;
     }
 
     pub(crate) fn set_children(&mut self, children: Vec<RawItem>) {
         self.discard_deferral();
+        let old = self.children().iter().map(element_item).sum::<i32>();
+        let new = children.iter().map(element_item).sum::<i32>();
         self.finish_parsed_children(children);
+        self.elem_delta += new - old;
     }
 
     pub(super) fn finish_parsed_children(&mut self, children: Vec<RawItem>) {
@@ -302,6 +324,7 @@ impl RawNode {
                 ..CompactSpan::default()
             },
             dirty_children: 0,
+            elem_delta: 0,
         }
     }
 
@@ -461,6 +484,10 @@ impl RawNode {
         }
         self.dirty_children = elements;
     }
+}
+
+fn element_item(item: &RawItem) -> i32 {
+    i32::from(item.as_element().is_some())
 }
 
 fn dirty_item(item: &RawItem) -> u32 {

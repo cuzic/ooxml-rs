@@ -53,9 +53,6 @@ impl AncestorMark {
     }
 }
 
-/// Depth of the `row` among the ancestors of a `c` (worksheet 0, `sheetData` 1).
-const ROW: usize = 2;
-
 /// A cell as it was (`None` node: the cell did not exist), with its derived
 /// state.
 #[derive(Clone, Debug)]
@@ -168,7 +165,7 @@ impl Workbook {
                 if style == RestoreStyle::Current
                     && let Some(current_s) = current_s
                 {
-                    set_style_attr(doc, &path, current_s.as_deref())?;
+                    set_style_attr(doc, &path, current_s.as_deref());
                 }
             }
             // the row is there, the cell is gone: insert it
@@ -183,8 +180,10 @@ impl Workbook {
                 {
                     let ws = doc.lens_mut::<sml::Worksheet>()?;
                     let mut sd = ws.into_child_at::<sml::SheetData>(si).ok_or_else(|| Error::Malformed("sheetData".into()))?;
-                    let mut r = sml::RowViewMut(sd.insert_at::<sml::Row>(spot.row_insert_at)?);
-                    r.set_row_index(row_no)?;
+                    // refused here, before anything changed (the cell insert below cannot fail)
+                    sd.check_insert_at::<sml::Row>(spot.row_insert_at)?;
+                    let mut r = sml::RowViewMut(sd.insert_at::<sml::Row>(spot.row_insert_at).expect("checked above"));
+                    r.set_row_index(row_no).expect("`r` is a row attribute");
                 }
                 index.row_inserted(row_no, spot.row_insert_at);
                 doc.insert_element_at(&[si, spot.row_insert_at], 0, node.clone());
@@ -195,12 +194,14 @@ impl Workbook {
             (None, Some(ci), Some(ri), Some(si)) => {
                 if style == RestoreStyle::Current {
                     // content restore of a missing cell: an empty `c` with the current `s`
-                    empty_cell(doc, &[si, ri, ci])?;
+                    empty_cell(doc, &[si, ri, ci]);
                 } else {
                     doc.remove_element_at(&[si, ri, ci], clean);
                     index.cell_removed(row_no, at.col, ci);
                     let row = doc.root().children()[si].as_element().and_then(|sd| sd.children()[ri].as_element());
-                    let session_row = marks[ROW].is_none()
+                    // a row the session created has no source span, whichever
+                    // snapshot saw it (a snapshot taken later saw it as existing)
+                    let session_row = row.is_some_and(|r| r.span().is_none())
                         && row.is_some_and(|r| r.children().is_empty() && r.attrs().iter().all(|a| a.name().is(sml::Row::ATTR_R)));
                     if session_row {
                         doc.remove_element_at(&[si, ri], clean);
@@ -213,6 +214,9 @@ impl Workbook {
         // derived state
         if let Some(fid) = self.census.at(sheet, at) {
             self.census.remove(fid);
+        }
+        if let Some(g) = self.graph.as_mut() {
+            g.forget_everything_closure(); // an `Everything` formula may be gone
         }
         if let Some((c, prec)) = &snapshot.formula {
             let fid = self.census.push(c.clone());
@@ -230,25 +234,26 @@ impl Workbook {
     }
 }
 
-fn set_style_attr(doc: &mut ooxml_core::XmlDocument, path: &[usize], s: Option<&str>) -> Result<()> {
-    let mut cell = doc.lens_mut_at::<sml::Cell>(path)?;
+/// Sets or removes `s` on the cell at `path`. Cannot fail: the path names a
+/// `c` we just put there and `s` is one of its attributes.
+fn set_style_attr(doc: &mut ooxml_core::XmlDocument, path: &[usize], s: Option<&str>) {
+    let mut cell = doc.lens_mut_at::<sml::Cell>(path).expect("the restored `c`");
     match s {
-        Some(s) => cell.set_attr(sml::Cell::ATTR_S, s)?,
+        Some(s) => cell.set_attr(sml::Cell::ATTR_S, s).expect("`s` of a parsed attribute"),
         None => {
-            cell.remove_attr(sml::Cell::ATTR_S)?;
+            cell.remove_attr(sml::Cell::ATTR_S).expect("`s` is a cell attribute");
         }
     }
-    Ok(())
 }
 
-fn empty_cell(doc: &mut ooxml_core::XmlDocument, path: &[usize]) -> Result<()> {
-    let mut cell = doc.lens_mut_at::<sml::Cell>(path)?;
+/// Empties the cell at `path` but for `r` and `s`. Cannot fail, as above.
+fn empty_cell(doc: &mut ooxml_core::XmlDocument, path: &[usize]) {
+    let mut cell = doc.lens_mut_at::<sml::Cell>(path).expect("the located `c`");
     let n = cell.node().children().len();
     cell.remove_range(0..n);
     for q in [sml::Cell::ATTR_T, sml::Cell::ATTR_CM, sml::Cell::ATTR_VM, sml::Cell::ATTR_PH] {
-        cell.remove_attr(q)?;
+        cell.remove_attr(q).expect("a cell attribute");
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -527,5 +532,87 @@ mod tests {
         assert!(wb.restore_cell(0, at("A1"), &snap, RestoreStyle::Snapshot).is_err());
         assert_eq!(part(&mut wb), before);
         assert!(!doc_dirty(&mut wb));
+    }
+
+    #[test]
+    fn a_removed_sibling_of_an_ancestor_is_not_brought_back() {
+        // B1: a barrier op between the write and the restore removed an element
+        for (tail, remove) in [
+            (r#"<sheetProtection sheet="1"/>"#, 0),
+            (r#"<mergeCells count="1"><mergeCell ref="C3:D3"/></mergeCells>"#, 1),
+        ] {
+            let xml = format!("{HEAD}<row r=\"1\"><c r=\"A1\"><v>1</v></c></row></sheetData>{tail}</worksheet>");
+            for snapshot_late in [false, true] {
+                let mut wb = open(&xml);
+                let early = wb.snapshot_cell(0, at("A1")).unwrap();
+                if snapshot_late {
+                    // the removal comes first; the snapshot sees a root that is dirty for another child
+                    write(&mut wb, "B1", CellOp::Number("5".into()));
+                }
+                let snap = if snapshot_late { wb.snapshot_cell(0, at("A1")).unwrap() } else { early };
+                write(&mut wb, "A1", CellOp::Number("7".into()));
+                let mut ws = wb.worksheet_by_index(0).unwrap();
+                if remove == 0 {
+                    assert!(ws.unprotect_sheet().unwrap());
+                } else {
+                    ws.unmerge("C3:D3").unwrap();
+                }
+                let without = part(&mut wb);
+                assert!(!without.contains("sheetProtection") && !without.contains("<mergeCell "), "{without}");
+                wb.restore_cell(0, at("A1"), &snap, RestoreStyle::Snapshot).unwrap();
+                let out = part(&mut wb);
+                assert!(!out.contains("sheetProtection") && !out.contains("<mergeCell "), "late={snapshot_late}: {out}");
+                assert!(doc_dirty(&mut wb));
+            }
+        }
+    }
+
+    #[test]
+    fn a_session_row_goes_whichever_snapshot_saw_it() {
+        // M1: F6's snapshot saw no row 6, A6's snapshot saw the one F6 created
+        for a_first in [true, false] {
+            let xml = sheet_xml();
+            let mut wb = open(&xml);
+            let f6 = wb.snapshot_cell(0, at("F6")).unwrap();
+            write(&mut wb, "F6", CellOp::Number("1".into()));
+            let a6 = wb.snapshot_cell(0, at("A6")).unwrap();
+            write(&mut wb, "A6", CellOp::Number("2".into()));
+            if a_first {
+                wb.restore_cell(0, at("A6"), &a6, RestoreStyle::Snapshot).unwrap();
+                wb.restore_cell(0, at("F6"), &f6, RestoreStyle::Snapshot).unwrap();
+            } else {
+                wb.restore_cell(0, at("F6"), &f6, RestoreStyle::Snapshot).unwrap();
+                wb.restore_cell(0, at("A6"), &a6, RestoreStyle::Snapshot).unwrap();
+            }
+            assert_eq!(part(&mut wb), xml, "a_first={a_first}");
+            assert!(!doc_dirty(&mut wb), "a_first={a_first}");
+        }
+    }
+
+    #[test]
+    fn a_restore_resets_the_everything_closure() {
+        // m1: INDIRECT depends on everything; once restored, dependents are as if never written
+        let xml = format!("{HEAD}<row r=\"1\"><c r=\"A1\"><v>1</v></c><c r=\"B1\"><f>A1+1</f><v>2</v></c></row>{TAIL}");
+        let mut wb = open(&xml);
+        let baseline = wb.compute_dependents(0, at("C5")).cells;
+        assert!(baseline.is_empty());
+        let snap = wb.snapshot_cell(0, at("A1")).unwrap();
+        write(&mut wb, "A1", CellOp::Formula("INDIRECT(\"Z9\")".into()));
+        assert!(!wb.compute_dependents(0, at("C5")).cells.is_empty());
+        wb.restore_cell(0, at("A1"), &snap, RestoreStyle::Snapshot).unwrap();
+        assert!(wb.compute_dependents(0, at("C5")).cells.is_empty());
+    }
+
+    #[test]
+    fn a_refused_row_creation_changes_nothing() {
+        // m2: the snapshot needs a `sheetData` the sheet no longer has; the refusal comes before any change
+        let mut wb = open(&sheet_xml());
+        let snap = wb.snapshot_cell(0, at("A1")).unwrap();
+        let mut other = open(&format!("{HEAD}{TAIL}").replace("<sheetData></sheetData>", ""));
+        let before = part(&mut other);
+        assert!(other.restore_cell(0, at("A1"), &snap, RestoreStyle::Snapshot).is_err());
+        assert_eq!(part(&mut other), before);
+        assert!(!doc_dirty(&mut other));
+        let _ = &mut wb;
     }
 }

@@ -208,7 +208,7 @@ fn clean_up(node: &mut RawNode, path: &[usize], depth: usize, may_clean: &mut im
             node.sub_dirty_child();
         }
     }
-    if node.dirty_child_count() == 0 && node.subtree_dirty() && may_clean(depth, node) {
+    if node.dirty_child_count() == 0 && node.element_list_unchanged() && node.subtree_dirty() && may_clean(depth, node) {
         node.clear_dirty();
     }
 }
@@ -673,5 +673,18 @@ mod restore_tests {
         node_at_mut(&mut d.root, &[0]).set_children(Vec::new());
         assert_eq!(node_at(d.root(), &[0]).dirty_child_count(), 0);
         assert!(d.dirty_counts_consistent());
+    }
+
+    #[test]
+    fn a_removed_child_keeps_the_ancestor_dirty() {
+        // B1: the parent has no dirty child, but its element list is shorter than the source's
+        let mut d = doc();
+        let b = node_at(d.root(), &[0, 0]).clone();
+        dirty_a(&mut d, &[0, 0]);
+        node_at_mut(&mut d.root, &[1 - 1]).remove_child(1); // c, a clean child
+        mark_path_dirty(&mut d.root, &[0]);
+        assert!(d.replace_element_at(&[0, 0], b, |_, _| true));
+        assert!(d.is_dirty() && node_at(d.root(), &[0]).subtree_dirty());
+        assert_eq!(d.serialize(), "<r><a x='1'><b/></a><d/></r>");
     }
 }
