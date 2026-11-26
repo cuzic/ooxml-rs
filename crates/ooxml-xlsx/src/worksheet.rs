@@ -4,7 +4,7 @@ use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{Content, ElementSpec, EnumValue, QName, RawNode, XmlDocument};
 use ooxml_schema::sml::{self, CellValues, TextView};
 
-use crate::edit::CellOp;
+use crate::edit::{CellOp, Extra};
 use crate::index::{Located, SheetIndex, located_cell, sheet_data};
 use crate::error::{Error, Result};
 use crate::escape;
@@ -616,6 +616,16 @@ pub struct CellMut<'s, 'wb> {
 /// Excel's cell text limit, in UTF-16 code units.
 pub(crate) const MAX_STRING_LEN: usize = 32_767;
 
+/// Plans an inline-string write: the length check and `_xHHHH_` escaping.
+/// Shared by `set_string_inline` and the Journal's plan input.
+pub(crate) fn plan_inline_write(value: &str) -> Result<CellOp> {
+    let units = value.encode_utf16().count();
+    if units > MAX_STRING_LEN {
+        return Err(Error::StringTooLong(units));
+    }
+    Ok(CellOp::Text(escape::encode(value).into_owned()))
+}
+
 /// Formats a finite number as `xsd:double`: plain decimal in the usual
 /// range, `1E300`-style outside it; `-0` is written as `0`.
 pub(crate) fn format_number(v: f64) -> String {
@@ -667,22 +677,38 @@ impl<'wb> Worksheet<'wb> {
         self.wb.check_editable()?;
         let mut ops = Vec::with_capacity(writes.len());
         for &(at, w) in writes {
+            let (op, extra) = self.wb.plan_write_value(at, w)?;
+            ops.push((self.sheet, at, op, extra));
+        }
+        self.wb.write_with_headers(ops)
+    }
+}
+
+impl Workbook {
+    /// Plans one `write_cells` item: validates the coordinate and the value
+    /// and reserves its string, without applying. Shared by `write_cells`
+    /// and the Journal's plan input.
+    pub(crate) fn plan_write_value(
+        &mut self,
+        at: CellIndex,
+        w: CellWrite<'_>,
+    ) -> Result<(CellOp, Extra)> {
             CellIndex::new(at.row, at.col)?;
-            let (op, extra) = match w {
+        Ok(match w {
                 CellWrite::Number(v) => {
                     if !v.is_finite() {
                         return Err(Error::InvalidNumber(v));
                     }
                     (CellOp::Number(format_number(v)), Default::default())
                 }
-                CellWrite::String(s) => self.wb.plan_string_write(s)?,
-                CellWrite::Formula(t) => (CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()), Default::default()),
+            CellWrite::String(s) => self.plan_string_write(s)?,
+            CellWrite::Formula(t) => (
+                CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+                Default::default(),
+            ),
                 CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
                 CellWrite::ClearValue => (CellOp::ClearValue, Default::default()),
-            };
-            ops.push((self.sheet, at, op, extra));
-        }
-        self.wb.write_with_headers(ops)
+        })
     }
 }
 
@@ -737,12 +763,9 @@ impl CellMut<'_, '_> {
     /// `<is><t>…</t></is>`), never touching the shared-string table (the
     /// Phase0 behaviour of [`Self::set_string`]). Same rules and refusals.
     pub fn set_string_inline(self, value: &str) -> Result<()> {
-        let units = value.encode_utf16().count();
-        if units > MAX_STRING_LEN {
-            return Err(Error::StringTooLong(units));
-        }
         let ws = &mut *self.ws;
-        ws.wb.edit_cell(ws.sheet, self.at, CellOp::Text(escape::encode(value).into_owned()))
+        ws.wb
+            .edit_cell(ws.sheet, self.at, plan_inline_write(value)?)
     }
 
     /// Writes a formula (ADR-0003 §4.1): `<f>text</f>` with no cached value
