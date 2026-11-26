@@ -257,3 +257,20 @@ fn fixed_22_m1_bare_keep_stale_caches_still_does_not_look_at_the_strip() {
     let r = crate::journal::op::apply_seq(&mut wb, &num("A1", 5.0));
     assert!(r.is_ok(), "the public policy is unchanged: {r:?}");
 }
+
+#[test]
+fn fixed_23_m1r2_a_no_op_on_a_sheet_the_journal_cannot_index_is_accepted_and_not_tracked() {
+    let base = out_of_order_dependent_workbook();
+    let mut p = Pair::new(&base);
+    // sequential: Ok (a no-op never reads the row index); the journal's
+    // snapshot of the cell fails, but the part is unchanged
+    p.step(cell(1, "B1", CellCall::RemoveFormula)).unwrap();
+    assert_eq!(p.j.log().len(), 1);
+    assert_eq!(p.j.open_snapshots(), 0);
+    // not broken: later ops on both sheets still agree
+    p.step(num("A1", 1.0)).ok();
+    let r = p.step(cell(1, "A1", CellCall::Font(italic())));
+    assert!(matches!(r, Err(Error::OutOfOrder(_))), "{r:?}");
+    p.step(c1("A1", CellCall::Font(italic()))).unwrap();
+    p.finish();
+}

@@ -205,12 +205,7 @@ impl Resolver {
                 (0, at(hot[i % hot.len()]))
             }
             Where::Grid(r, c) => (0, CellIndex { row: *r, col: *c }),
-            // ops on the out-of-order sheet itself are a different question
-            // (C2's snapshot reads its index, a no-op write does not)
-            Where::Sheet2(r, c) if !matches!(self.fx, Fx::OutOfOrder) => {
-                (1, CellIndex { row: *r, col: *c })
-            }
-            Where::Sheet2(r, c) => (0, CellIndex { row: *r, col: *c }),
+            Where::Sheet2(r, c) => (1, CellIndex { row: *r, col: *c }),
             Where::Earlier(i) if !self.targets.is_empty() => self.targets[i % self.targets.len()],
             Where::Earlier(_) => (0, at(self.fx.hot()[0])),
         };

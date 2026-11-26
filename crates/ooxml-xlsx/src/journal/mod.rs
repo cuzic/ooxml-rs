@@ -237,6 +237,12 @@ impl Journal {
             }
         }
         let seq = self.next_seq;
+        // A sheet the journal cannot index can still take an op that changes
+        // nothing (a no-op `remove_formula` never reads the row index). The
+        // part's serialization before the op tells, afterwards, whether it
+        // did change anything; the dirty flags would not (a write that
+        // restores a value, or a no-op that marks, leaves them set).
+        let part_before = snapshot_error.as_ref().map(|_| self.sheet_part_text(input.sheet));
         if let Err(e) = apply_seq(&mut self.shadow, &input) {
             drop(fresh);
             if self.shadow.check_poisoned().is_err() {
@@ -246,9 +252,14 @@ impl Journal {
             return Err(JournalError::Op(e));
         }
         if let Some(source) = snapshot_error {
-            // the edit located the cell, so the snapshot should have
-            self.broken = true;
-            return Err(JournalError::Internal { seq, source });
+            // The op was accepted although the snapshot could not be taken.
+            // If it changed the part, the edit located a cell the snapshot
+            // could not: an inconsistency. If not, it was a no-op: log it as
+            // usual and track nothing (R2 skips untracked cells).
+            if part_before != Some(self.sheet_part_text(input.sheet)) {
+                self.broken = true;
+                return Err(JournalError::Internal { seq, source });
+            }
         }
         self.tracked.extend(fresh);
         self.next_seq += 1;
@@ -289,9 +300,20 @@ impl Journal {
         };
         for t in &targets {
             let key = self.cell_key(input.sheet, t.at);
+            if !self.tracked.contains_key(&key) {
+                // a no-op on a sheet that cannot be indexed: nothing changed
+                continue;
+            }
             self.write_back(input.sheet, t.at, key, seq, content_written)?;
         }
         Ok(seq)
+    }
+
+    /// The serialized sheet part (`None` if it cannot be read), to tell
+    /// whether an op changed it.
+    fn sheet_part_text(&mut self, sheet: usize) -> Option<String> {
+        let part = self.shadow.sheets.get(sheet)?.part.clone()?;
+        self.shadow.pkg.xml_part(&part).ok().map(|d| d.serialize())
     }
 
     /// R2 for one cell: back in its snapshot state gets the snapshot (and
