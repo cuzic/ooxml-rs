@@ -45,6 +45,7 @@ use crate::workbook::Workbook;
 pub(crate) enum JournalError {
     /// The sequential call refused the op (nothing changed).
     Op(Error),
+    // (an `Unsupported { op }` variant returns when ADR-0024 P3-P6 enter the op set)
     /// The shadow was poisoned or a restore failed: the call was undone by
     /// replay (the op is not logged and `seq` is not consumed). If the replay
     /// failed too, the Journal is broken.
@@ -194,8 +195,11 @@ impl Journal {
     }
 
     /// Appends one op: validates it on the shadow by applying it, then logs
-    /// it and runs R2 on every cell it touched. `Err(Op)` and `Err(Unsupported)`
-    /// leave everything as it was; `Err(Internal)` has undone the call by
+    /// it and runs R2 on every cell it touched. `Err(Op)` leaves everything as
+    /// it was (P2's `set_style_index(i)` for a session `xf` that `xf_content`
+    /// refuses, a dangling Base reference or extended content, is `Err(Op(..))`
+    /// though the sequential API may accept it: part B is outside oracle 1 (i),
+    /// F8); `Err(Internal)` has undone the call by
     /// replay (§3.2, §9.3), so the Journal is as it was unless it is `broken`.
     pub(crate) fn append(
         &mut self,
@@ -250,12 +254,18 @@ impl Journal {
         // P2 (F12): a session `xf` is logged and applied by content, live and
         // in replay alike; an index past the table stays an index, refused by
         // the sequential call as usual
+        if let OpKind::Cell { call: CellCall::StyleXf(_, c), .. } = &input.kind {
+            // never given by a caller: only the conversion below makes it
+            debug_assert!(*c == self.base_counts, "a caller-made StyleXf");
+        }
         let by_content;
         let input = match &input.kind {
             OpKind::Cell {
                 at,
                 call: CellCall::StyleIndex(i),
-            } if *i >= self.base_counts.cell_xfs => {
+            } if *i >= self.base_counts.cell_xfs
+                && self.shadow.worksheet_by_index(input.sheet).is_ok() =>
+            {
                 let now = self.shadow.cell_format_count().map_err(JournalError::Op)?;
                 if *i < now {
                     let x = self

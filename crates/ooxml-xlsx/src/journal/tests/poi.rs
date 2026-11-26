@@ -404,10 +404,11 @@ impl<'a> Resolver<'a> {
         p
     }
 
-    /// The call that writes the Base's content of `p` back. A `c` without a
-    /// value (or with a raw one, `t="d"` and the like) is reverted with
-    /// `ClearValue` (P1), which drops a value an earlier op wrote;
-    /// `RemoveFormula` would not.
+    /// The call that writes the Base's content of `p` back, as near as the
+    /// calls allow. An empty `c` is restored exactly by `ClearValue` (P1). A raw
+    /// value (`t="d"` and the like) is only cleared, not restored; a formula-less
+    /// array result is refused on both sides (`ArrayResultCell`); a cell the
+    /// Base lacks gets `RemoveFormula`, which keeps a value an earlier op wrote.
     fn revert(&self, p: (usize, CellIndex)) -> CellCall {
         match self.info.base.get(&p) {
             None => CellCall::RemoveFormula,
@@ -580,16 +581,43 @@ fn runner() -> TestRunner {
     })
 }
 
-/// Runs the generator over one fixture and returns (ops ok, ops refused).
-fn run_fixture(name: &str, bytes: &[u8]) -> (u32, u32) {
+/// Accepted ops of the newer groups: session `xf` index, `ClearValue`,
+/// `DynamicFormula`, row and column properties.
+#[derive(Clone, Copy, Default)]
+struct Kinds {
+    session: u32,
+    clear: u32,
+    dynamic: u32,
+    rowcol: u32,
+}
+
+/// Runs the generator over one fixture and returns (ops ok, ops refused, kinds).
+fn run_fixture(name: &str, bytes: &[u8]) -> (u32, u32, Kinds) {
     let info = Info::new(bytes);
     let (ok, refused) = (std::cell::Cell::new(0u32), std::cell::Cell::new(0u32));
+    let kinds = std::cell::Cell::new(Kinds::default());
     let result = runner().run(&ops_s(), |ops| {
         let mut r = Resolver::new(&info);
         let mut p = Pair::new(bytes);
         for op in &ops {
-            match p.step(r.resolve(op)) {
-                Ok(()) => ok.set(ok.get() + 1),
+            let input = r.resolve(op);
+            let mut k = kinds.get();
+            let (is_session, is_clear, is_dyn, is_rc) = match &input.kind {
+                OpKind::Cell { call: CellCall::StyleIndex(i), .. } => (*i >= info.formats, false, false, false),
+                OpKind::Cell { call: CellCall::ClearValue, .. } => (false, true, false, false),
+                OpKind::Cell { call: CellCall::DynamicFormula(_), .. } => (false, false, true, false),
+                OpKind::Row { .. } | OpKind::Cols { .. } => (false, false, false, true),
+                _ => (false, false, false, false),
+            };
+            match p.step(input) {
+                Ok(()) => {
+                    ok.set(ok.get() + 1);
+                    k.session += u32::from(is_session);
+                    k.clear += u32::from(is_clear);
+                    k.dynamic += u32::from(is_dyn);
+                    k.rowcol += u32::from(is_rc);
+                    kinds.set(k);
+                }
                 Err(_) => refused.set(refused.get() + 1),
             }
         }
@@ -602,7 +630,7 @@ fn run_fixture(name: &str, bytes: &[u8]) -> (u32, u32) {
             TestError::Abort(reason) => panic!("{name}: aborted: {reason}"),
         }
     }
-    (ok.get(), refused.get())
+    (ok.get(), refused.get(), kinds.get())
 }
 
 #[test]
@@ -616,12 +644,14 @@ fn poi_fixture_list_is_complete() {
     );
 }
 
+const SESSION_FLOOR: u32 = 10;
+
 #[test]
 fn sequential_equals_shadow_on_the_poi_fixtures() {
     let (mut ok, mut refused) = (0, 0);
     // one thread per fixture: the runs are independent
     let fx = fixtures();
-    let results: Vec<(String, (u32, u32))> = std::thread::scope(|s| {
+    let results: Vec<(String, (u32, u32, Kinds))> = std::thread::scope(|s| {
         let hs: Vec<_> = fx
             .iter()
             .map(|(name, bytes)| s.spawn(move || (name.clone(), run_fixture(name, bytes))))
@@ -630,7 +660,12 @@ fn sequential_equals_shadow_on_the_poi_fixtures() {
             .map(|h| h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)))
             .collect()
     });
-    for (name, (o, r)) in results {
+    let mut kinds = Kinds::default();
+    for (name, (o, r, k)) in results {
+        kinds.session += k.session;
+        kinds.clear += k.clear;
+        kinds.dynamic += k.dynamic;
+        kinds.rowcol += k.rowcol;
         println!("{name}: {o} ok, {r} refused");
         // every fixture runs a share of its ops: a guard that refuses all of
         // them hides in the total. Two fixtures have sheets without `r`, which
@@ -651,6 +686,22 @@ fn sequential_equals_shadow_on_the_poi_fixtures() {
     }
     println!("total: {ok} ok, {refused} refused");
     assert!(ok > 1000 && refused > 100, "ok {ok}, refused {refused}");
+    println!(
+        "accepted: session xf {}, ClearValue {}, DynamicFormula {}, row/col {}",
+        kinds.session, kinds.clear, kinds.dynamic, kinds.rowcol
+    );
+    // the newer op groups must keep going through (PR 165 review, round 1 m2)
+    assert!(
+        kinds.session > SESSION_FLOOR
+            && kinds.clear > 0
+            && kinds.dynamic > 0
+            && kinds.rowcol > 0,
+        "accepted ops of the newer groups: session {}, clear {}, dynamic {}, row/col {}",
+        kinds.session,
+        kinds.clear,
+        kinds.dynamic,
+        kinds.rowcol
+    );
 }
 
 /// P is a function of the content: a package and its save without edits

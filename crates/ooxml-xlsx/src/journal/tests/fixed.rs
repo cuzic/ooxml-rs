@@ -525,3 +525,32 @@ fn fixed_33_p2_session_xf_is_logged_by_content() {
     assert_eq!(p.j.shadow().to_bytes().unwrap(), live, "replay by content equals the live bytes");
     p.finish();
 }
+
+/// P2 asymmetry (PR 165 review, round 1 m1): a session `xf` derived from a
+/// Base `xf` with a dangling reference is refused by the Journal
+/// (`xf_content`), though the sequential call takes the index. The Journal is
+/// unchanged by the refusal. Part B is outside oracle 1 (i) (F8).
+#[test]
+fn fixed_34_p2_dangling_base_reference_is_refused_by_the_journal_only() {
+    use super::fixtures::{custom_styles, package, plain};
+    use crate::journal::op::apply_seq;
+    let sheet = r#"<dimension ref="A1:A2"/><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#;
+    // xf 2 names border 9 of 1
+    let styles = custom_styles(false).replace(
+        r#"fillId="1" borderId="0""#,
+        r#"fillId="1" borderId="9""#,
+    );
+    let bytes = package(&[("Sheet1", sheet.to_owned())], &[plain("x")], None, &styles);
+    let mut p = Pair::new(&bytes);
+    p.step(c1("A1", CellCall::StyleIndex(2))).unwrap();
+    p.step(c1("A1", CellCall::Font(italic()))).unwrap(); // session xf 4, border 9
+    let input = c1("A2", CellCall::StyleIndex(4));
+    let before = state_of_journal(&p.j);
+    assert!(apply_seq(&mut p.seq, &input).is_ok(), "the sequential call accepts it");
+    let r = p.j.append(Api::Native, input);
+    assert!(
+        matches!(&r, Err(JournalError::Op(Error::DanglingReference { .. }))),
+        "{r:?}"
+    );
+    assert_eq!(state_of_journal(&p.j), before, "a refusal changed the Journal");
+}
