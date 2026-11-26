@@ -242,7 +242,7 @@ pub(crate) struct TargetPlan {
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
         CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) | CellOp::DynamicFormula(t, _) => Some(t.as_str()),
-        CellOp::RemoveFormula | CellOp::Clear | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -276,7 +276,7 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
         CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) | CellOp::InlineRich(_) => Some(sml::InlineString::QNAME),
         CellOp::Formula(_) | CellOp::DynamicFormula(..) => Some(sml::CellFormula::QNAME),
-        CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
         None => {},
@@ -333,7 +333,7 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
             let mut kids = is.elements();
             matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
         }),
-        CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     }
 }
 
@@ -444,7 +444,7 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                 }
                 f.set_text(text)?;
             }
-            CellOp::RemoveFormula | CellOp::Clear => {
+            CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue => {
                 c.remove_data_type()?;
             }
             CellOp::Shared(index) => {
@@ -640,6 +640,8 @@ pub enum CellWrite<'a> {
     Formula(&'a str),
     /// As [`CellMut::remove_formula`].
     RemoveFormula,
+    /// As [`CellMut::clear_value`].
+    ClearValue,
 }
 
 impl<'wb> Worksheet<'wb> {
@@ -669,6 +671,7 @@ impl<'wb> Worksheet<'wb> {
                 CellWrite::String(s) => self.wb.plan_string_write(s)?,
                 CellWrite::Formula(t) => (CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()), Default::default()),
                 CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
+                CellWrite::ClearValue => (CellOp::ClearValue, Default::default()),
             };
             ops.push((self.sheet, at, op, extra));
         }
@@ -763,6 +766,22 @@ impl CellMut<'_, '_> {
     pub fn remove_formula(self) -> Result<()> {
         let ws = &mut *self.ws;
         ws.wb.edit_cell(ws.sheet, self.at, CellOp::RemoveFormula)
+    }
+
+    /// Clears the cell's value and formula (`v`, `is`, `f`, `t`) and keeps its
+    /// style (`s`): the equivalent of ExcelJS 4.4.0 `cell.value = null`.
+    /// A cell that does not exist is left alone: no row or `c` is created and
+    /// the part is byte-identical, so the row or column default style stays
+    /// (ExcelJS keeps it too). Dependents are invalidated and `calcChain.xml`
+    /// is removed when a formula cell is cleared.
+    ///
+    /// Refusals are those of the other writes, nothing is changed: a merged
+    /// non-anchor cell, a table header cell, an array or data-table anchor or
+    /// result cell, a rich-value cell (`vm`), and a shared-formula master
+    /// whose group is also written in the same batch.
+    pub fn clear_value(self) -> Result<()> {
+        let ws = &mut *self.ws;
+        ws.wb.edit_cell(ws.sheet, self.at, CellOp::ClearValue)
     }
 }
 
