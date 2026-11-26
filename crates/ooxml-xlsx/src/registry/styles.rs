@@ -1046,7 +1046,10 @@ impl Planner {
         self.xf(wb, spec)
     }
 
-    /// The index of a file-own entry of table `w`.
+    /// The index of a file-own entry of table `w`. Known gap: `index` is
+    /// checked against the current table length, which includes the session's
+    /// appended entries, not against the Base count; `xf_content` never
+    /// produces such an index.
     fn base_ref(&self, w: Which, index: u32) -> Result<u32> {
         let t = self.next.table(w);
         t.require_stable()?;
@@ -1071,6 +1074,7 @@ impl Planner {
             Part::Base(i) => self.base_ref(Which::Fonts, *i)?,
             Part::Session(f) => {
                 probe(Format { font: Some(f.clone()), ..Format::default() })?;
+                self.ensure_reserved(wb, Which::Fonts)?;
                 self.entry::<sml::Fonts>(wb, Which::Fonts, &|p| build_font(p, f))?
             }
         };
@@ -1086,6 +1090,7 @@ impl Planner {
             Part::Base(i) => self.base_ref(Which::Borders, *i)?,
             Part::Session(b) => {
                 probe(Format { border: Some(b.clone()), ..Format::default() })?;
+                self.ensure_reserved(wb, Which::Borders)?;
                 self.entry::<sml::Borders>(wb, Which::Borders, &|p| build_border(p, b))?
             }
         };
@@ -1127,8 +1132,12 @@ impl Planner {
 // ------------------------------------------------------------ xf by content
 
 impl Workbook {
-    /// The style table sizes now. Call it at open, before any style edit:
-    /// later it would count the session's own entries as the file's.
+    /// The style table sizes now. Call it at open, before any style edit
+    /// (later it would count the session's own entries as the file's), and
+    /// again after every successful Commit (ADR section 10.1): the session
+    /// entries that survive a save become Base entries of the new file, and a
+    /// stale count would read them back as `Session` values. The Journal keeps
+    /// the counts together with its Base.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn base_style_counts(&mut self) -> Result<BaseStyleCounts> {
         let st = self.styles()?;
@@ -1145,6 +1154,9 @@ impl Workbook {
     /// with extension content or an `mc:AlternateContent` entry, a style
     /// table with `mc:AlternateContent`, a number format without a code, or a
     /// session font, fill or border that cannot be read back as a value.
+    /// A reference past the end of a table (a dangling `fontId`, `fillId` or
+    /// `borderId` in the file, or one derived from it) is refused with
+    /// [`Error::DanglingReference`], even though the sequential API accepts it.
     /// Changes nothing.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn xf_content(&mut self, index: u32, base: &BaseStyleCounts) -> Result<XfContent> {
@@ -1542,7 +1554,9 @@ mod xf_content_tests {
 
     /// `cellXfs[s]` resolved to its content (P's resolution): the attributes
     /// without ids, the number format code, the font, fill and border bytes,
-    /// the children sorted.
+    /// the children sorted. `xfId` is compared as a value: it is an index
+    /// into `cellStyleXfs`, which a session never appends to, so this equals
+    /// resolving it through that table.
     fn resolve(wb: &mut Workbook, s: u32) -> String {
         let part = styles_part(wb).unwrap().unwrap();
         let doc = super::super::current_document(wb.pkg.xml_part(&part).unwrap()).unwrap();
@@ -1724,6 +1738,28 @@ mod xf_content_tests {
         assert_eq!(resolve(&mut a, sa), resolve(&mut b, sb));
         // and the content captured on B equals the one captured on A
         assert_eq!(b.xf_content(sb, &base).unwrap(), c);
+    }
+
+    /// An empty styleSheet: replaying a session font and border reserves
+    /// entry 0 first, so no duplicate of the reserved entries is appended.
+    #[test]
+    fn empty_tables_replay_without_duplicates() {
+        let fmt = crate::Format::new().set_italic().set_border("thin");
+        let mut a = Workbook::from_bytes(package("")).unwrap();
+        let base = a.base_style_counts().unwrap();
+        a.worksheet().unwrap().cell_mut(0, 0).unwrap().set_format(&fmt).unwrap();
+        let sa = s_of(&mut a, "A1");
+        let c = a.xf_content(sa, &base).unwrap();
+        let mut b = Workbook::from_bytes(package("")).unwrap();
+        b.set_cell_xf(0, at("A1"), &c).unwrap();
+        let sb = s_of(&mut b, "A1");
+        assert_eq!(resolve(&mut a, sa), resolve(&mut b, sb));
+        // the default content maps to the reserved xf 0, adding nothing
+        let zero = a.xf_content(0, &base).unwrap();
+        let before = styles_doc(&mut b);
+        b.set_cell_xf(0, at("A2"), &zero).unwrap();
+        assert_eq!(s_of(&mut b, "A2"), 0);
+        assert_eq!(styles_doc(&mut b), before);
     }
 
     #[test]

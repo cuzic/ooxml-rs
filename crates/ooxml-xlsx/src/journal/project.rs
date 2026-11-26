@@ -172,7 +172,7 @@ impl Styles {
         let id = |attrs: &mut BTreeMap<String, String>, a: &str| {
             attrs
                 .remove(a)
-                .and_then(|v| v.parse::<usize>().ok())
+                .and_then(|v| v.trim().parse::<usize>().ok())
                 .unwrap_or(0)
         };
         let num = id(&mut attrs, "numFmtId") as u32;
