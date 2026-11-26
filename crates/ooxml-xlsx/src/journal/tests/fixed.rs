@@ -412,6 +412,10 @@ fn fixed_28_row_and_column_keys() {
             "raised, never lowered"
         );
     }
+    // a column's properties are keyed apart (round 1: a mutant keyed them all as `Width`)
+    p.step(cols_op(0, 2, 2, ColCall::Hidden(true))).unwrap();
+    assert_eq!(col_seqs(&p.j, 2, ColProp::Hidden), vec![7]);
+    assert_eq!(col_seqs(&p.j, 2, ColProp::Width), vec![1]);
     assert_eq!(p.j.open_snapshots(), 0);
     p.finish();
 }

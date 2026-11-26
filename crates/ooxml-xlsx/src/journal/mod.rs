@@ -232,7 +232,8 @@ impl Journal {
                 .check_poisoned()
                 .err()
                 .unwrap_or_else(|| Error::Malformed("a call was interrupted".into()));
-            let e = self.recover(mark, self.next_seq, source);
+            // the interrupted call's seq: it was not logged, `mark` has it
+            let e = self.recover(mark, mark.next_seq, source);
             if self.broken {
                 return Err(e);
             }
@@ -437,7 +438,12 @@ impl Journal {
                 call,
             } => {
                 let cols = &self.cols[sheet];
-                if let (Some(a), Some(b)) = (cols.index_of(*first), cols.index_of(*last)) {
+                let ends = (cols.index_of(*first), cols.index_of(*last));
+                debug_assert!(
+                    ends.0.is_some() && ends.1.is_some(),
+                    "a column range whose ends are not in the id list"
+                );
+                if let (Some(a), Some(b)) = ends {
                     for i in a..=b {
                         out.push(Key::Col {
                             sheet: *sheet,

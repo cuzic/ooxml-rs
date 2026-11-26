@@ -141,7 +141,20 @@ impl Journal {
     /// The replay: a fresh shadow, empty `tracked` and `keys`, the same id
     /// vectors, then every logged op through `accept` and `r2` under its own
     /// `seq`. On `Err` the Journal's state is partial and the caller breaks it.
+    ///
+    /// The Journal is `broken` for the whole replay and only a replay that
+    /// returns `Ok` clears it again (§3.2, §9.3): a panic part-way leaves the
+    /// half-rebuilt state refused (`Broken`), never accepted.
     fn replay(&mut self) -> Result<()> {
+        let was_broken = std::mem::replace(&mut self.broken, true);
+        let r = self.replay_inner();
+        if r.is_ok() {
+            self.broken = was_broken;
+        }
+        r
+    }
+
+    fn replay_inner(&mut self) -> Result<()> {
         #[cfg(test)]
         let stats = self.stats.clone();
         let fresh = Journal::open_shadow(&self.base)?;
@@ -517,6 +530,46 @@ mod tests {
         assert!(j.broken);
         let r = j.append(Api::Native, num("A3", 4.0));
         assert!(matches!(r, Err(JournalError::Broken)), "{r:?}");
+    }
+
+    /// M1 (round 1): a panic inside a recovery's replay must not leave a
+    /// half-rebuilt Journal that accepts calls. ADR 0024 §3.2/§9.3: a replay
+    /// that does not return `Ok` leaves the Journal broken.
+    #[test]
+    #[cfg(feature = "fault-injection")]
+    fn a_panic_during_replay_leaves_the_journal_broken() {
+        let mut j = Journal::open(oracle()).unwrap();
+        feed(&mut j, &[num("A1", 9.0), num("A1", 1.0), num("B1", 5.0)]);
+        j.fail_restore_once = Some(true);
+        j.shadow_mut().inject_apply_failure(ApplyStep::Target);
+        // the apply fails, recover replays, and the replay's restore panics
+        let r = catch_unwind(AssertUnwindSafe(|| j.append(Api::Native, num("A2", 5.0))));
+        assert!(r.is_err(), "the panic got out of the replay");
+        assert!(j.broken, "a replay that did not finish keeps the mark");
+        let r = j.append(Api::Native, c1("C1", CellCall::Number(2.0)));
+        assert!(matches!(r, Err(JournalError::Broken)), "{r:?}");
+        // an explicit rebuild succeeds and equals the twin
+        j.rebuild().unwrap();
+        let mut t = twin(
+            &oracle(),
+            &[num("A1", 9.0), num("A1", 1.0), num("B1", 5.0)],
+        );
+        same(&mut j, &mut t);
+    }
+
+    /// m1 (round 1): the failing op touches a new cell (C3, never touched
+    /// before: writing its own value is a no-op write-back) and then fails;
+    /// replay must clear `tracked`, or C3 stays tracked after the recovery.
+    #[test]
+    fn restore_failure_after_a_new_cell_recovers() {
+        let mut j = Journal::open(oracle()).unwrap();
+        let ok = feed(&mut j, &[num("A1", 9.0), num("A1", 1.0), num("B1", 5.0)]);
+        j.fail_restore_once = Some(false);
+        let r = j.append(Api::Native, num("C3", 7.0));
+        assert!(matches!(r, Err(JournalError::Internal { .. })), "{r:?}");
+        assert!(!j.broken);
+        let mut t = twin(&oracle(), &ok);
+        same(&mut j, &mut t);
     }
 
     #[test]
