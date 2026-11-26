@@ -4,6 +4,7 @@
 use super::ids::{ColId, Epoch, RowId, SheetId};
 use crate::error::Result;
 use crate::reference::CellIndex;
+use crate::registry::styles::{BaseStyleCounts, XfContent};
 use crate::workbook::Workbook;
 use crate::{Border, CellWrite, ExcelDateTime, Fill, Font, Format};
 
@@ -120,6 +121,11 @@ pub(crate) enum CellCall {
     Fill(Fill),
     Border(Border),
     StyleIndex(u32),
+    /// A session `xf` by content, with the Base counts it was captured
+    /// against. Never given by a caller: `append` turns `StyleIndex(i)` for a
+    /// session `xf` into this (P2, F12), and the log, the live shadow and
+    /// replay all apply it by content.
+    StyleXf(Box<XfContent>, BaseStyleCounts),
     NamedStyle(String),
 }
 
@@ -244,7 +250,7 @@ pub(crate) fn fields(call: &CellCall) -> &'static [Field] {
         | StringWithFormat(..)
         | FormulaWithFormat(..)
         | DateTimeWithFormat(..) => &CONTENT_AND_STYLE,
-        Format(_) | StyleIndex(_) | NamedStyle(_) => &ALL_STYLE,
+        Format(_) | StyleIndex(_) | StyleXf(..) | NamedStyle(_) => &ALL_STYLE,
         NumFormat(_) => &NUM,
         Font(_) => &FONT,
         Fill(_) => &FILL,
@@ -294,6 +300,11 @@ pub(crate) fn apply_seq(wb: &mut Workbook, input: &OpInput) -> Result<()> {
             }
         }
         OpKind::Cell { at, call } => {
+            if let CellCall::StyleXf(x, base) = call {
+                // by content, crate-private (T5b): the one non-public call
+                wb.worksheet_by_index(input.sheet)?;
+                return wb.set_cell_xf(input.sheet, *at, x, base);
+            }
             let mut ws = wb.worksheet_by_index(input.sheet)?;
             let c = ws.cell_mut(at.row, at.col)?;
             match call {
@@ -322,6 +333,7 @@ pub(crate) fn apply_seq(wb: &mut Workbook, input: &OpInput) -> Result<()> {
                 CellCall::Fill(f) => c.set_fill(f),
                 CellCall::Border(b) => c.set_border(b),
                 CellCall::StyleIndex(i) => c.set_style_index(*i),
+                CellCall::StyleXf(..) => unreachable!("handled above"),
                 CellCall::NamedStyle(n) => c.set_named_style(n),
             }
         }

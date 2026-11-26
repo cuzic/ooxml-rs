@@ -168,15 +168,13 @@ pub(crate) enum StyleRequest {
     EnsureDate,
     /// An `xf` given by its content (components by value or by `Base`
     /// index), not by a session index.
-    #[cfg_attr(not(test), allow(dead_code))] // the edit journal's replay is the first caller
-    Xf(Box<XfContent>),
+    Xf(Box<XfContent>, BaseStyleCounts),
 }
 
 /// The sizes of the style tables when the workbook was opened: entries below
 /// them are the file's own (never renumbered), entries at or above them were
 /// appended by this session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct BaseStyleCounts {
     pub(crate) fonts: u32,
     pub(crate) fills: u32,
@@ -571,7 +569,7 @@ impl Styles {
                 *n
             }
             StyleRequest::Format(f) => p.format(wb, f)?,
-            StyleRequest::Xf(c) => p.content(wb, c)?,
+            StyleRequest::Xf(c, base) => p.content(wb, c, base)?,
             StyleRequest::Named(name) => p.named(wb, name, current)?,
             StyleRequest::NumFormatOnly(nf) => p.derive(wb, &Group::NumFormat(nf), current)?,
             StyleRequest::FontOnly(f) => p.derive(wb, &Group::Font(f), current)?,
@@ -1046,14 +1044,13 @@ impl Planner {
         self.xf(wb, spec)
     }
 
-    /// The index of a file-own entry of table `w`. Known gap: `index` is
-    /// checked against the current table length, which includes the session's
-    /// appended entries, not against the Base count; `xf_content` never
-    /// produces such an index.
-    fn base_ref(&self, w: Which, index: u32) -> Result<u32> {
+    /// The index of a file-own entry of table `w`: `index` must be below the
+    /// Base count `limit` (the entries the session appended are not the
+    /// file's own, whatever the current table length is).
+    fn base_ref(&self, w: Which, index: u32, limit: u32) -> Result<u32> {
         let t = self.next.table(w);
         t.require_stable()?;
-        if index >= t.count {
+        if index >= limit.min(t.count) {
             return Err(Error::DanglingReference { table: w.name().into(), index });
         }
         Ok(index)
@@ -1063,7 +1060,7 @@ impl Planner {
     /// session components reused or appended by value, then the `xf` itself
     /// reused (an existing entry with the same content, lowest index) or
     /// appended. Attributes are written in schema order.
-    fn content(&mut self, wb: &mut Workbook, c: &XfContent) -> Result<u32> {
+    fn content(&mut self, wb: &mut Workbook, c: &XfContent, base: &BaseStyleCounts) -> Result<u32> {
         self.next.table(Which::CellXfs).require_stable()?;
         let probe = |f: Format| f.validate();
         let num = match &c.num_fmt {
@@ -1071,7 +1068,7 @@ impl Planner {
             NumFmtRef::Code(code) => self.num_fmt_id(wb, &NumFormat::Code(code.clone()))?,
         };
         let font = match &c.font {
-            Part::Base(i) => self.base_ref(Which::Fonts, *i)?,
+            Part::Base(i) => self.base_ref(Which::Fonts, *i, base.fonts)?,
             Part::Session(f) => {
                 probe(Format { font: Some(f.clone()), ..Format::default() })?;
                 self.ensure_reserved(wb, Which::Fonts)?;
@@ -1079,7 +1076,7 @@ impl Planner {
             }
         };
         let fill = match &c.fill {
-            Part::Base(i) => self.base_ref(Which::Fills, *i)?,
+            Part::Base(i) => self.base_ref(Which::Fills, *i, base.fills)?,
             Part::Session(f) => {
                 probe(Format { fill: Some(f.clone()), ..Format::default() })?;
                 self.ensure_reserved(wb, Which::Fills)?;
@@ -1087,7 +1084,7 @@ impl Planner {
             }
         };
         let border = match &c.border {
-            Part::Base(i) => self.base_ref(Which::Borders, *i)?,
+            Part::Base(i) => self.base_ref(Which::Borders, *i, base.borders)?,
             Part::Session(b) => {
                 probe(Format { border: Some(b.clone()), ..Format::default() })?;
                 self.ensure_reserved(wb, Which::Borders)?;
@@ -1138,7 +1135,6 @@ impl Workbook {
     /// entries that survive a save become Base entries of the new file, and a
     /// stale count would read them back as `Session` values. The Journal keeps
     /// the counts together with its Base.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn base_style_counts(&mut self) -> Result<BaseStyleCounts> {
         let st = self.styles()?;
         Ok(BaseStyleCounts {
@@ -1158,7 +1154,6 @@ impl Workbook {
     /// `borderId` in the file, or one derived from it) is refused with
     /// [`Error::DanglingReference`], even though the sequential API accepts it.
     /// Changes nothing.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn xf_content(&mut self, index: u32, base: &BaseStyleCounts) -> Result<XfContent> {
         self.styles()?;
         let st = self.registries.styles.as_ref().expect("active");
@@ -1597,7 +1592,7 @@ mod xf_content_tests {
         for i in 0..base.cell_xfs {
             let Ok(c) = wb.xf_content(i, &base) else { continue };
             let before = styles_doc(wb);
-            wb.set_cell_xf(0, at("Z9"), &c).unwrap();
+            wb.set_cell_xf(0, at("Z9"), &c, &base).unwrap();
             let s = s_of(wb, "Z9");
             assert!(s <= i, "xf {i} resolved to {s}");
             assert_eq!(resolve(wb, s), resolve(wb, i), "xf {i}");
@@ -1642,9 +1637,9 @@ mod xf_content_tests {
         let c3 = wb.xf_content(3, &base).unwrap();
         assert!(c3.attrs.contains(&("applyFont".into(), "0".into())));
         // and they reach the written xf
-        wb.set_cell_xf(0, at("B2"), &c1).unwrap();
-        wb.set_cell_xf(0, at("B3"), &c2).unwrap();
-        wb.set_cell_xf(0, at("B4"), &c3).unwrap();
+        wb.set_cell_xf(0, at("B2"), &c1, &base).unwrap();
+        wb.set_cell_xf(0, at("B3"), &c2, &base).unwrap();
+        wb.set_cell_xf(0, at("B4"), &c3, &base).unwrap();
         assert_eq!((s_of(&mut wb, "B2"), s_of(&mut wb, "B3"), s_of(&mut wb, "B4")), (1, 2, 3));
         // a base font the model cannot express is carried by index
         let c4 = wb.xf_content(4, &base).unwrap();
@@ -1659,7 +1654,7 @@ mod xf_content_tests {
         let mut wb = Workbook::from_bytes(package(&styles())).unwrap();
         let base = wb.base_style_counts().unwrap();
         let named = wb.xf_content(1, &base).unwrap();
-        wb.set_cell_xf(0, at("C1"), &named).unwrap();
+        wb.set_cell_xf(0, at("C1"), &named, &base).unwrap();
         assert_eq!(s_of(&mut wb, "C1"), 1);
         let f = crate::Format::new().set_bold();
         wb.worksheet().unwrap().cell_mut(0, 3).unwrap().set_format(&f).unwrap();
@@ -1700,7 +1695,7 @@ mod xf_content_tests {
         for (k, &s) in seen.iter().enumerate() {
             let c = wb.xf_content(s, &base).unwrap_or_else(|e| panic!("kind {k}: {e}"));
             let before = styles_doc(&mut wb);
-            wb.set_cell_xf(0, at("Z9"), &c).unwrap();
+            wb.set_cell_xf(0, at("Z9"), &c, &base).unwrap();
             let t = s_of(&mut wb, "Z9");
             assert!(t <= s, "kind {k}: {t} > {s}");
             assert_eq!(resolve(&mut wb, t), resolve(&mut wb, s), "kind {k}");
@@ -1732,7 +1727,7 @@ mod xf_content_tests {
             ws.cell_mut(4, 4).unwrap().set_format(&junk).unwrap();
             ws.cell_mut(4, 5).unwrap().set_num_format("0.98\" junk\"").unwrap();
         }
-        b.set_cell_xf(0, at("A1"), &c).unwrap();
+        b.set_cell_xf(0, at("A1"), &c, &base).unwrap();
         let sb = s_of(&mut b, "A1");
         assert_ne!(sa, sb, "the garbage must shift the indices");
         assert_eq!(resolve(&mut a, sa), resolve(&mut b, sb));
@@ -1751,13 +1746,13 @@ mod xf_content_tests {
         let sa = s_of(&mut a, "A1");
         let c = a.xf_content(sa, &base).unwrap();
         let mut b = Workbook::from_bytes(package("")).unwrap();
-        b.set_cell_xf(0, at("A1"), &c).unwrap();
+        b.set_cell_xf(0, at("A1"), &c, &base).unwrap();
         let sb = s_of(&mut b, "A1");
         assert_eq!(resolve(&mut a, sa), resolve(&mut b, sb));
         // the default content maps to the reserved xf 0, adding nothing
         let zero = a.xf_content(0, &base).unwrap();
         let before = styles_doc(&mut b);
-        b.set_cell_xf(0, at("A2"), &zero).unwrap();
+        b.set_cell_xf(0, at("A2"), &zero, &base).unwrap();
         assert_eq!(s_of(&mut b, "A2"), 0);
         assert_eq!(styles_doc(&mut b), before);
     }
@@ -1783,9 +1778,15 @@ mod xf_content_tests {
             XfContent { attrs: vec![("bogus".into(), "1".into())], ..good.clone() },
             XfContent { num_fmt: NumFmtRef::Code(String::new()), ..good.clone() },
         ] {
-            assert!(wb.set_cell_xf(0, at("C3"), &bad).is_err(), "{bad:?}");
+            assert!(wb.set_cell_xf(0, at("C3"), &bad, &base).is_err(), "{bad:?}");
             assert_eq!(wb.to_bytes().unwrap(), before, "{bad:?}");
         }
+        // `Base(i)` is checked against the Base count, not the table length:
+        // an entry the session appended is not a file-own one
+        wb.worksheet().unwrap().cell_mut(5, 5).unwrap().set_font(&crate::Font { bold: true, name: "Zeta".into(), ..crate::Font::default() }).unwrap();
+        let grown = XfContent { font: Part::Base(base.fonts), ..good.clone() };
+        let before = wb.to_bytes().unwrap();
+        assert!(matches!(wb.set_cell_xf(0, at("C3"), &grown, &base), Err(Error::DanglingReference { .. })));
         assert_eq!(wb.to_bytes().unwrap(), before);
     }
 

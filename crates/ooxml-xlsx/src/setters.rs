@@ -12,7 +12,7 @@ use crate::escape;
 use crate::reference::CellIndex;
 use crate::registry::dates::ExcelDateTime;
 use crate::registry::format::{Border, Fill, Font, Format, NumFormat};
-use crate::registry::styles::{StyleRequest, XfContent};
+use crate::registry::styles::{BaseStyleCounts, StyleRequest, XfContent};
 use crate::workbook::Workbook;
 use crate::worksheet::{CellMut, MAX_STRING_LEN};
 
@@ -117,10 +117,11 @@ impl Workbook {
     }
 
     /// Gives the cell the `xf` described by `xf` (see
-    /// [`XfContent`]); the value is kept. Nothing is changed on `Err`.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn set_cell_xf(&mut self, sheet: usize, at: CellIndex, xf: &XfContent) -> Result<()> {
-        self.edit_cell_ext(sheet, at, CellOp::StyleOnly, Extra { string: None, style: Some(StyleRequest::Xf(Box::new(xf.clone()))) })
+    /// [`XfContent`]); the value is kept. `base` bounds the `Base(i)`
+    /// components (the counts the content was captured against). Nothing is
+    /// changed on `Err`.
+    pub(crate) fn set_cell_xf(&mut self, sheet: usize, at: CellIndex, xf: &XfContent, base: &BaseStyleCounts) -> Result<()> {
+        self.edit_cell_ext(sheet, at, CellOp::StyleOnly, Extra { string: None, style: Some(StyleRequest::Xf(Box::new(xf.clone()), *base)) })
     }
 
     /// Number of entries in `cellXfs` (activates the style registry).

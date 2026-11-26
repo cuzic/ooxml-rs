@@ -37,6 +37,7 @@ use state::{CellState, state_of};
 use crate::census::FKind;
 use crate::error::{Error, Result};
 use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
+use crate::registry::styles::BaseStyleCounts;
 use crate::snapshot::{CellSnapshot, RestoreStyle};
 use crate::workbook::Workbook;
 
@@ -44,8 +45,7 @@ use crate::workbook::Workbook;
 pub(crate) enum JournalError {
     /// The sequential call refused the op (nothing changed).
     Op(Error),
-    /// The session-xf case of P2 (T5b's by-content request is not wired).
-    Unsupported { op: &'static str },
+    // (an `Unsupported { op }` variant returns when ADR-0024 P3-P6 enter the op set)
     /// The shadow was poisoned or a restore failed: the call was undone by
     /// replay (the op is not logged and `seq` is not consumed). If the replay
     /// failed too, the Journal is broken.
@@ -73,7 +73,9 @@ struct Tracked {
 pub(crate) struct Journal {
     base: Arc<[u8]>,
     shadow: Workbook,
-    base_xf_count: u32,
+    /// The style table sizes of the Base, read once at open (T5b): `Base(i)`
+    /// components of a logged `xf` are checked against them.
+    base_counts: BaseStyleCounts,
     /// Shadow sheet index to id.
     sheets: Vec<SheetId>,
     rows: HashMap<SheetId, AxisVec<RowId>>,
@@ -118,7 +120,7 @@ impl Journal {
     pub(crate) fn open(base: impl Into<Arc<[u8]>>) -> Result<Journal> {
         let base: Arc<[u8]> = base.into();
         let mut shadow = Journal::open_shadow(&base)?;
-        let base_xf_count = shadow.cell_format_count()?;
+        let base_counts = shadow.base_style_counts()?;
         let sheets = sheet_ids(&mut shadow)?;
         // identity vectors for every sheet, so a refused op creates nothing
         let rows = sheets
@@ -132,7 +134,7 @@ impl Journal {
         Ok(Journal {
             base,
             shadow,
-            base_xf_count,
+            base_counts,
             sheets,
             rows,
             cols,
@@ -193,8 +195,11 @@ impl Journal {
     }
 
     /// Appends one op: validates it on the shadow by applying it, then logs
-    /// it and runs R2 on every cell it touched. `Err(Op)` and `Err(Unsupported)`
-    /// leave everything as it was; `Err(Internal)` has undone the call by
+    /// it and runs R2 on every cell it touched. `Err(Op)` leaves everything as
+    /// it was (P2's `set_style_index(i)` for a session `xf` that `xf_content`
+    /// refuses, a dangling Base reference or extended content, is `Err(Op(..))`
+    /// though the sequential API may accept it: part B is outside oracle 1 (i),
+    /// F8); `Err(Internal)` has undone the call by
     /// replay (§3.2, §9.3), so the Journal is as it was unless it is `broken`.
     pub(crate) fn append(
         &mut self,
@@ -246,19 +251,41 @@ impl Journal {
         api: Api,
         input: &OpInput,
     ) -> std::result::Result<u64, JournalError> {
-        // P2: its by-content request is T5b's
-        if let OpKind::Cell {
-            call: CellCall::StyleIndex(i),
-            ..
-        } = &input.kind
-        {
-            let now = self.shadow.cell_format_count().map_err(JournalError::Op)?;
-            if self.base_xf_count <= *i && *i < now {
-                return Err(JournalError::Unsupported {
-                    op: "set_style_index(session xf)",
-                });
-            }
+        // P2 (F12): a session `xf` is logged and applied by content, live and
+        // in replay alike; an index past the table stays an index, refused by
+        // the sequential call as usual
+        if let OpKind::Cell { call: CellCall::StyleXf(_, c), .. } = &input.kind {
+            // never given by a caller: only the conversion below makes it
+            debug_assert!(*c == self.base_counts, "a caller-made StyleXf");
         }
+        let by_content;
+        let input = match &input.kind {
+            OpKind::Cell {
+                at,
+                call: CellCall::StyleIndex(i),
+            } if *i >= self.base_counts.cell_xfs
+                && self.shadow.worksheet_by_index(input.sheet).is_ok() =>
+            {
+                let now = self.shadow.cell_format_count().map_err(JournalError::Op)?;
+                if *i < now {
+                    let x = self
+                        .shadow
+                        .xf_content(*i, &self.base_counts)
+                        .map_err(JournalError::Op)?;
+                    by_content = OpInput {
+                        sheet: input.sheet,
+                        kind: OpKind::Cell {
+                            at: *at,
+                            call: CellCall::StyleXf(Box::new(x), self.base_counts),
+                        },
+                    };
+                    &by_content
+                } else {
+                    input
+                }
+            }
+            _ => input,
+        };
         let seq = self.next_seq;
         let acc = self.accept(input, seq)?;
         self.next_seq += 1;

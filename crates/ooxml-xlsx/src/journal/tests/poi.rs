@@ -18,7 +18,7 @@ use proptest::test_runner::{Config, FileFailurePersistence, TestError, TestRunne
 use super::fixtures::meta_workbook;
 use super::*;
 use crate::census::SheetKind;
-use crate::journal::op::{OpKind, WriteValue};
+use crate::journal::op::{ColCall, OpKind, RowCall, WriteValue};
 use crate::journal::project::{self, BaseCell, Val as PVal};
 
 fn poi_dir() -> PathBuf {
@@ -90,6 +90,8 @@ enum Lit {
     Formula(&'static str),
     OwnFormula,
     RemoveFormula,
+    ClearValue,
+    Dynamic(&'static str),
 }
 
 #[derive(Clone, Debug)]
@@ -108,6 +110,8 @@ enum StyleK {
     Format,
     /// `0..min(count, 8)` (`true`) or `count + 50` (`false`), by the number.
     Index(bool, u32),
+    /// An `xf` created earlier in the case: `formats + k` (P2).
+    Session(u32),
     Named(bool),
 }
 
@@ -117,6 +121,20 @@ enum WVal {
     Str(&'static str),
     Formula(&'static str),
     Remove,
+    ClearValue,
+}
+
+/// A row or column property op.
+#[derive(Clone, Debug)]
+struct Rc {
+    row: bool,
+    /// Reduced modulo the sheet's extent plus two.
+    first: u32,
+    len: u32,
+    /// `0..100`: below 2 a full-width range, below 7 `first > last`.
+    shape: u8,
+    prop: u8,
+    val: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -125,6 +143,7 @@ enum GenOp {
     Write(Sh, Vec<(Where, WVal)>, bool),
     Style(Sh, Where, StyleK),
     TwoHalf(Sh, Where, u8),
+    RowCol(Sh, Rc),
 }
 
 fn sh_s() -> impl Strategy<Value = Sh> {
@@ -154,6 +173,8 @@ fn lit_s() -> impl Strategy<Value = Lit> {
         3 => prop::sample::select(vec!["A1*2", "SUM(A1:A3)", "1+1", "1+", "B5*2"]).prop_map(Lit::Formula),
         2 => Just(Lit::OwnFormula),
         2 => Just(Lit::RemoveFormula),
+        3 => Just(Lit::ClearValue),
+        2 => prop::sample::select(vec!["1+1", "_xlfn.SEQUENCE(3)", "1+"]).prop_map(Lit::Dynamic),
     ]
 }
 
@@ -172,6 +193,7 @@ fn style_s() -> impl Strategy<Value = StyleK> {
         Just(StyleK::Border),
         any::<bool>().prop_map(StyleK::NumFmt),
         Just(StyleK::Format),
+        (0u32..3).prop_map(StyleK::Session),
         (any::<bool>(), 0u32..8).prop_map(|(a, b)| StyleK::Index(a, b)),
         any::<bool>().prop_map(StyleK::Named),
     ]
@@ -183,7 +205,13 @@ fn wval_s() -> impl Strategy<Value = WVal> {
         2 => prop::sample::select(vec!["x", "abc"]).prop_map(WVal::Str),
         2 => prop::sample::select(vec!["A1*2", "1+1"]).prop_map(WVal::Formula),
         1 => Just(WVal::Remove),
+        1 => Just(WVal::ClearValue),
     ]
+}
+
+fn rc_s() -> impl Strategy<Value = Rc> {
+    (any::<bool>(), 0u32..1000, 1u32..=3, 0u8..100, 0u8..3, 0u8..4)
+        .prop_map(|(row, first, len, shape, prop, val)| Rc { row, first, len, shape, prop, val })
 }
 
 fn op_s() -> impl Strategy<Value = GenOp> {
@@ -193,6 +221,7 @@ fn op_s() -> impl Strategy<Value = GenOp> {
             .prop_map(|(s, c, d)| GenOp::Write(s, c, d == 0)),
         30 => (sh_s(), where_s(), style_s()).prop_map(|(s, w, k)| GenOp::Style(s, w, k)),
         10 => (sh_s(), where_s(), 0u8..4).prop_map(|(s, w, k)| GenOp::TwoHalf(s, w, k)),
+        8 => (sh_s(), rc_s()).prop_map(|(s, r)| GenOp::RowCol(s, r)),
     ]
 }
 
@@ -375,11 +404,11 @@ impl<'a> Resolver<'a> {
         p
     }
 
-    /// The call that writes the Base's content of `p` back. Approximate for a
-    /// cell with a raw value (`t="d"` and the like) and for a `c` without a
-    /// value: `RemoveFormula` does not clear a value an earlier op wrote. The
-    /// exact revert is `CellCall::ClearValue` (P1), which the Journal refuses
-    /// until J0b-1; the generator should use it then.
+    /// The call that writes the Base's content of `p` back, as near as the
+    /// calls allow. An empty `c` is restored exactly by `ClearValue` (P1). A raw
+    /// value (`t="d"` and the like) is only cleared, not restored; a formula-less
+    /// array result is refused on both sides (`ArrayResultCell`); a cell the
+    /// Base lacks gets `RemoveFormula`, which keeps a value an earlier op wrote.
     fn revert(&self, p: (usize, CellIndex)) -> CellCall {
         match self.info.base.get(&p) {
             None => CellCall::RemoveFormula,
@@ -392,7 +421,7 @@ impl<'a> Resolver<'a> {
                 PVal::Str { text, .. } => CellCall::String(text.clone()),
                 PVal::Bool(b) => CellCall::Bool(*b),
                 PVal::Error(e) => CellCall::Error(e.clone()),
-                PVal::Empty | PVal::Cache => CellCall::RemoveFormula,
+                PVal::Empty | PVal::Cache => CellCall::ClearValue,
             },
         }
     }
@@ -420,6 +449,8 @@ impl<'a> Resolver<'a> {
                     .unwrap_or_else(|| "A1*2".into()),
             ),
             Lit::RemoveFormula => CellCall::RemoveFormula,
+            Lit::ClearValue => CellCall::ClearValue,
+            Lit::Dynamic(t) => CellCall::DynamicFormula((*t).into()),
         }
     }
 
@@ -454,6 +485,7 @@ impl<'a> Resolver<'a> {
                         WVal::Str(s) => WriteValue::String((*s).into()),
                         WVal::Formula(t) => WriteValue::Formula((*t).into()),
                         WVal::Remove => WriteValue::RemoveFormula,
+                        WVal::ClearValue => WriteValue::ClearValue,
                     };
                     out.push((a, wv));
                 }
@@ -480,6 +512,7 @@ impl<'a> Resolver<'a> {
                     StyleK::Index(true, n) => {
                         CellCall::StyleIndex(n % self.info.formats.clamp(1, 8))
                     }
+                    StyleK::Session(k) => CellCall::StyleIndex(self.info.formats + k),
                     StyleK::Index(false, _) => CellCall::StyleIndex(self.info.formats + 50),
                     StyleK::Named(b) => {
                         CellCall::NamedStyle(if *b { "Normal" } else { "Nope" }.into())
@@ -488,6 +521,36 @@ impl<'a> Resolver<'a> {
                 OpInput {
                     sheet: p.0,
                     kind: OpKind::Cell { at: p.1, call },
+                }
+            }
+            GenOp::RowCol(s, rc) => {
+                let sheet = self.sheet(s);
+                let (mr, mc) = self.info.extent.get(&sheet).copied().unwrap_or((0, 0));
+                if rc.row {
+                    let call = match rc.prop {
+                        0 => RowCall::Height([20.0, 15.0, 500.0, f64::NAN][usize::from(rc.val)]),
+                        1 => RowCall::Hidden(rc.val % 2 == 0),
+                        _ => RowCall::Outline([0, 2, 8][usize::from(rc.val) % 3]),
+                    };
+                    return OpInput {
+                        sheet,
+                        kind: OpKind::Row { row: rc.first % (mr + 3), call },
+                    };
+                }
+                let f = rc.first % (mc + 3);
+                let (first, last) = match rc.shape {
+                    0..2 => (0, 16_383),
+                    2..7 => (f + rc.len, f),
+                    _ => (f, f + rc.len - 1),
+                };
+                let call = match rc.prop {
+                    0 => ColCall::Width([10.0, 20.0, 300.0][usize::from(rc.val) % 3]),
+                    1 => ColCall::Hidden(rc.val % 2 == 0),
+                    _ => ColCall::Outline([0, 2, 8][usize::from(rc.val) % 3]),
+                };
+                OpInput {
+                    sheet,
+                    kind: OpKind::Cols { first, last, call },
                 }
             }
             GenOp::TwoHalf(s, w, k) => {
@@ -518,16 +581,43 @@ fn runner() -> TestRunner {
     })
 }
 
-/// Runs the generator over one fixture and returns (ops ok, ops refused).
-fn run_fixture(name: &str, bytes: &[u8]) -> (u32, u32) {
+/// Accepted ops of the newer groups: session `xf` index, `ClearValue`,
+/// `DynamicFormula`, row and column properties.
+#[derive(Clone, Copy, Default)]
+struct Kinds {
+    session: u32,
+    clear: u32,
+    dynamic: u32,
+    rowcol: u32,
+}
+
+/// Runs the generator over one fixture and returns (ops ok, ops refused, kinds).
+fn run_fixture(name: &str, bytes: &[u8]) -> (u32, u32, Kinds) {
     let info = Info::new(bytes);
     let (ok, refused) = (std::cell::Cell::new(0u32), std::cell::Cell::new(0u32));
+    let kinds = std::cell::Cell::new(Kinds::default());
     let result = runner().run(&ops_s(), |ops| {
         let mut r = Resolver::new(&info);
         let mut p = Pair::new(bytes);
         for op in &ops {
-            match p.step(r.resolve(op)) {
-                Ok(()) => ok.set(ok.get() + 1),
+            let input = r.resolve(op);
+            let mut k = kinds.get();
+            let (is_session, is_clear, is_dyn, is_rc) = match &input.kind {
+                OpKind::Cell { call: CellCall::StyleIndex(i), .. } => (*i >= info.formats, false, false, false),
+                OpKind::Cell { call: CellCall::ClearValue, .. } => (false, true, false, false),
+                OpKind::Cell { call: CellCall::DynamicFormula(_), .. } => (false, false, true, false),
+                OpKind::Row { .. } | OpKind::Cols { .. } => (false, false, false, true),
+                _ => (false, false, false, false),
+            };
+            match p.step(input) {
+                Ok(()) => {
+                    ok.set(ok.get() + 1);
+                    k.session += u32::from(is_session);
+                    k.clear += u32::from(is_clear);
+                    k.dynamic += u32::from(is_dyn);
+                    k.rowcol += u32::from(is_rc);
+                    kinds.set(k);
+                }
                 Err(_) => refused.set(refused.get() + 1),
             }
         }
@@ -540,7 +630,7 @@ fn run_fixture(name: &str, bytes: &[u8]) -> (u32, u32) {
             TestError::Abort(reason) => panic!("{name}: aborted: {reason}"),
         }
     }
-    (ok.get(), refused.get())
+    (ok.get(), refused.get(), kinds.get())
 }
 
 #[test]
@@ -554,12 +644,14 @@ fn poi_fixture_list_is_complete() {
     );
 }
 
+const SESSION_FLOOR: u32 = 10;
+
 #[test]
 fn sequential_equals_shadow_on_the_poi_fixtures() {
     let (mut ok, mut refused) = (0, 0);
     // one thread per fixture: the runs are independent
     let fx = fixtures();
-    let results: Vec<(String, (u32, u32))> = std::thread::scope(|s| {
+    let results: Vec<(String, (u32, u32, Kinds))> = std::thread::scope(|s| {
         let hs: Vec<_> = fx
             .iter()
             .map(|(name, bytes)| s.spawn(move || (name.clone(), run_fixture(name, bytes))))
@@ -568,7 +660,12 @@ fn sequential_equals_shadow_on_the_poi_fixtures() {
             .map(|h| h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)))
             .collect()
     });
-    for (name, (o, r)) in results {
+    let mut kinds = Kinds::default();
+    for (name, (o, r, k)) in results {
+        kinds.session += k.session;
+        kinds.clear += k.clear;
+        kinds.dynamic += k.dynamic;
+        kinds.rowcol += k.rowcol;
         println!("{name}: {o} ok, {r} refused");
         // every fixture runs a share of its ops: a guard that refuses all of
         // them hides in the total. Two fixtures have sheets without `r`, which
@@ -589,6 +686,22 @@ fn sequential_equals_shadow_on_the_poi_fixtures() {
     }
     println!("total: {ok} ok, {refused} refused");
     assert!(ok > 1000 && refused > 100, "ok {ok}, refused {refused}");
+    println!(
+        "accepted: session xf {}, ClearValue {}, DynamicFormula {}, row/col {}",
+        kinds.session, kinds.clear, kinds.dynamic, kinds.rowcol
+    );
+    // the newer op groups must keep going through (PR 165 review, round 1 m2)
+    assert!(
+        kinds.session > SESSION_FLOOR
+            && kinds.clear > 0
+            && kinds.dynamic > 0
+            && kinds.rowcol > 0,
+        "accepted ops of the newer groups: session {}, clear {}, dynamic {}, row/col {}",
+        kinds.session,
+        kinds.clear,
+        kinds.dynamic,
+        kinds.rowcol
+    );
 }
 
 /// P is a function of the content: a package and its save without edits
@@ -621,6 +734,21 @@ fn meta_fixture_pairs() {
         p.step(num("F3", 1.0)),
         Err(Error::ArrayResultCell { .. })
     ));
+    // the new content calls refuse the same way on both sides
+    assert!(matches!(
+        p.step(c1("E2", CellCall::ClearValue)),
+        Err(Error::RichValueCell { .. })
+    ));
+    assert!(matches!(
+        p.step(c1("F3", CellCall::ClearValue)),
+        Err(Error::ArrayResultCell { .. })
+    ));
+    let _ = p.step(c1("E2", CellCall::DynamicFormula("1+1".into())));
+    // row and column properties go through on both sides
+    p.step(OpInput { sheet: 0, kind: OpKind::Row { row: 1, call: RowCall::Height(20.0) } })
+        .expect("a row height");
+    p.step(OpInput { sheet: 0, kind: OpKind::Cols { first: 4, last: 5, call: ColCall::Width(12.0) } })
+        .expect("a column width");
     // a style call keeps `vm`
     p.step(c1("E2", CellCall::Font(bold())))
         .expect("set_font on E2");
