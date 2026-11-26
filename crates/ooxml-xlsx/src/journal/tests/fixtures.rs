@@ -50,6 +50,26 @@ pub(crate) fn package(
     calc_chain: Option<&str>,
     styles: &str,
 ) -> Vec<u8> {
+    package_ext(sheets, sst, calc_chain, styles, &[])
+}
+
+/// A part a [`package_ext`] adds, with its content type and its workbook relationship.
+pub(crate) struct Extra<'a> {
+    /// The part name, e.g. `xl/metadata.xml`.
+    pub(crate) name: &'a str,
+    pub(crate) body: String,
+    pub(crate) content_type: &'a str,
+    pub(crate) rel_type: &'a str,
+}
+
+/// [`package`] with more parts, each related from the workbook.
+pub(crate) fn package_ext(
+    sheets: &[(&str, String)],
+    sst: &[String],
+    calc_chain: Option<&str>,
+    styles: &str,
+    extra: &[Extra<'_>],
+) -> Vec<u8> {
     let decl = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#;
     let mut ct = String::from(
         r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>"#,
@@ -75,6 +95,18 @@ pub(crate) fn package(
         ct.push_str(r#"<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/>"#);
         rels.push_str(r#"<Relationship Id="rIdC" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/>"#);
         parts.push(("xl/calcChain.xml".into(), format!(r#"{decl}<calcChain xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">{cc}</calcChain>"#)));
+    }
+    for (i, e) in extra.iter().enumerate() {
+        ct.push_str(&format!(
+            r#"<Override PartName="/{}" ContentType="{}"/>"#,
+            e.name, e.content_type
+        ));
+        rels.push_str(&format!(
+            r#"<Relationship Id="rIdX{i}" Type="{}" Target="{}"/>"#,
+            e.rel_type,
+            e.name.trim_start_matches("xl/")
+        ));
+        parts.push((e.name.to_owned(), format!("{decl}{}", e.body)));
     }
     ct.push_str("</Types>");
     rels.push_str("</Relationships>");
@@ -219,6 +251,83 @@ pub(crate) fn group_workbook(dim: &str) -> Vec<u8> {
     )
 }
 
+const MD_NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray""#;
+
+/// A metadata part: types `XLDAPR` and `XLRICHVALUE`, with the given
+/// `futureMetadata` blocks (of `XLDAPR`), `cellMetadata` blocks and
+/// `valueMetadata` blocks (raw `bk` elements).
+pub(crate) fn metadata_with(future: &str, cell: &str, value: &str) -> String {
+    let flags = r#"minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1""#;
+    format!(
+        r#"<metadata {MD_NS}><metadataTypes count="2"><metadataType name="XLDAPR" {flags} cellMeta="1"/><metadataType name="XLRICHVALUE" {flags}/></metadataTypes><futureMetadata name="XLDAPR" count="1">{future}</futureMetadata><cellMetadata count="1">{cell}</cellMetadata><valueMetadata count="1">{value}</valueMetadata></metadata>"#
+    )
+}
+
+/// A future block of `XLDAPR` with the given `fCollapsed`.
+pub(crate) fn dapr_block(collapsed: u8) -> String {
+    format!(
+        r#"<bk><extLst><ext uri="{{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="{collapsed}"/></ext></extLst></bk>"#
+    )
+}
+
+/// The default metadata part: `cellMetadata` block 1 is type 1 / future
+/// block 0; `valueMetadata` block 1 is type 2 (no future block).
+pub(crate) fn metadata_body() -> String {
+    metadata_with(
+        &dapr_block(0),
+        r#"<bk><rc t="1" v="0"/></bk>"#,
+        r#"<bk><rc t="2" v="0"/></bk>"#,
+    )
+}
+
+pub(crate) const REL_METADATA_TYPE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
+pub(crate) const CT_METADATA: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml";
+
+/// The oracle workbook's `Sheet1` (dimension `dim`) body with a column run,
+/// a dynamic anchor, a rich-value cell and a volatile formula added.
+fn meta_sheet(dim: &str, cols: &str) -> String {
+    format!(
+        r#"<dimension ref="{dim}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="2" max="2" width="10" style="1" customWidth="1"/>{cols}</cols><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1" t="s"><v>0</v></c><c r="C1"><f>A1*2</f><v>2</v></c><c r="D1" t="s"><v>2</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="C2"><f>SUM(A1:A3)</f><v>6</v></c><c r="D2" t="inlineStr"><is><t>il</t></is></c><c r="E2" vm="1"><v>0</v></c><c r="F2" cm="1"><f t="array" ref="F2:F4">_xlfn.SEQUENCE(3)</f><v>1</v></c></row><row r="3"><c r="A3" s="1"><v>3</v></c><c r="C3"><v>7</v></c><c r="F3"><v>2</v></c></row><row r="4"><c r="A4" t="b"><v>1</v></c><c r="B4" t="s"><v>1</v></c><c r="F4"><v>3</v></c></row><row r="5"><c r="A5"><f>1+1</f><v>2</v></c><c r="E5"><f ca="1">A1+0</f><v>1</v></c></row><row r="6" s="2" customFormat="1"/></sheetData><mergeCells count="1"><mergeCell ref="B4:C4"/></mergeCells>"#
+    )
+}
+
+/// [`meta_workbook`] with the metadata part under another name.
+pub(crate) fn meta_workbook_named(metadata_name: &str) -> Vec<u8> {
+    let s2 = r#"<dimension ref="A1"/><sheetData><row r="1"><c r="A1"><f>Sheet1!A1+1</f><v>2</v></c></row></sheetData>"#.to_owned();
+    package_ext(
+        &[
+            (
+                "Sheet1",
+                meta_sheet(
+                    "A1:F6",
+                    r#"<col min="5" max="7" width="12" customWidth="1"/>"#,
+                ),
+            ),
+            ("Sheet2", s2),
+        ],
+        &[plain("x"), plain("m"), rich()],
+        Some(r#"<c r="C1" i="1"/><c r="C2"/><c r="A5"/><c r="E5"/><c r="F2"/><c r="A1" i="2"/>"#),
+        &custom_styles(false),
+        &[Extra {
+            name: metadata_name,
+            body: metadata_body(),
+            content_type: CT_METADATA,
+            rel_type: REL_METADATA_TYPE,
+        }],
+    )
+}
+
+/// The oracle workbook plus a metadata part (`xl/metadata.xml`: `XLDAPR` with
+/// one future block, `XLRICHVALUE` with none), a dynamic anchor `F2`
+/// (`cm="1"`, array over `F2:F4`, results `F3`, `F4`), a rich-value cell
+/// `E2` (`vm="1"`), a volatile formula `E5` (`ca="1"`) and a second `cols`
+/// run (`E:G`, width 12).
+pub(crate) fn meta_workbook() -> Vec<u8> {
+    meta_workbook_named("xl/metadata.xml")
+}
+
 #[test]
 fn every_fixture_is_editable() {
     use crate::workbook::Workbook;
@@ -228,6 +337,7 @@ fn every_fixture_is_editable() {
         ("oracle A1", oracle_workbook("A1")),
         ("group", group_workbook("A1:H6")),
         ("large", large_workbook(20)),
+        ("meta", meta_workbook()),
     ] {
         let wb = Workbook::from_bytes(bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(

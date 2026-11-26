@@ -6,6 +6,7 @@ pub(crate) mod fixtures;
 mod keys;
 mod measure;
 mod oracle1;
+pub(crate) mod poi;
 mod r2;
 
 use std::collections::HashMap;
