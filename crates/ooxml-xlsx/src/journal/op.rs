@@ -36,10 +36,62 @@ pub(crate) enum OpKind {
         call: CellCall,
     },
     WriteCells(Vec<(CellIndex, WriteValue)>),
-    /// P1: part B, refused with `Unsupported`.
-    ClearCell {
-        at: CellIndex,
+    /// A row property (`row` 0-based). Targets no cell (§4.4), takes no
+    /// snapshot, is never restored; its key is per property (§4.3).
+    Row { row: u32, call: RowCall },
+    /// A column property over `first..=last` (0-based, inclusive); one key
+    /// per column of the range. Like [`OpKind::Row`], no cell is a target.
+    Cols {
+        first: u32,
+        last: u32,
+        call: ColCall,
     },
+}
+
+/// One row-property setter with its argument.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum RowCall {
+    Height(f64),
+    Hidden(bool),
+    Outline(u8),
+}
+
+/// One column-property setter with its argument.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ColCall {
+    Width(f64),
+    Hidden(bool),
+    Outline(u8),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum RowProp {
+    Height,
+    Hidden,
+    Outline,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ColProp {
+    Width,
+    Hidden,
+    Outline,
+}
+
+pub(crate) fn row_prop(c: &RowCall) -> RowProp {
+    match c {
+        RowCall::Height(_) => RowProp::Height,
+        RowCall::Hidden(_) => RowProp::Hidden,
+        RowCall::Outline(_) => RowProp::Outline,
+    }
+}
+
+pub(crate) fn col_prop(c: &ColCall) -> ColProp {
+    match c {
+        ColCall::Width(_) => ColProp::Width,
+        ColCall::Hidden(_) => ColProp::Hidden,
+        ColCall::Outline(_) => ColProp::Outline,
+    }
 }
 
 /// One `CellMut` setter with its arguments.
@@ -54,6 +106,10 @@ pub(crate) enum CellCall {
     DateTime(ExcelDateTime),
     Formula(String),
     RemoveFormula,
+    /// P1: `CellMut::clear_value` (a conditional content op).
+    ClearValue,
+    /// `CellMut::set_dynamic_formula`.
+    DynamicFormula(String),
     NumberWithFormat(f64, Format),
     StringWithFormat(String, Format),
     FormulaWithFormat(String, Format),
@@ -73,6 +129,7 @@ pub(crate) enum WriteValue {
     String(String),
     Formula(String),
     RemoveFormula,
+    ClearValue,
 }
 
 /// An op as logged: positions by id.
@@ -88,6 +145,18 @@ pub(crate) enum Op {
     WriteCells {
         sheet: SheetId,
         cells: Vec<(RowId, ColId, WriteValue)>,
+    },
+    Row {
+        sheet: SheetId,
+        id: RowId,
+        call: RowCall,
+    },
+    /// `first..=last` is contiguous when logged.
+    Cols {
+        sheet: SheetId,
+        first: ColId,
+        last: ColId,
+        call: ColCall,
     },
 }
 
@@ -117,7 +186,8 @@ pub(crate) enum Field {
     Style(StyleGroup),
 }
 
-/// What an op writes (J0b adds row and column properties).
+/// What an op writes. Row and column ops have no fields: they target no
+/// cell, so R2 never restores them; their keys are per property (§4.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Key {
     Cell {
@@ -125,6 +195,16 @@ pub(crate) enum Key {
         row: RowId,
         col: ColId,
         field: Field,
+    },
+    Row {
+        sheet: SheetId,
+        id: RowId,
+        prop: RowProp,
+    },
+    Col {
+        sheet: SheetId,
+        id: ColId,
+        prop: ColProp,
     },
 }
 
@@ -158,7 +238,7 @@ pub(crate) fn fields(call: &CellCall) -> &'static [Field] {
     use CellCall::*;
     match call {
         Number(_) | String(_) | StringInline(_) | RichString(_) | Bool(_) | Error(_)
-        | Formula(_) | RemoveFormula => &CONTENT,
+        | Formula(_) | RemoveFormula | ClearValue | DynamicFormula(_) => &CONTENT,
         DateTime(_) => &DATE,
         NumberWithFormat(..)
         | StringWithFormat(..)
@@ -178,7 +258,7 @@ pub(crate) fn writes_content(call: &CellCall) -> bool {
 }
 
 /// Applies `input` by its one sequential API call: the shadow's engine and
-/// the sequential reference of oracle 1. Never called with `ClearCell`.
+/// the sequential reference of oracle 1.
 pub(crate) fn apply_seq(wb: &mut Workbook, input: &OpInput) -> Result<()> {
     match &input.kind {
         OpKind::WriteCells(cells) => {
@@ -190,13 +270,29 @@ pub(crate) fn apply_seq(wb: &mut Workbook, input: &OpInput) -> Result<()> {
                         WriteValue::String(s) => CellWrite::String(s),
                         WriteValue::Formula(t) => CellWrite::Formula(t),
                         WriteValue::RemoveFormula => CellWrite::RemoveFormula,
+                        WriteValue::ClearValue => CellWrite::ClearValue,
                     };
                     (*at, w)
                 })
                 .collect();
             wb.worksheet_by_index(input.sheet)?.write_cells(&writes)
         }
-        OpKind::ClearCell { .. } => unreachable!("P1 is refused before it reaches a workbook"),
+        OpKind::Row { row, call } => {
+            let mut ws = wb.worksheet_by_index(input.sheet)?;
+            match call {
+                RowCall::Height(h) => ws.set_row_height(*row, *h),
+                RowCall::Hidden(b) => ws.set_row_hidden(*row, *b),
+                RowCall::Outline(l) => ws.set_row_outline(*row, *l),
+            }
+        }
+        OpKind::Cols { first, last, call } => {
+            let mut ws = wb.worksheet_by_index(input.sheet)?;
+            match call {
+                ColCall::Width(w) => ws.set_column_width(*first, *last, *w),
+                ColCall::Hidden(b) => ws.set_column_hidden(*first, *last, *b),
+                ColCall::Outline(l) => ws.set_column_outline(*first, *last, *l),
+            }
+        }
         OpKind::Cell { at, call } => {
             let mut ws = wb.worksheet_by_index(input.sheet)?;
             let c = ws.cell_mut(at.row, at.col)?;
@@ -214,6 +310,8 @@ pub(crate) fn apply_seq(wb: &mut Workbook, input: &OpInput) -> Result<()> {
                 CellCall::DateTime(d) => c.set_datetime(*d),
                 CellCall::Formula(t) => c.set_formula(t),
                 CellCall::RemoveFormula => c.remove_formula(),
+                CellCall::ClearValue => c.clear_value(),
+                CellCall::DynamicFormula(t) => c.set_dynamic_formula(t),
                 CellCall::NumberWithFormat(v, f) => c.set_number_with_format(*v, f),
                 CellCall::StringWithFormat(s, f) => c.set_string_with_format(s, f),
                 CellCall::FormulaWithFormat(t, f) => c.set_formula_with_format(t, f),

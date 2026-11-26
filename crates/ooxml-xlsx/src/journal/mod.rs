@@ -15,6 +15,7 @@
 
 pub(crate) mod ids;
 pub(crate) mod op;
+mod replay;
 pub(crate) mod state;
 
 #[cfg(test)]
@@ -28,25 +29,28 @@ use std::sync::Arc;
 use ids::{AxisVec, ColId, Epoch, IdCounter, RowId, SheetId};
 use op::{
     Api, CellCall, Field, Key, LoggedOp, Op, OpInput, OpKind, Origin, WriteValue, apply_seq,
-    fields, writes_content,
+    col_prop, fields, row_prop, writes_content,
 };
+use replay::Mark;
 use state::{CellState, state_of};
 
 use crate::census::FKind;
 use crate::error::{Error, Result};
 use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
 use crate::snapshot::{CellSnapshot, RestoreStyle};
-use crate::workbook::{CalcPolicy, Workbook};
+use crate::workbook::Workbook;
 
 #[derive(Debug)]
 pub(crate) enum JournalError {
     /// The sequential call refused the op (nothing changed).
     Op(Error),
-    /// Part B (P1) and the session-xf case of P2.
+    /// The session-xf case of P2 (T5b's by-content request is not wired).
     Unsupported { op: &'static str },
-    /// The shadow is poisoned or a restore failed: the Journal is broken.
+    /// The shadow was poisoned or a restore failed: the call was undone by
+    /// replay (the op is not logged and `seq` is not consumed). If the replay
+    /// failed too, the Journal is broken.
     Internal { seq: u64, source: Error },
-    /// After `Internal`; no replay in J0a.
+    /// After a replay failed (§9.3); `truncate` and reload are J3.
     Broken,
 }
 
@@ -81,8 +85,18 @@ pub(crate) struct Journal {
     keys: HashMap<Key, Vec<u64>>,
     tracked: BTreeMap<CellKey, Tracked>,
     broken: bool,
+    /// Set while a call runs; a call that panicked leaves it (§3.3).
+    stale: Option<Mark>,
     #[cfg(test)]
     stats: RestoreStats,
+    /// Test hooks (`replay.rs`).
+    #[cfg(all(test, feature = "fault-injection"))]
+    replay_fault: Option<(crate::workbook::ApplyStep, bool)>,
+    #[cfg(test)]
+    /// `Some(panic)`: the next restore fails (or panics).
+    fail_restore_once: Option<bool>,
+    #[cfg(test)]
+    drop_fresh_once: bool,
 }
 
 /// R2's restores by kind of the snapshot's content (test coverage only).
@@ -103,12 +117,7 @@ struct Target {
 impl Journal {
     pub(crate) fn open(base: impl Into<Arc<[u8]>>) -> Result<Journal> {
         let base: Arc<[u8]> = base.into();
-        let mut shadow = Workbook::from_bytes(base.clone())?;
-        shadow.set_calc_policy(CalcPolicy::KeepStaleCaches);
-        // the strip is deferred (C3's), its refusals are not: ADR §4.5
-        shadow.validate_strips = true;
-        // cell writes leave `dimension` to the save (ADR-0024 C5)
-        shadow.freeze_dimension = true;
+        let mut shadow = Journal::open_shadow(&base)?;
         let base_xf_count = shadow.cell_format_count()?;
         let sheets = sheet_ids(&mut shadow)?;
         // identity vectors for every sheet, so a refused op creates nothing
@@ -133,8 +142,15 @@ impl Journal {
             keys: HashMap::new(),
             tracked: BTreeMap::new(),
             broken: false,
+            stale: None,
             #[cfg(test)]
             stats: RestoreStats::default(),
+            #[cfg(all(test, feature = "fault-injection"))]
+            replay_fault: None,
+            #[cfg(test)]
+            fail_restore_once: None,
+            #[cfg(test)]
+            drop_fresh_once: false,
         })
     }
 
@@ -155,6 +171,11 @@ impl Journal {
         self.keys.get(key).map_or(&[], Vec::as_slice)
     }
 
+    /// The shadow sheet index of an id.
+    pub(crate) fn sheet_index_of(&self, id: SheetId) -> Option<usize> {
+        self.sheets.iter().position(|s| *s == id)
+    }
+
     pub(crate) fn sheet_id(&self, sheet: usize) -> SheetId {
         self.sheets[sheet]
     }
@@ -172,7 +193,9 @@ impl Journal {
     }
 
     /// Appends one op: validates it on the shadow by applying it, then logs
-    /// it and runs R2 on every cell it touched. `Err` leaves everything as it was.
+    /// it and runs R2 on every cell it touched. `Err(Op)` and `Err(Unsupported)`
+    /// leave everything as it was; `Err(Internal)` has undone the call by
+    /// replay (§3.2, §9.3), so the Journal is as it was unless it is `broken`.
     pub(crate) fn append(
         &mut self,
         api: Api,
@@ -181,26 +204,87 @@ impl Journal {
         if self.broken {
             return Err(JournalError::Broken);
         }
-        // P1 and P2
-        match &input.kind {
-            OpKind::ClearCell { .. } => return Err(JournalError::Unsupported { op: "clear" }),
-            OpKind::Cell {
-                call: CellCall::StyleIndex(i),
-                ..
-            } => {
-                let now = self.shadow.cell_format_count().map_err(JournalError::Op)?;
-                if self.base_xf_count <= *i && *i < now {
-                    return Err(JournalError::Unsupported {
-                        op: "set_style_index(session xf)",
-                    });
-                }
-            }
-            _ => {}
+        self.settle()?;
+        let mark = Mark {
+            log_len: self.log.len(),
+            next_seq: self.next_seq,
+        };
+        self.stale = Some(mark);
+        let r = self.append_inner(api, &input);
+        // a panic skips this line: the next call finds the mark
+        self.stale = None;
+        match r {
+            Err(JournalError::Internal { seq, source }) => Err(self.recover(mark, seq, source)),
+            r => r,
         }
+    }
+
+    /// Undoes a call that panicked, or left the shadow poisoned, by replay.
+    /// `Err` if the replay failed (the Journal is then broken).
+    pub(crate) fn settle(&mut self) -> std::result::Result<(), JournalError> {
+        if self.stale.is_some() || self.shadow.check_poisoned().is_err() {
+            let mark = self.stale.take().unwrap_or(Mark {
+                log_len: self.log.len(),
+                next_seq: self.next_seq,
+            });
+            let source = self
+                .shadow
+                .check_poisoned()
+                .err()
+                .unwrap_or_else(|| Error::Malformed("a call was interrupted".into()));
+            // the interrupted call's seq: it was not logged, `mark` has it
+            let e = self.recover(mark, mark.next_seq, source);
+            if self.broken {
+                return Err(e);
+            }
+        }
+        Ok(())
+    }
+
+    fn append_inner(
+        &mut self,
+        api: Api,
+        input: &OpInput,
+    ) -> std::result::Result<u64, JournalError> {
+        // P2: its by-content request is T5b's
+        if let OpKind::Cell {
+            call: CellCall::StyleIndex(i),
+            ..
+        } = &input.kind
+        {
+            let now = self.shadow.cell_format_count().map_err(JournalError::Op)?;
+            if self.base_xf_count <= *i && *i < now {
+                return Err(JournalError::Unsupported {
+                    op: "set_style_index(session xf)",
+                });
+            }
+        }
+        let seq = self.next_seq;
+        let acc = self.accept(input, seq)?;
+        self.next_seq += 1;
+        self.log.push(LoggedOp {
+            seq,
+            origin: Origin::Session { seq, api },
+            born: Epoch(0),
+            applied: true,
+            op: acc.op,
+        });
+        self.r2(input, &acc.targets, acc.snapshot_failed, seq)?;
+        Ok(seq)
+    }
+
+    /// Everything up to and including the keys, shared by `append` and
+    /// replay: targets, snapshots, the sequential call, the key index.
+    /// Nothing is logged here. `Err(Op)` changed nothing.
+    fn accept(
+        &mut self,
+        input: &OpInput,
+        seq: u64,
+    ) -> std::result::Result<Accepted, JournalError> {
         if let Err(e) = self.shadow.worksheet_by_index(input.sheet).map(drop) {
             return Err(JournalError::Op(e));
         }
-        let targets = self.targets(&input);
+        let targets = self.targets(input);
         for t in &targets {
             if let Err(e) = CellIndex::new(t.at.row, t.at.col) {
                 return Err(JournalError::Op(e));
@@ -222,7 +306,7 @@ impl Journal {
                     break;
                 }
             };
-            match state_of(&mut self.shadow, input.sheet, snap.node()) {
+            match state_of(&mut self.shadow, input.sheet, t.at, snap.node()) {
                 Ok(state) => fresh.push((
                     key,
                     Tracked {
@@ -238,77 +322,139 @@ impl Journal {
                 }
             }
         }
-        let seq = self.next_seq;
         // A sheet the journal cannot index can still take an op that changes
         // nothing (a no-op `remove_formula` never reads the row index). The
         // part's serialization before the op tells, afterwards, whether it
         // did change anything; the dirty flags would not (a write that
         // restores a value, or a no-op that marks, leaves them set).
-        let part_before = snapshot_error.as_ref().map(|_| self.sheet_part_text(input.sheet));
-        if let Err(e) = apply_seq(&mut self.shadow, &input) {
+        let part_before = snapshot_error
+            .as_ref()
+            .map(|_| self.sheet_part_text(input.sheet));
+        if let Err(e) = apply_seq(&mut self.shadow, input) {
             drop(fresh);
             if self.shadow.check_poisoned().is_err() {
-                self.broken = true;
                 return Err(JournalError::Internal { seq, source: e });
             }
             return Err(JournalError::Op(e));
         }
-        if let Some(source) = snapshot_error {
+        let snapshot_failed = snapshot_error.is_some();
+        if let (Some(source), Some(before)) = (snapshot_error, part_before) {
             // The op was accepted although the snapshot could not be taken.
             // If it changed the part, the edit located a cell the snapshot
             // could not: an inconsistency. If not, it was a no-op: log it as
             // usual and track nothing (R2 skips untracked cells).
-            if part_before != Some(self.sheet_part_text(input.sheet)) {
-                self.broken = true;
+            if !part_unchanged(&before, &self.sheet_part_text(input.sheet)) {
                 return Err(JournalError::Internal { seq, source });
             }
         }
-        self.tracked.extend(fresh);
-        self.next_seq += 1;
-        let op = self.op_of(&input);
-        let named: Vec<CellKey> = targets
-            .iter()
-            .filter(|t| t.named)
-            .map(|t| self.cell_key(input.sheet, t.at))
-            .collect();
-        let written: &'static [Field] = match &input.kind {
-            OpKind::Cell { call, .. } => fields(call),
-            _ => &[Field::Content],
-        };
-        for k in &named {
-            for &field in written {
-                self.keys
-                    .entry(Key::Cell {
-                        sheet: k.sheet,
-                        row: k.row,
-                        col: k.col,
-                        field,
-                    })
-                    .or_default()
-                    .push(seq);
-            }
+        #[cfg(test)]
+        if std::mem::take(&mut self.drop_fresh_once) {
+            fresh.clear();
         }
-        self.log.push(LoggedOp {
-            seq,
-            origin: Origin::Session { seq, api },
-            born: Epoch(0),
-            applied: true,
+        self.tracked.extend(fresh);
+        let op = self.op_of(input).map_err(|source| JournalError::Internal { seq, source })?;
+        for key in self.keys_of(&op) {
+            self.keys.entry(key).or_default().push(seq);
+        }
+        Ok(Accepted {
             op,
-        });
-        // R2
+            targets,
+            snapshot_failed,
+        })
+    }
+
+    /// R2 on every cell the op touched.
+    fn r2(
+        &mut self,
+        input: &OpInput,
+        targets: &[Target],
+        snapshot_failed: bool,
+        seq: u64,
+    ) -> std::result::Result<(), JournalError> {
         let content_written = match &input.kind {
             OpKind::Cell { call, .. } => writes_content(call),
             _ => true,
         };
-        for t in &targets {
+        for t in targets {
             let key = self.cell_key(input.sheet, t.at);
             if !self.tracked.contains_key(&key) {
+                debug_assert!(
+                    snapshot_failed,
+                    "an untracked target without a snapshot error"
+                );
                 // a no-op on a sheet that cannot be indexed: nothing changed
                 continue;
             }
             self.write_back(input.sheet, t.at, key, seq, content_written)?;
         }
-        Ok(seq)
+        Ok(())
+    }
+
+    /// The keys an accepted op writes (§4.2, §4.3), in the order of its
+    /// targets: one per named cell and field, one per row property, one per
+    /// column of a range and property. `append` and replay both use it.
+    fn keys_of(&self, op: &Op) -> Vec<Key> {
+        let mut out = Vec::new();
+        match op {
+            Op::Cell {
+                sheet,
+                row,
+                col,
+                call,
+            } => {
+                for &field in fields(call) {
+                    out.push(Key::Cell {
+                        sheet: *sheet,
+                        row: *row,
+                        col: *col,
+                        field,
+                    });
+                }
+            }
+            Op::WriteCells { sheet, cells } => {
+                let mut seen: Vec<(RowId, ColId)> = Vec::new();
+                for (row, col, _) in cells {
+                    if seen.contains(&(*row, *col)) {
+                        continue;
+                    }
+                    seen.push((*row, *col));
+                    out.push(Key::Cell {
+                        sheet: *sheet,
+                        row: *row,
+                        col: *col,
+                        field: Field::Content,
+                    });
+                }
+            }
+            Op::Row { sheet, id, call } => out.push(Key::Row {
+                sheet: *sheet,
+                id: *id,
+                prop: row_prop(call),
+            }),
+            Op::Cols {
+                sheet,
+                first,
+                last,
+                call,
+            } => {
+                let cols = &self.cols[sheet];
+                let ends = (cols.index_of(*first), cols.index_of(*last));
+                debug_assert!(
+                    ends.0.is_some() && ends.1.is_some(),
+                    "a column range whose ends are not in the id list"
+                );
+                if let (Some(a), Some(b)) = ends {
+                    for i in a..=b {
+                        out.push(Key::Col {
+                            sheet: *sheet,
+                            id: cols.id_at(i),
+                            prop: col_prop(call),
+                        });
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// The serialized sheet part (`None` if it cannot be read), to tell
@@ -333,14 +479,8 @@ impl Journal {
             .shadow
             .snapshot_cell(sheet, at)
             .map_err(internal)
-            .and_then(|s| state_of(&mut self.shadow, sheet, s.node()).map_err(internal));
-        let cur = match cur {
-            Ok(c) => c,
-            Err(e) => {
-                self.broken = true;
-                return Err(e);
-            }
-        };
+            .and_then(|s| state_of(&mut self.shadow, sheet, at, s.node()).map_err(internal));
+        let cur = cur?;
         let t = self.tracked.get_mut(&key).expect("a target is tracked");
         let r = if cur == t.state {
             t.differs = false;
@@ -353,8 +493,15 @@ impl Journal {
                         .entry(content_kind(&t.state.content))
                         .or_default() += 1;
                 }
-                self.shadow
-                    .restore_cell(sheet, at, &t.snap, RestoreStyle::Snapshot)
+                restore(
+                    &mut self.shadow,
+                    #[cfg(test)]
+                    &mut self.fail_restore_once,
+                    sheet,
+                    at,
+                    &t.snap,
+                    RestoreStyle::Snapshot,
+                )
             } else {
                 Ok(())
             }
@@ -365,8 +512,15 @@ impl Journal {
                 {
                     self.stats.content += 1;
                 }
-                self.shadow
-                    .restore_cell(sheet, at, &t.snap, RestoreStyle::Current)
+                restore(
+                    &mut self.shadow,
+                    #[cfg(test)]
+                    &mut self.fail_restore_once,
+                    sheet,
+                    at,
+                    &t.snap,
+                    RestoreStyle::Current,
+                )
             } else {
                 // a style-only op leaves the content as the previous R2 (or
                 // the first touch) left it, which is the snapshot's: nothing
@@ -377,10 +531,7 @@ impl Journal {
             t.differs = true;
             Ok(())
         };
-        r.map_err(|source| {
-            self.broken = true;
-            JournalError::Internal { seq, source }
-        })
+        r.map_err(internal)
     }
 
     /// The cells the op touches (C1's target report, read off the census): the
@@ -391,7 +542,8 @@ impl Journal {
         match &input.kind {
             OpKind::Cell { at, call } => own.push((*at, writes_content(call))),
             OpKind::WriteCells(cells) => own.extend(cells.iter().map(|(at, _)| (*at, true))),
-            OpKind::ClearCell { at } => own.push((*at, false)),
+            // a row or column property targets no cell (§4.4)
+            OpKind::Row { .. } | OpKind::Cols { .. } => {}
         }
         let mut out: Vec<Target> = Vec::new();
         for &(at, _) in &own {
@@ -432,9 +584,12 @@ impl Journal {
         out
     }
 
-    fn op_of(&mut self, input: &OpInput) -> Op {
+    /// The logged form of an op the shadow accepted (ids from the vectors).
+    /// Row and column indices are read only now, after `apply_seq` returned
+    /// `Ok`: a refused out-of-range op never reaches the id vectors.
+    fn op_of(&mut self, input: &OpInput) -> Result<Op> {
         let sheet = self.sheets[input.sheet];
-        match &input.kind {
+        Ok(match &input.kind {
             OpKind::Cell { at, call } => {
                 let k = self.cell_key(input.sheet, *at);
                 Op::Cell {
@@ -454,9 +609,61 @@ impl Journal {
                     .collect();
                 Op::WriteCells { sheet, cells }
             }
-            OpKind::ClearCell { .. } => unreachable!("refused before"),
-        }
+            OpKind::Row { row, call } => {
+                let rows = &self.rows[&sheet];
+                if *row >= rows.len() {
+                    return Err(Error::Malformed("an accepted row beyond the sheet".into()));
+                }
+                Op::Row {
+                    sheet,
+                    id: rows.id_at(*row),
+                    call: *call,
+                }
+            }
+            OpKind::Cols { first, last, call } => {
+                let cols = &self.cols[&sheet];
+                if *first > *last || *last >= cols.len() {
+                    return Err(Error::Malformed("an accepted column range out of order".into()));
+                }
+                Op::Cols {
+                    sheet,
+                    first: cols.id_at(*first),
+                    last: cols.id_at(*last),
+                    call: *call,
+                }
+            }
+        })
     }
+}
+
+/// `before` and `after` are the same, readable text. `None` on either side
+/// (a part that cannot be read) counts as changed (PR 159 round 3, m1).
+fn part_unchanged(before: &Option<String>, after: &Option<String>) -> bool {
+    matches!((before, after), (Some(a), Some(b)) if a == b)
+}
+
+fn restore(
+    wb: &mut Workbook,
+    #[cfg(test)] fail_once: &mut Option<bool>,
+    sheet: usize,
+    at: CellIndex,
+    snap: &CellSnapshot,
+    style: RestoreStyle,
+) -> Result<()> {
+    #[cfg(test)]
+    if let Some(panic) = fail_once.take() {
+        assert!(!panic, "injected panic in a restore");
+        return Err(Error::Malformed("injected restore failure".into()));
+    }
+    wb.restore_cell(sheet, at, snap, style)
+}
+
+/// What `accept` hands on: the logged form, the targets, and whether a
+/// snapshot failed (R2 then skips the untracked cells).
+struct Accepted {
+    op: Op,
+    targets: Vec<Target>,
+    snapshot_failed: bool,
 }
 
 /// `sheet/@sheetId` of every sheet, in workbook order.
@@ -494,8 +701,8 @@ fn content_kind(c: &state::Content) -> &'static str {
     match c {
         Content::Empty => "empty",
         Content::Value { .. } => "value",
-        Content::Shared(_) => "shared",
-        Content::Inline(_) => "inline",
+        Content::Str { inline: false, .. } => "shared",
+        Content::Str { inline: true, .. } => "inline",
         Content::Formula { .. } => "formula",
     }
 }
@@ -536,10 +743,5 @@ impl Journal {
 
     pub(crate) fn shadow_mut(&mut self) -> &mut Workbook {
         &mut self.shadow
-    }
-
-    /// The shadow sheet index of an id.
-    pub(crate) fn sheet_index_of(&self, id: SheetId) -> Option<usize> {
-        self.sheets.iter().position(|s| *s == id)
     }
 }

@@ -4,7 +4,8 @@
 use super::fixtures::{group_workbook, oracle_workbook, out_of_order_dependent_workbook};
 use super::*;
 use crate::census::FKind;
-use crate::journal::op::{Api, CellCall, OpKind, WriteValue};
+use crate::journal::op::{Api, CellCall, ColCall, ColProp, OpKind, RowCall, RowProp, WriteValue};
+use crate::reference::MAX_ROWS;
 
 fn base() -> Vec<u8> {
     oracle_workbook("A1:C5")
@@ -198,7 +199,7 @@ fn fixed_19_b2_an_input_under_an_array() {
 }
 
 #[test]
-fn fixed_20_p1_and_p2_are_unsupported_and_change_nothing() {
+fn fixed_20_p2_is_unsupported_and_changes_nothing() {
     let mut p = Pair::new(&base());
     p.step(c1("A1", CellCall::Font(italic()))).unwrap(); // creates xf 4
     let before = state_of_journal(&p.j);
@@ -211,18 +212,6 @@ fn fixed_20_p1_and_p2_are_unsupported_and_change_nothing() {
                 op: "set_style_index(session xf)"
             })
         ),
-        "{r:?}"
-    );
-    assert_eq!(state_of_journal(&p.j), before);
-    let r = p.j.append(
-        Api::Native,
-        OpInput {
-            sheet: 0,
-            kind: OpKind::ClearCell { at: at("A2") },
-        },
-    );
-    assert!(
-        matches!(r, Err(JournalError::Unsupported { op: "clear" })),
         "{r:?}"
     );
     assert_eq!(state_of_journal(&p.j), before);
@@ -273,4 +262,248 @@ fn fixed_23_m1r2_a_no_op_on_a_sheet_the_journal_cannot_index_is_accepted_and_not
     assert!(matches!(r, Err(Error::OutOfOrder(_))), "{r:?}");
     p.step(c1("A1", CellCall::Font(italic()))).unwrap();
     p.finish();
+}
+
+fn row_op(sheet: usize, row: u32, call: RowCall) -> OpInput {
+    OpInput {
+        sheet,
+        kind: OpKind::Row { row, call },
+    }
+}
+
+fn cols_op(sheet: usize, first: u32, last: u32, call: ColCall) -> OpInput {
+    OpInput {
+        sheet,
+        kind: OpKind::Cols { first, last, call },
+    }
+}
+
+fn clear(a1: &str) -> OpInput {
+    c1(a1, CellCall::ClearValue)
+}
+
+fn dynamic(a1: &str, t: &str) -> OpInput {
+    c1(a1, CellCall::DynamicFormula(t.into()))
+}
+
+fn content_seqs(j: &Journal, a1: &str) -> Vec<u64> {
+    let k = j.cell_key(0, at(a1));
+    j.key_seqs(&Key::Cell {
+        sheet: k.sheet,
+        row: k.row,
+        col: k.col,
+        field: crate::journal::op::Field::Content,
+    })
+    .to_vec()
+}
+
+fn row_seqs(j: &Journal, row: u32, prop: RowProp) -> Vec<u64> {
+    let sheet = j.sheet_id(0);
+    j.key_seqs(&Key::Row {
+        sheet,
+        id: j.rows[&sheet].id_at(row),
+        prop,
+    })
+    .to_vec()
+}
+
+fn col_seqs(j: &Journal, col: u32, prop: ColProp) -> Vec<u64> {
+    let sheet = j.sheet_id(0);
+    j.key_seqs(&Key::Col {
+        sheet,
+        id: j.cols[&sheet].id_at(col),
+        prop,
+    })
+    .to_vec()
+}
+
+fn node_tree(wb: &mut Workbook, a1: &str) -> Option<crate::journal::state::Tree> {
+    wb.snapshot_cell(0, at(a1)).unwrap().node().map(tree)
+}
+
+fn sheet_xml(wb: &mut Workbook, sheet: usize) -> String {
+    let part = wb.sheets[sheet].part.clone().unwrap();
+    wb.pkg.xml_part(&part).unwrap().serialize()
+}
+
+#[test]
+fn fixed_24_p1_on_a_missing_cell_under_a_bold_column() {
+    let mut p = Pair::new(&base());
+    p.step(clear("B5")).unwrap();
+    p.finish();
+    assert!(node_tree(&mut p.seq, "B5").is_none());
+    assert!(node_tree(p.j.shadow_mut(), "B5").is_none());
+    let b5 = p.j.cell_key(0, at("B5"));
+    assert_eq!(p.j.tracked_differs(), vec![(b5, false)]);
+    assert!(p.j.snapshot_node(&b5).unwrap().is_none());
+    assert_eq!(content_seqs(&p.j, "B5"), vec![1]);
+}
+
+#[test]
+fn fixed_25_p1_after_a_write_on_a_missing_cell_leaves_an_empty_c() {
+    let mut p = Pair::new(&base());
+    p.step(num("B6", 5.0)).unwrap();
+    p.step(clear("B6")).unwrap();
+    p.finish();
+    let a = node_tree(&mut p.seq, "B6");
+    let b = node_tree(p.j.shadow_mut(), "B6");
+    assert!(a.is_some(), "the cell is present");
+    assert_eq!(a, b, "the same node on both sides");
+    println!("fixed 25 node: {a:?}");
+    let b6 = p.j.cell_key(0, at("B6"));
+    assert!(p.j.changed_cells().contains(&b6));
+}
+
+#[test]
+fn fixed_26_p1_then_the_same_constant_is_a_full_restore() {
+    let mut p = Pair::new(&base());
+    p.step(clear("C3")).unwrap();
+    let c3 = p.j.cell_key(0, at("C3"));
+    assert!(p.j.changed_cells().contains(&c3));
+    p.step(num("C3", 7.0)).unwrap();
+    assert!(!p.j.changed_cells().contains(&c3));
+    p.finish();
+}
+
+#[test]
+fn fixed_27_p1_refusals_and_hand_off() {
+    let mut p = Pair::new(&group());
+    assert!(matches!(p.step(clear("B6")), Err(Error::MergedCell { .. })));
+    assert!(matches!(
+        p.step(clear("G3")),
+        Err(Error::ArrayResultCell { .. })
+    ));
+    assert_eq!(p.j.log().len(), 0);
+    p.step(clear("D2")).unwrap();
+    let c2 = p.j.cell_key(0, at("C2"));
+    assert!(p.j.changed_cells().contains(&c2), "hand-off to C2");
+    p.step(write_cells(&[
+        ("A1", WriteValue::ClearValue),
+        ("D10", WriteValue::ClearValue),
+        ("A2", WriteValue::Number(7.0)),
+    ]))
+    .unwrap();
+    assert!(node_tree(&mut p.seq, "D10").is_none());
+    assert!(node_tree(p.j.shadow_mut(), "D10").is_none());
+    assert_eq!(content_seqs(&p.j, "D10"), vec![2]);
+    p.finish();
+}
+
+#[test]
+fn fixed_28_row_and_column_keys() {
+    let mut p = Pair::new(&base());
+    p.step(cols_op(0, 1, 3, ColCall::Width(20.0))).unwrap();
+    for c in 1..=3 {
+        assert_eq!(col_seqs(&p.j, c, ColProp::Width), vec![1], "col {c}");
+    }
+    assert_eq!(col_seqs(&p.j, 0, ColProp::Width), Vec::<u64>::new());
+    assert_eq!(col_seqs(&p.j, 4, ColProp::Width), Vec::<u64>::new());
+    assert!(p.j.keys().keys().all(|k| matches!(k, Key::Col { .. })));
+    p.step(row_op(0, 6, RowCall::Height(20.0))).unwrap(); // missing row 7
+    p.step(row_op(0, 6, RowCall::Hidden(true))).unwrap();
+    p.step(row_op(0, 6, RowCall::Hidden(false))).unwrap();
+    assert_eq!(row_seqs(&p.j, 6, RowProp::Hidden), vec![3, 4]);
+    assert_eq!(row_seqs(&p.j, 6, RowProp::Height), vec![2]);
+    p.step(row_op(0, 3, RowCall::Outline(2))).unwrap();
+    p.step(row_op(0, 3, RowCall::Outline(0))).unwrap();
+    for wb in [&mut p.seq, p.j.shadow_mut()] {
+        assert!(
+            sheet_xml(wb, 0).contains(r#"outlineLevelRow="2""#),
+            "raised, never lowered"
+        );
+    }
+    // a column's properties are keyed apart (round 1: a mutant keyed them all as `Width`)
+    p.step(cols_op(0, 2, 2, ColCall::Hidden(true))).unwrap();
+    assert_eq!(col_seqs(&p.j, 2, ColProp::Hidden), vec![7]);
+    assert_eq!(col_seqs(&p.j, 2, ColProp::Width), vec![1]);
+    assert_eq!(p.j.open_snapshots(), 0);
+    p.finish();
+}
+
+#[test]
+fn fixed_29_row_and_column_refusals() {
+    let mut p = Pair::new(&base());
+    assert!(p.step(cols_op(0, 0, 0, ColCall::Width(300.0))).is_err());
+    assert!(p.step(row_op(0, 0, RowCall::Height(f64::NAN))).is_err());
+    assert!(p.step(row_op(0, MAX_ROWS, RowCall::Height(1.0))).is_err());
+    assert!(p.step(cols_op(0, 0, 0, ColCall::Outline(8))).is_err());
+    assert!(p.step(cols_op(0, 5, 4, ColCall::Hidden(true))).is_err());
+    assert!(p.step(cols_op(0, 0, 16_384, ColCall::Hidden(true))).is_err());
+    assert_eq!(p.j.log().len(), 0);
+    assert!(p.j.keys().is_empty());
+    p.finish();
+    let mut p = Pair::new(&out_of_order_dependent_workbook());
+    let r = p.step(row_op(1, 0, RowCall::Height(20.0)));
+    assert!(matches!(r, Err(Error::OutOfOrder(_))), "{r:?}");
+    p.step(cols_op(1, 0, 0, ColCall::Width(20.0))).unwrap();
+    p.finish();
+}
+
+#[test]
+fn fixed_30_c5_the_shadow_leaves_the_dimension_alone() {
+    let mut p = Pair::new(&base());
+    p.step(num("Z99", 1.0)).unwrap();
+    let seq = sheet_xml(&mut p.seq, 0);
+    let shadow = sheet_xml(p.j.shadow_mut(), 0);
+    assert!(seq.contains(r#"<dimension ref="A1:Z99""#), "{seq}");
+    assert!(shadow.contains(r#"<dimension ref="A1:C5""#), "{shadow}");
+    p.step(row_op(0, 0, RowCall::Height(20.0))).unwrap();
+    p.step(cols_op(0, 0, 0, ColCall::Width(9.0))).unwrap();
+}
+
+#[test]
+fn fixed_31_dynamic_formula() {
+    let mut p = Pair::new(&base());
+    p.step(dynamic("A6", "1+1")).unwrap();
+    for wb in [&mut p.seq, p.j.shadow_mut()] {
+        assert!(
+            wb.pkg.part_names().any(|n| n.contains("metadata")),
+            "a metadata part"
+        );
+    }
+    // an array anchor cannot be unset back to missing: both sides refuse
+    assert!(matches!(
+        p.step(remove_formula("A6")),
+        Err(Error::ArrayAnchor { .. })
+    ));
+    p.step(dynamic("C1", "A1*2")).unwrap();
+    // on this main a plain set_formula over a dynamic anchor is refused, so
+    // the ADR's "cm decides R2" case is unreachable (reported); state.rs's
+    // unit test covers `cm`
+    assert!(matches!(
+        p.step(formula("C1", "A1*2")),
+        Err(Error::ArrayAnchor { .. })
+    ));
+    for wb in [&mut p.seq, p.j.shadow_mut()] {
+        let n = wb.snapshot_cell(0, at("C1")).unwrap();
+        let cm = n.node().unwrap().attr(ooxml_core::QName::new("", "cm"));
+        assert!(cm.is_some(), "C1 keeps cm");
+    }
+    assert!(p.step(dynamic("A7", "1+")).is_err());
+    p.finish();
+    let mut p = Pair::new(&group());
+    // a dynamic array would replace a shared master: refused, not handed off
+    assert!(matches!(
+        p.step(dynamic("D2", "1+1")),
+        Err(Error::SharedFormulaMaster { .. })
+    ));
+    assert_eq!(p.j.log().len(), 0);
+    p.finish();
+}
+
+#[test]
+fn fixed_32_keys_of_the_new_calls() {
+    use crate::journal::op::Field;
+    let mut p = Pair::new(&base());
+    p.step(clear("C3")).unwrap();
+    p.step(dynamic("A6", "1+1")).unwrap();
+    let _ = p.step(row_op(0, MAX_ROWS, RowCall::Height(1.0)));
+    let before = p.j.keys().len();
+    for k in p.j.keys().keys() {
+        assert!(
+            matches!(k, Key::Cell { field: Field::Content, .. }),
+            "{k:?}"
+        );
+    }
+    assert_eq!(before, 2, "a refused row op pushes nothing");
 }
