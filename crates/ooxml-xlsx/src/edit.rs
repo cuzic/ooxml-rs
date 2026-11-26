@@ -842,6 +842,10 @@ impl Workbook {
             let index = self.indexes.get(&w.sheet).expect("built in plan_writes");
             let written = plan_target(self.pkg.xml_part_mut(&w.part)?, index, &w.part, w.at, &w.op).and_then(|mut tp| {
                 tp.style = w.style;
+                // planned above (so a malformed ref still refuses), not applied
+                if self.freeze_dimension {
+                    tp.dimension = None;
+                }
                 write_cell(self.pkg.xml_part_mut(&w.part)?, &tp, w.at, &w.op)
             });
             let effect = match written {

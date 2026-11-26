@@ -199,6 +199,11 @@ pub struct Workbook {
     /// the refusals the strip can raise match `StripDependentCaches`. Only
     /// the Journal's shadow sets it; the public policy is unchanged.
     pub(crate) validate_strips: bool,
+    /// Cell writes leave `dimension` alone (ADR-0024 C5): the Journal grows it
+    /// once at save ([`Workbook::grow_dimension`]). A malformed `dimension/@ref`
+    /// is still refused, so the shadow refuses when the sequential workbook
+    /// does. Structural ops rewrite it regardless.
+    pub(crate) freeze_dimension: bool,
     pub(crate) poisoned: Option<String>,
     /// Phase2 registries (ADR-0006), activated by the first write that
     /// needs them.
@@ -269,6 +274,7 @@ impl Workbook {
             calc_chain: l.calc_chain,
             policy: CalcPolicy::default(),
             validate_strips: false,
+            freeze_dimension: false,
             poisoned: None,
             registries: Default::default(),
             style_sensitive: None,
