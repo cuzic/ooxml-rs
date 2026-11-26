@@ -657,6 +657,13 @@ impl<'wb> Worksheet<'wb> {
     /// [`Error::SharedFormulaMaster`] when two cells of one shared-formula
     /// group are written together (write them in separate calls).
     pub fn write_cells(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()> {
+        let was_active = self.wb.registries.strings.is_some();
+        let r = self.write_cells_inner(writes);
+        self.wb.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    fn write_cells_inner(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()> {
         self.wb.check_editable()?;
         let mut ops = Vec::with_capacity(writes.len());
         for &(at, w) in writes {

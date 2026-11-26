@@ -604,40 +604,14 @@ fn drive(case: &Case, tally: &mut Tally) -> Pair {
                     assert_eq!(after.keys, before.keys, "{input:?}: keys");
                     assert_eq!(after.open, before.open, "{input:?}: open");
                     assert_eq!(after.tracked, before.tracked, "{input:?}: tracked");
-                    // bytes equal, except `sst/@count`: R2's restore does not
-                    // maintain the registry's reference count, so the attribute
-                    // depends on when the registry was last rescanned (a to_bytes
-                    // in between). Informational; reported as a C2 follow-up.
+                    // the written-back bytes are the same, part by part
                     let (pa, pb) = (
                         ooxml_core::Package::from_bytes(after.bytes.clone()).unwrap(),
                         ooxml_core::Package::from_bytes(before.bytes.clone()).unwrap(),
                     );
-                    let strip = |b: Vec<u8>| {
-                        let s = String::from_utf8_lossy(&b).into_owned();
-                        s.replacen(" count=\"", " cnt=\"", 1)
-                    };
                     for n in pa.part_names() {
                         let (x, y) = (pa.read_part(n).ok(), pb.read_part(n).ok());
-                        if x == y {
-                            continue;
-                        }
-                        let norm = |v: Option<Vec<u8>>| {
-                            v.map(|b| {
-                                let s = strip(b);
-                                match (s.find(" cnt=\""), n) {
-                                    (Some(i), "xl/sharedStrings.xml") => {
-                                        let j = s[i + 6..].find('"').unwrap() + i + 7;
-                                        format!("{}{}", &s[..i], &s[j..])
-                                    }
-                                    _ => s,
-                                }
-                            })
-                        };
-                        assert_eq!(
-                            norm(x),
-                            norm(y),
-                            "{input:?}: {n} differs after recovery"
-                        );
+                        assert_eq!(x, y, "{input:?}: {n} differs after recovery");
                     }
                     continue;
                 }

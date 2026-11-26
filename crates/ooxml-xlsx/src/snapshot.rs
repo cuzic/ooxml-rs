@@ -143,7 +143,7 @@ impl Workbook {
     /// derived state: the node (replaced, inserted, or, for a missing cell,
     /// removed together with a row the session created for it and that has
     /// nothing else), the census entry and dependency edges, the `vm` entry
-    /// and the row index; `style_sensitive` is dropped. `style` picks the
+    /// and the row index; `style_sensitive` is dropped unless the cell's formula is unchanged, and the shared-string registry's reference count follows the `t="s"` cells. `style` picks the
     /// snapshot's `s` or the current one (a content restore).
     ///
     /// An ancestor of the node loses its dirty flags only when no other
@@ -153,6 +153,13 @@ impl Workbook {
         let marks = &snapshot.marks;
         let clean = |depth: usize, n: &RawNode| marks.get(depth).and_then(Option::as_ref).is_some_and(|m| m.allows_clean(n));
         let row_no = at.row + 1;
+        // `t="s"` references the cell holds now (the registry's `count`)
+        let shared_before = {
+            let doc = self.pkg.xml_part(&part)?;
+            let sd = spot.sheet_data.and_then(|i| doc.root().children()[i].as_element());
+            let row = sd.zip(spot.row).and_then(|(sd, i)| sd.children()[i].as_element());
+            row.zip(spot.cell).and_then(|(r, i)| r.children()[i].as_element()).is_some_and(is_shared_cell)
+        };
         let doc = self.pkg.xml_part_mut(&part)?;
         let index = self.indexes.get_mut(&sheet).expect("built by ensure_index");
         let sd_at = spot.sheet_data;
@@ -212,6 +219,11 @@ impl Workbook {
             (None, ..) => {}
         }
         // derived state
+        let formula_kept = match (self.census.at(sheet, at).and_then(|f| self.census.get(f)), &snapshot.formula) {
+            (None, None) => true,
+            (Some(cur), Some((old, _))) => format!("{cur:?}") == format!("{old:?}"),
+            _ => false,
+        };
         if let Some(fid) = self.census.at(sheet, at) {
             self.census.remove(fid);
         }
@@ -229,9 +241,23 @@ impl Workbook {
         } else {
             self.census.vm_cells.remove(&(sheet, at));
         }
-        self.style_sensitive = None;
+        // the cache reads formula texts only: a restore that leaves the cell's
+        // formula as it is leaves the answer as it is
+        if !formula_kept {
+            self.style_sensitive = None;
+        }
+        // keep the shared-string reference count exact (no registry: the
+        // activation scan counts later)
+        // (a content restore keeps the node's own `t`; a missing cell has none)
+        let shared_after = snapshot.node.as_ref().is_some_and(is_shared_cell);
+        let delta = i64::from(shared_after) - i64::from(shared_before);
+        crate::registry::strings::SharedStrings::apply(self, &[], delta, delta != 0)?;
         Ok(())
     }
+}
+
+fn is_shared_cell(c: &RawNode) -> bool {
+    c.attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s")
 }
 
 /// Sets or removes `s` on the cell at `path`. Cannot fail: the path names a
@@ -632,5 +658,146 @@ mod tests {
         let out = part(&mut wb);
         assert!(!out.contains("sheetProtection"), "{out}");
         assert!(doc_dirty(&mut wb));
+    }
+
+    // sst/@count and style_sensitive under restore
+
+    const SST: &str = "xl/sharedStrings.xml";
+
+    fn shared_book() -> Workbook {
+        let sheet = format!(
+            "{HEAD}{}{TAIL}",
+            r#"<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>0</v></c><c r="C1"><f>A2+1</f><v>2</v></c></row><row r="2"><c r="A2"><v>1</v></c><c r="B2" t="s"><v>0</v></c></row>"#
+        );
+        let sst = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="3" uniqueCount="1"><si><t>zero</t></si></sst>"#;
+        let mut pkg = Package::from_bytes(TEMPLATE).unwrap();
+        pkg.set_part(PART, sheet.into_bytes()).unwrap();
+        pkg.set_part(SST, sst.as_bytes().to_vec()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        wb.policy = CalcPolicy::KeepStaleCaches;
+        assert!(wb.shared_strings_active().unwrap());
+        wb
+    }
+
+    fn sst_count(wb: &mut Workbook) -> (String, usize) {
+        let sst = wb.pkg.xml_part(SST).unwrap().serialize();
+        let n = crate::registry::scan_sheet(part(wb).as_bytes()).unwrap().shared as usize;
+        (sst, n)
+    }
+
+    /// A shared-string cell turned into a number and back, a number turned
+    /// into a shared string and back, and a missing cell: the written
+    /// `count` is the recount, with or without a `to_bytes` in between.
+    fn count_run(with_to_bytes: bool) -> (Vec<u8>, usize, String) {
+        let mut wb = shared_book();
+        let (a1, a2, c3) = (at("A1"), at("A2"), at("C3"));
+        let snaps = [a1, a2, c3].map(|c| wb.snapshot_cell(0, c).unwrap());
+        write(&mut wb, "A1", CellOp::Number("5".into()));
+        write(&mut wb, "A2", CellOp::Shared(0));
+        write(&mut wb, "C3", CellOp::Shared(0));
+        if with_to_bytes {
+            wb.to_bytes().unwrap();
+        }
+        for (c, snap) in [a1, a2, c3].into_iter().zip(&snaps) {
+            wb.restore_cell(0, c, snap, RestoreStyle::Snapshot).unwrap();
+            if with_to_bytes {
+                wb.to_bytes().unwrap();
+            }
+        }
+        let (sst, n) = sst_count(&mut wb);
+        (wb.to_bytes().unwrap(), n, sst)
+    }
+
+    #[test]
+    fn the_shared_string_count_follows_restores_whether_or_not_to_bytes_ran() {
+        let (a, n, sst) = count_run(false);
+        let (b, m, _) = count_run(true);
+        assert_eq!(a, b, "byte-identical");
+        assert_eq!((n, m), (3, 3));
+        assert!(sst.contains(r#"count="3""#), "{sst}");
+        // and a reopened copy (which recounts) writes the same
+        let re = Workbook::from_bytes(a.clone()).unwrap();
+        assert_eq!(re.to_bytes().unwrap(), a);
+    }
+
+    #[test]
+    fn a_content_restore_adjusts_the_count_too() {
+        let mut wb = shared_book();
+        let snap = wb.snapshot_cell(0, at("A1")).unwrap();
+        write(&mut wb, "A1", CellOp::Number("5".into()));
+        assert!(sst_count(&mut wb).0.contains(r#"count="2""#));
+        wb.restore_cell(0, at("A1"), &snap, RestoreStyle::Current).unwrap();
+        let (sst, n) = sst_count(&mut wb);
+        assert!(sst.contains(&format!(r#"count="{n}""#)), "{sst}");
+        // a missing-cell content restore of a shared cell removes the reference
+        let missing = wb.snapshot_cell(0, at("C3")).unwrap();
+        write(&mut wb, "C3", CellOp::Shared(0));
+        wb.restore_cell(0, at("C3"), &missing, RestoreStyle::Current).unwrap();
+        let (sst, n) = sst_count(&mut wb);
+        assert!(sst.contains(&format!(r#"count="{n}""#)), "{sst}");
+    }
+
+    #[test]
+    fn style_sensitive_survives_a_restore_that_keeps_the_formula() {
+        let mut wb = shared_book();
+        let snap = wb.snapshot_cell(0, at("A2")).unwrap();
+        write(&mut wb, "A2", CellOp::Number("9".into()));
+        assert!(!wb.style_sensitive().unwrap());
+        wb.restore_cell(0, at("A2"), &snap, RestoreStyle::Snapshot).unwrap();
+        assert_eq!(wb.style_sensitive, Some(false), "a value-only restore keeps the cache");
+        // a formula cell restored over itself
+        let snap = wb.snapshot_cell(0, at("C1")).unwrap();
+        wb.restore_cell(0, at("C1"), &snap, RestoreStyle::Snapshot).unwrap();
+        assert_eq!(wb.style_sensitive, Some(false));
+    }
+
+    #[test]
+    fn style_sensitive_is_dropped_when_the_formula_changes() {
+        let mut wb = shared_book();
+        // formula text changes
+        let snap = wb.snapshot_cell(0, at("C1")).unwrap();
+        write(&mut wb, "C1", CellOp::Formula(r#"CELL("format",A2)"#.into()));
+        assert!(wb.style_sensitive().unwrap());
+        wb.restore_cell(0, at("C1"), &snap, RestoreStyle::Snapshot).unwrap();
+        assert_eq!(wb.style_sensitive, None, "formula text differs");
+        assert!(!wb.style_sensitive().unwrap());
+        // a formula comes into being (A2 had none)
+        let snap = wb.snapshot_cell(0, at("A2")).unwrap();
+        write(&mut wb, "A2", CellOp::Formula("INFO(\"x\")".into()));
+        assert!(wb.style_sensitive().unwrap());
+        wb.restore_cell(0, at("A2"), &snap, RestoreStyle::Snapshot).unwrap();
+        assert_eq!(wb.style_sensitive, None, "presence differs");
+        // a formula goes away
+        let snap = wb.snapshot_cell(0, at("C1")).unwrap();
+        write(&mut wb, "C1", CellOp::Number("1".into()));
+        assert!(!wb.style_sensitive().unwrap());
+        wb.restore_cell(0, at("C1"), &snap, RestoreStyle::Snapshot).unwrap();
+        assert_eq!(wb.style_sensitive, None);
+    }
+
+    /// A refused write leaves the registry inactive, as a workbook that never
+    /// saw the call: the count of `t="s"` cells must not depend on refused
+    /// calls (a replay does not repeat them).
+    #[test]
+    fn a_refused_write_does_not_activate_the_registry() {
+        use crate::worksheet::CellWrite;
+        let sheet = format!("{HEAD}{}{TAIL}", r#"<row r="1"><c r="A1" t="s"><v>0</v></c></row>"#);
+        let sst = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="5" uniqueCount="1"><si><t>zero</t></si></sst>"#;
+        let mut pkg = Package::from_bytes(TEMPLATE).unwrap();
+        pkg.set_part(PART, sheet.into_bytes()).unwrap();
+        pkg.set_part(SST, sst.as_bytes().to_vec()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        // the plan of the string cell activates, the NaN is refused after it
+        let r = wb.worksheet().unwrap().write_cells(&[(at("B1"), CellWrite::String("x")), (at("C1"), CellWrite::Number(f64::NAN))]);
+        assert!(r.is_err());
+        assert!(wb.registries.strings.is_none(), "write_cells");
+        // an accepted write activates, and a later refusal keeps it
+        wb.worksheet().unwrap().write_cells(&[(at("B1"), CellWrite::String("x"))]).unwrap();
+        assert!(wb.registries.strings.is_some());
+        let r = wb.worksheet().unwrap().write_cells(&[(at("C1"), CellWrite::Number(f64::NAN))]);
+        assert!(r.is_err());
+        assert!(wb.registries.strings.is_some(), "an active registry stays");
     }
 }
