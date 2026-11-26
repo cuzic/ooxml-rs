@@ -500,6 +500,11 @@ impl Workbook {
         // ---- strip plan ----
         let strip = match self.policy {
             CalcPolicy::StripDependentCaches => self.plan_strip(&deps, &written)?,
+            CalcPolicy::KeepStaleCaches if self.validate_strips => {
+                // validity only: the strip itself is deferred (the Journal's)
+                self.plan_strip(&deps, &written)?;
+                StripPlan::default()
+            }
             CalcPolicy::KeepStaleCaches => StripPlan::default(),
         };
 

@@ -70,6 +70,7 @@ mod comments;
 pub use comments::{Comment, Note, Person, PersonId};
 pub use images::{Anchor, CellImage, EditAs, Image, ImageInfo, ImageMedia, Marker, Size};
 mod index;
+mod journal;
 mod layout;
 mod locations;
 mod protect;
