@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d3a34f09f1017b2d3a6bfdf5cd37b87e9e3108858e5a0f00b954b6724f60ab3c # shrinks to case = Case { fx: OutOfOrder, ops: [Style(Hot(0), Font(false)), Content(Hot(0), Revert), Style(Hot(0), Font(false)), Content(Hot(0), Revert), Content(Hot(0), Revert), Content(Hot(0), Revert), Content(Hot(0), Revert), Style(Sheet2(0, 1), Font(false)), Content(Sheet2(0, 1), Revert)] }

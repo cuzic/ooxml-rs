@@ -114,7 +114,7 @@ fn r2_missing_cell_stays_present() {
 
 #[test]
 fn r2_handoff_target_tracked() {
-    let mut p = run(&group_workbook("A1:H6"), [num("D2", 1.0)]);
+    let p = run(&group_workbook("A1:H6"), [num("D2", 1.0)]);
     let (d2, c2) = (p.j.cell_key(0, at("D2")), p.j.cell_key(0, at("C2")));
     let changed = p.j.changed_cells();
     assert!(

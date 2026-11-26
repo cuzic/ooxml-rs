@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use proptest::prelude::*;
 
-use super::fixtures::{group_workbook, oracle_workbook};
+use super::fixtures::{group_workbook, oracle_workbook, out_of_order_dependent_workbook};
 use super::*;
 use crate::journal::op::{OpKind, WriteValue};
 use crate::journal::project::{self, BaseCell, Val as PVal};
@@ -16,6 +16,8 @@ use crate::journal::project::{self, BaseCell, Val as PVal};
 enum Fx {
     Oracle(&'static str),
     Group,
+    /// `Sheet2` depends on `Sheet1!A1` and has its rows out of order.
+    OutOfOrder,
 }
 
 impl Fx {
@@ -23,14 +25,16 @@ impl Fx {
         match self {
             Fx::Oracle(dim) => oracle_workbook(dim),
             Fx::Group => group_workbook("A1:H6"),
+            Fx::OutOfOrder => out_of_order_dependent_workbook(),
         }
     }
 
     /// Cells that keys repeat on, `Sheet1`.
     fn hot(self) -> &'static [&'static str] {
         match self {
-            Fx::Oracle(_) => &["B5", "C3", "C1", "A3", "D7", "B6", "C4", "D1"],
+            Fx::Oracle(_) => &["B5", "C3", "C1", "A3", "D7", "B6", "C4", "D1", "D2"],
             Fx::Group => &["C2", "D2", "E3", "C3", "G2", "G3", "A2"],
+            Fx::OutOfOrder => &["A1", "A1", "B1", "A2"],
         }
     }
 }
@@ -100,7 +104,7 @@ struct Case {
 
 fn where_s() -> impl Strategy<Value = Where> {
     prop_oneof![
-        40 => (0usize..8).prop_map(Where::Hot),
+        40 => (0usize..9).prop_map(Where::Hot),
         15 => (0u32..7, 0u32..8).prop_map(|(r, c)| Where::Grid(r, c)),
         10 => (0u32..2, 0u32..2).prop_map(|(r, c)| Where::Sheet2(r, c)),
         35 => (0usize..64).prop_map(Where::Earlier),
@@ -167,6 +171,7 @@ fn case_s() -> impl Strategy<Value = Case> {
         1 => Just(Fx::Oracle("A1:A2")),
         1 => Just(Fx::Oracle("A1")),
         3 => Just(Fx::Group),
+        1 => Just(Fx::OutOfOrder),
     ];
     (fx, prop::collection::vec(op_s(), 1..=32)).prop_map(|(fx, ops)| Case { fx, ops })
 }
@@ -200,7 +205,12 @@ impl Resolver {
                 (0, at(hot[i % hot.len()]))
             }
             Where::Grid(r, c) => (0, CellIndex { row: *r, col: *c }),
-            Where::Sheet2(r, c) => (1, CellIndex { row: *r, col: *c }),
+            // ops on the out-of-order sheet itself are a different question
+            // (C2's snapshot reads its index, a no-op write does not)
+            Where::Sheet2(r, c) if !matches!(self.fx, Fx::OutOfOrder) => {
+                (1, CellIndex { row: *r, col: *c })
+            }
+            Where::Sheet2(r, c) => (0, CellIndex { row: *r, col: *c }),
             Where::Earlier(i) if !self.targets.is_empty() => self.targets[i % self.targets.len()],
             Where::Earlier(_) => (0, at(self.fx.hot()[0])),
         };
@@ -209,6 +219,11 @@ impl Resolver {
     }
 
     fn revert(&self, p: (usize, CellIndex)) -> CellCall {
+        // the oracle fixture's one inline string cell, so an inline snapshot
+        // can come back (a full restore on `t="inlineStr"`)
+        if matches!(self.fx, Fx::Oracle(_)) && p == (0, at("D2")) {
+            return CellCall::StringInline("il".into());
+        }
         match self.base.get(&p) {
             None => CellCall::RemoveFormula,
             Some(BaseCell {
@@ -385,6 +400,8 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
         ..Config::default()
     });
     let (mut ok, mut refused, mut families) = (0, 0, std::collections::HashSet::new());
+    let mut full: HashMap<&'static str, u32> = HashMap::new();
+    let mut content = 0;
     for _ in 0..200 {
         let case = case_s().new_tree(&mut runner).unwrap().current();
         let mut r = Resolver::new(case.fx);
@@ -396,7 +413,19 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
                 Err(_) => refused += 1,
             }
         }
+        for (k, n) in &p.j.stats().full {
+            *full.entry(k).or_default() += n;
+        }
+        content += p.j.stats().content;
     }
+    // R2 is actually exercised: full restores on every string kind and on
+    // formulas, and content-only restores
+    let n = |k: &str| full.get(k).copied().unwrap_or(0);
+    assert!(
+        n("value") >= 10 && n("formula") >= 10 && n("shared") >= 3 && n("inline") >= 1,
+        "full restores {full:?}"
+    );
+    assert!(content >= 10, "content restores {content}");
     assert_eq!(families.len(), 5);
     assert!(ok > 1000 && refused > 100, "ok {ok}, refused {refused}");
 }

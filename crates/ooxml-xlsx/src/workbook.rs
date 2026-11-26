@@ -195,6 +195,10 @@ pub struct Workbook {
     pub(crate) calc: CalcState,
     pub(crate) calc_chain: Option<String>,
     pub(crate) policy: CalcPolicy,
+    /// Under `KeepStaleCaches`, still run the strip plan (and drop it), so
+    /// the refusals the strip can raise match `StripDependentCaches`. Only
+    /// the Journal's shadow sets it; the public policy is unchanged.
+    pub(crate) validate_strips: bool,
     pub(crate) poisoned: Option<String>,
     /// Phase2 registries (ADR-0006), activated by the first write that
     /// needs them.
@@ -264,6 +268,7 @@ impl Workbook {
             calc: l.calc,
             calc_chain: l.calc_chain,
             policy: CalcPolicy::default(),
+            validate_strips: false,
             poisoned: None,
             registries: Default::default(),
             style_sensitive: None,

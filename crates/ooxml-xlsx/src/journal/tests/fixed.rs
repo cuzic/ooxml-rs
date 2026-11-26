@@ -1,7 +1,7 @@
 //! Oracle 1's keyed, pre-save fixed cases (the task's §5.5). Each runs
 //! the per-op assertions after every op; cache claims are J1's.
 
-use super::fixtures::{group_workbook, oracle_workbook};
+use super::fixtures::{group_workbook, oracle_workbook, out_of_order_dependent_workbook};
 use super::*;
 use crate::census::FKind;
 use crate::journal::op::{Api, CellCall, OpKind, WriteValue};
@@ -229,4 +229,31 @@ fn fixed_20_p1_and_p2_are_unsupported_and_change_nothing() {
     // a Base xf is fine
     p.step(c1("A2", CellCall::StyleIndex(3))).unwrap();
     p.finish();
+}
+
+#[test]
+fn fixed_21_m1_a_dependent_sheet_the_strip_refuses_is_refused_by_the_journal_too() {
+    let base = out_of_order_dependent_workbook();
+    assert!(
+        Workbook::from_bytes(base.clone())
+            .unwrap()
+            .edit_refusal()
+            .is_none()
+    );
+    let mut p = Pair::new(&base);
+    let r = p.step(num("A1", 5.0));
+    assert!(matches!(r, Err(Error::OutOfOrder(_))), "{r:?}");
+    assert_eq!(p.j.log().len(), 0);
+    // a style-only op on the same cell strips nothing, so both accept it
+    p.step(c1("A1", CellCall::Font(italic()))).unwrap();
+    p.finish();
+}
+
+#[test]
+fn fixed_22_m1_bare_keep_stale_caches_still_does_not_look_at_the_strip() {
+    let base = out_of_order_dependent_workbook();
+    let mut wb = Workbook::from_bytes(base).unwrap();
+    wb.set_calc_policy(crate::CalcPolicy::KeepStaleCaches);
+    let r = crate::journal::op::apply_seq(&mut wb, &num("A1", 5.0));
+    assert!(r.is_ok(), "the public policy is unchanged: {r:?}");
 }

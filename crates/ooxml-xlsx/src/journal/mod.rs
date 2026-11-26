@@ -81,6 +81,16 @@ pub(crate) struct Journal {
     keys: HashMap<Key, Vec<u64>>,
     tracked: BTreeMap<CellKey, Tracked>,
     broken: bool,
+    #[cfg(test)]
+    stats: RestoreStats,
+}
+
+/// R2's restores by kind of the snapshot's content (test coverage only).
+#[cfg(test)]
+#[derive(Debug, Default, Clone)]
+pub(crate) struct RestoreStats {
+    pub(crate) full: HashMap<&'static str, u32>,
+    pub(crate) content: u32,
 }
 
 /// A cell the op touches: where, and whether the op names it (a hand-off's
@@ -95,21 +105,34 @@ impl Journal {
         let base: Arc<[u8]> = base.into();
         let mut shadow = Workbook::from_bytes(base.clone())?;
         shadow.set_calc_policy(CalcPolicy::KeepStaleCaches);
-        let base_xf_count = shadow.cell_format_count().unwrap_or(0);
+        // the strip is deferred (C3's), its refusals are not: ADR §4.5
+        shadow.validate_strips = true;
+        let base_xf_count = shadow.cell_format_count()?;
         let sheets = sheet_ids(&mut shadow)?;
+        // identity vectors for every sheet, so a refused op creates nothing
+        let rows = sheets
+            .iter()
+            .map(|s| (*s, AxisVec::base(MAX_ROWS)))
+            .collect();
+        let cols = sheets
+            .iter()
+            .map(|s| (*s, AxisVec::base(MAX_COLS)))
+            .collect();
         Ok(Journal {
             base,
             shadow,
             base_xf_count,
             sheets,
-            rows: HashMap::new(),
-            cols: HashMap::new(),
+            rows,
+            cols,
             ids: IdCounter::new(),
             log: Vec::new(),
             next_seq: 1,
             keys: HashMap::new(),
             tracked: BTreeMap::new(),
             broken: false,
+            #[cfg(test)]
+            stats: RestoreStats::default(),
         })
     }
 
@@ -135,18 +158,10 @@ impl Journal {
     }
 
     /// The cell's key, through the id vectors.
-    pub(crate) fn cell_key(&mut self, sheet: usize, at: CellIndex) -> CellKey {
+    pub(crate) fn cell_key(&self, sheet: usize, at: CellIndex) -> CellKey {
         let sid = self.sheets[sheet];
-        let row = self
-            .rows
-            .entry(sid)
-            .or_insert_with(|| AxisVec::base(MAX_ROWS))
-            .id_at(at.row);
-        let col = self
-            .cols
-            .entry(sid)
-            .or_insert_with(|| AxisVec::base(MAX_COLS))
-            .id_at(at.col);
+        let row = self.rows[&sid].id_at(at.row);
+        let col = self.cols[&sid].id_at(at.col);
         CellKey {
             sheet: sid,
             row,
@@ -171,7 +186,7 @@ impl Journal {
                 call: CellCall::StyleIndex(i),
                 ..
             } => {
-                let now = self.shadow.cell_format_count().unwrap_or(0);
+                let now = self.shadow.cell_format_count().map_err(JournalError::Op)?;
                 if self.base_xf_count <= *i && *i < now {
                     return Err(JournalError::Unsupported {
                         op: "set_style_index(session xf)",
@@ -268,9 +283,13 @@ impl Journal {
             op,
         });
         // R2
+        let content_written = match &input.kind {
+            OpKind::Cell { call, .. } => writes_content(call),
+            _ => true,
+        };
         for t in &targets {
             let key = self.cell_key(input.sheet, t.at);
-            self.write_back(input.sheet, t.at, key, seq)?;
+            self.write_back(input.sheet, t.at, key, seq, content_written)?;
         }
         Ok(seq)
     }
@@ -283,6 +302,7 @@ impl Journal {
         at: CellIndex,
         key: CellKey,
         seq: u64,
+        content_written: bool,
     ) -> std::result::Result<(), JournalError> {
         let internal = |source| JournalError::Internal { seq, source };
         let cur = self
@@ -301,6 +321,14 @@ impl Journal {
         let r = if cur == t.state {
             t.differs = false;
             if cur.present || t.state.present {
+                #[cfg(test)]
+                {
+                    *self
+                        .stats
+                        .full
+                        .entry(content_kind(&t.state.content))
+                        .or_default() += 1;
+                }
                 self.shadow
                     .restore_cell(sheet, at, &t.snap, RestoreStyle::Snapshot)
             } else {
@@ -308,8 +336,19 @@ impl Journal {
             }
         } else if cur.present && t.state.present && cur.content == t.state.content {
             t.differs = true;
-            self.shadow
-                .restore_cell(sheet, at, &t.snap, RestoreStyle::Current)
+            if content_written {
+                #[cfg(test)]
+                {
+                    self.stats.content += 1;
+                }
+                self.shadow
+                    .restore_cell(sheet, at, &t.snap, RestoreStyle::Current)
+            } else {
+                // a style-only op leaves the content as the previous R2 (or
+                // the first touch) left it, which is the snapshot's: nothing
+                // to restore (review of PR 159, OQ1 (b))
+                Ok(())
+            }
         } else {
             t.differs = true;
             Ok(())
@@ -426,7 +465,23 @@ fn sheet_ids(wb: &mut Workbook) -> Result<Vec<SheetId>> {
 }
 
 #[cfg(test)]
+fn content_kind(c: &state::Content) -> &'static str {
+    use state::Content;
+    match c {
+        Content::Empty => "empty",
+        Content::Value { .. } => "value",
+        Content::Shared(_) => "shared",
+        Content::Inline(_) => "inline",
+        Content::Formula { .. } => "formula",
+    }
+}
+
+#[cfg(test)]
 impl Journal {
+    pub(crate) fn stats(&self) -> &RestoreStats {
+        &self.stats
+    }
+
     pub(crate) fn changed_cells(&self) -> Vec<CellKey> {
         self.tracked
             .iter()

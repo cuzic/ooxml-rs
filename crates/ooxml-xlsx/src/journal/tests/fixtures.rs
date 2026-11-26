@@ -120,7 +120,7 @@ pub(crate) fn package(
 /// | | A | B (`col/@style` = 1, bold) | C | D |
 /// |---|---|---|---|---|
 /// | 1 | 1 | "x" | `=A1*2` (2) | rich "ab" (bold) + "c" (`t="s"`, `si` 2) |
-/// | 2 | 2 | | `=SUM(A1:A3)` (6) | |
+/// | 2 | 2 | | `=SUM(A1:A3)` (6) | inline "il" |
 /// | 3 | 3 (`s=1` bold) | | 7 | |
 /// | 4 | TRUE | "m" (merge `B4:C4`) | | |
 /// | 5 | `=1+1` (2) | | | |
@@ -130,13 +130,30 @@ pub(crate) fn package(
 /// fill, 3 numFmt 14. A calcChain lists the four formulas.
 pub(crate) fn oracle_workbook(dim: &str) -> Vec<u8> {
     let s1 = format!(
-        r#"<dimension ref="{dim}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="2" max="2" width="10" style="1" customWidth="1"/></cols><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1" t="s"><v>0</v></c><c r="C1"><f>A1*2</f><v>2</v></c><c r="D1" t="s"><v>2</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="C2"><f>SUM(A1:A3)</f><v>6</v></c></row><row r="3"><c r="A3" s="1"><v>3</v></c><c r="C3"><v>7</v></c></row><row r="4"><c r="A4" t="b"><v>1</v></c><c r="B4" t="s"><v>1</v></c></row><row r="5"><c r="A5"><f>1+1</f><v>2</v></c></row><row r="6" s="2" customFormat="1"/></sheetData><mergeCells count="1"><mergeCell ref="B4:C4"/></mergeCells>"#
+        r#"<dimension ref="{dim}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="2" max="2" width="10" style="1" customWidth="1"/></cols><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1" t="s"><v>0</v></c><c r="C1"><f>A1*2</f><v>2</v></c><c r="D1" t="s"><v>2</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="C2"><f>SUM(A1:A3)</f><v>6</v></c><c r="D2" t="inlineStr"><is><t>il</t></is></c></row><row r="3"><c r="A3" s="1"><v>3</v></c><c r="C3"><v>7</v></c></row><row r="4"><c r="A4" t="b"><v>1</v></c><c r="B4" t="s"><v>1</v></c></row><row r="5"><c r="A5"><f>1+1</f><v>2</v></c></row><row r="6" s="2" customFormat="1"/></sheetData><mergeCells count="1"><mergeCell ref="B4:C4"/></mergeCells>"#
     );
     let s2 = r#"<dimension ref="A1"/><sheetData><row r="1"><c r="A1"><f>Sheet1!A1+1</f><v>2</v></c></row></sheetData>"#.to_owned();
     package(
         &[("Sheet1", s1), ("Sheet2", s2)],
         &[plain("x"), plain("m"), rich()],
         Some(r#"<c r="C1" i="1"/><c r="C2"/><c r="A5"/><c r="A1" i="2"/>"#),
+        &custom_styles(false),
+    )
+}
+
+/// A workbook whose `Sheet2` depends on `Sheet1!A1` but has its rows out of
+/// order: `edit_refusal()` is `None`, and the strip of that dependent's cache
+/// is refused (`OutOfOrder`), so a write to `Sheet1!A1` is refused under the
+/// default policy (PR 159 review, M1).
+pub(crate) fn out_of_order_dependent_workbook() -> Vec<u8> {
+    let s1 =
+        r#"<dimension ref="A1"/><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#
+            .to_owned();
+    let s2 = r#"<dimension ref="A1:A2"/><sheetData><row r="2"><c r="A2"><v>3</v></c></row><row r="1"><c r="A1"><f>Sheet1!A1+1</f><v>2</v></c></row></sheetData>"#.to_owned();
+    package(
+        &[("Sheet1", s1), ("Sheet2", s2)],
+        &[plain("x")],
+        None,
         &custom_styles(false),
     )
 }

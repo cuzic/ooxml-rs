@@ -428,6 +428,10 @@ fn sheet_items(
                     },
                     _ => text,
                 };
+                // J0b: P keeps only `t`/`ref` of the `f` group and drops the cell's
+                // `cm`/`vm` below; J0b resolves them and adds the rest of the `f`
+                // attributes (`ca`, `aca`, ...) with a fixture that has them
+                // (PR 159 review, m3).
                 let kind = match (attr(f, "t"), attr(f, "ref")) {
                     (Some("array"), Some(r)) => FormulaKind::Array(r.to_owned()),
                     (Some("dataTable"), Some(r)) => FormulaKind::DataTable(r.to_owned()),
