@@ -84,6 +84,8 @@ pub(crate) struct BaseCell {
     pub(crate) formula: Option<String>,
     /// A shared-group member or an array/data-table cell.
     pub(crate) group: bool,
+    /// The text is stored inline (`t="inlineStr"`), so a revert writes it inline.
+    pub(crate) inline: bool,
 }
 
 pub(crate) fn project(bytes: &[u8]) -> Model {
@@ -115,6 +117,15 @@ fn drop_children(t: &mut Tree, names: &[&str]) {
         children.retain(|c| {
             el_name(c).is_none_or(|n| !names.contains(&n.rsplit('}').next().unwrap_or(n)))
         });
+    }
+}
+
+/// An attribute's key: the local name, `{ns}local` when it has a namespace.
+fn akey(n: &ooxml_core::XName) -> String {
+    if n.ns().is_empty() {
+        n.local().to_owned()
+    } else {
+        format!("{{{}}}{}", n.ns(), n.local())
     }
 }
 
@@ -195,11 +206,17 @@ impl Styles {
         else {
             panic!("an xf is an element")
         };
-        let id = |attrs: &mut BTreeMap<String, String>, a: &str| {
-            attrs
-                .remove(a)
-                .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(0)
+        // an index that does not parse stays on the xf as the raw attribute
+        // (it is a difference, not a 0)
+        let id = |attrs: &mut BTreeMap<String, String>, a: &str| match attrs
+            .get(a)
+            .map(|v| v.parse::<usize>())
+        {
+            Some(Ok(i)) => {
+                attrs.remove(a);
+                i
+            }
+            _ => 0,
         };
         let num = id(&mut attrs, "numFmtId") as u32;
         attrs.insert(
@@ -577,6 +594,8 @@ struct Resolve<'a> {
 fn cols_model(root: &RawNode, styles: &StyleTable) -> Option<String> {
     let mut per: BTreeMap<u32, BTreeMap<String, String>> = BTreeMap::new();
     let mut odd: Vec<Tree> = Vec::new();
+    // the largest `max` of the valid `col` so far: the next must start after it
+    let mut last = 0u32;
     for cols in root.elements().filter(|e| e.name().local() == "cols") {
         for col in cols.elements().filter(|e| e.name().local() == "col") {
             let num = |a: &'static str| attr(col, a).and_then(|v| v.trim().parse::<u32>().ok());
@@ -584,6 +603,11 @@ fn cols_model(root: &RawNode, styles: &StyleTable) -> Option<String> {
                 odd.push(tree(col));
                 continue;
             };
+            if min == 0 || min > max || max > MAX_COLS || min <= last {
+                odd.push(tree(col));
+                continue;
+            }
+            last = max;
             let map: BTreeMap<String, String> = col
                 .attrs()
                 .iter()
@@ -594,10 +618,10 @@ fn cols_model(root: &RawNode, styles: &StyleTable) -> Option<String> {
                     } else {
                         a.value().to_owned()
                     };
-                    (a.name().local().to_owned(), v)
+                    (akey(a.name()), v)
                 })
                 .collect();
-            for c in min..=max.min(MAX_COLS) {
+            for c in min..=max {
                 per.insert(c, map.clone());
             }
         }
@@ -699,7 +723,7 @@ fn cells_and_rows(
                 } else {
                     a.value().to_owned()
                 };
-                (a.name().local().to_owned(), v)
+                (akey(a.name()), v)
             })
             .collect();
         if !attrs.is_empty() {
@@ -774,7 +798,11 @@ fn cells_and_rows(
                         text: v,
                         runs: None,
                     },
-                    (Some("b"), Some(v)) => Val::Bool(matches!(v.trim(), "1" | "true")),
+                    (Some("b"), Some(v)) => match v.trim() {
+                        "1" | "true" => Val::Bool(true),
+                        "0" | "false" => Val::Bool(false),
+                        _ => raw(v),
+                    },
                     (Some("e"), Some(v)) => Val::Error(v),
                     (None | Some("n"), Some(v)) => match v.trim().parse::<f64>() {
                         Ok(n) => Val::Number(n.to_bits()),
@@ -787,7 +815,7 @@ fn cells_and_rows(
                 .attrs()
                 .iter()
                 .filter(|a| !["r", "s", "t", "cm", "vm"].contains(&a.name().local()))
-                .map(|a| (a.name().local().to_owned(), a.value().to_owned()))
+                .map(|a| (akey(a.name()), a.value().to_owned()))
                 .collect();
             let h1_children: Vec<Tree> = c
                 .elements()
@@ -821,6 +849,7 @@ fn cells_and_rows(
                 sheet,
                 at,
                 group,
+                inline: attr(c, "t") == Some("inlineStr"),
                 value,
                 formula: formula.map(|(t, _, _)| t),
             });
@@ -833,7 +862,7 @@ mod tests {
     use super::*;
     use crate::journal::tests::fixtures::{
         CT_METADATA, Extra, REL_METADATA_TYPE, custom_styles, dapr_block, meta_workbook,
-        meta_workbook_named, metadata_with, package, package_ext, plain, rich,
+        meta_workbook_named, metadata_with, package, package_ext, plain, rich, without_styles,
     };
 
     const SHEET_HEAD: &str = r#"<dimension ref="A1:C3"/><sheetData>"#;
@@ -1113,6 +1142,170 @@ mod tests {
         // a column style is resolved, not compared by index
         let styled = |s: u32| cols_book(&format!(r#"<col min="2" max="2" style="{s}"/>"#));
         ne(&styled(1), &styled(2));
+        // ... and two indices of equal content are equal (m1): a P that compared
+        // the raw index would call these different
+        let dup = |s: u32| {
+            package(
+                &[(
+                    "Sheet1",
+                    sheet_with(
+                        &format!(r#"<col min="2" max="2" style="{s}"/>"#),
+                        r#"<c r="A1"><v>1</v></c>"#,
+                    ),
+                )],
+                &[],
+                None,
+                &custom_styles(true),
+            )
+        };
+        eq(&dup(1), &dup(4));
+        ne(&dup(1), &dup(2));
+        // the same for a row's `s`
+        let row = |s: u32| {
+            package(
+                &[(
+                    "Sheet1",
+                    format!(r#"{SHEET_HEAD}<row r="1" s="{s}" customFormat="1"/></sheetData>"#),
+                )],
+                &[],
+                None,
+                &custom_styles(true),
+            )
+        };
+        eq(&row(1), &row(4));
+        ne(&row(1), &row(2));
+    }
+
+    #[test]
+    fn m2_a_col_excel_would_repair_is_not_normalized_away() {
+        let w = r#"width="10" customWidth="1""#;
+        let ok = cols_book(&format!(
+            r#"<col min="2" max="2" {w}/><col min="3" max="3" width="11" customWidth="1"/><col min="4" max="4" {w}/>"#
+        ));
+        // overlapping: the later wins, which a repair would not keep
+        let overlap = cols_book(&format!(
+            r#"<col min="2" max="4" {w}/><col min="3" max="3" width="11" customWidth="1"/>"#
+        ));
+        ne(&ok, &overlap);
+        eq(&overlap, &overlap);
+        // out of order
+        let ordered = cols_book(&format!(
+            r#"<col min="2" max="2" {w}/><col min="5" max="5" {w}/>"#
+        ));
+        let swapped = cols_book(&format!(
+            r#"<col min="5" max="5" {w}/><col min="2" max="2" {w}/>"#
+        ));
+        ne(&ordered, &swapped);
+        // min > max is not "no column"
+        ne(
+            &cols_book(&format!(r#"<col min="4" max="2" {w}/>"#)),
+            &cols_book(""),
+        );
+        // min = 0 is not column 1 or nothing
+        ne(
+            &cols_book(&format!(r#"<col min="0" max="0" {w}/>"#)),
+            &cols_book(""),
+        );
+        // max past the last column is not cut to it
+        ne(
+            &cols_book(&format!(r#"<col min="16384" max="16384" {w}/>"#)),
+            &cols_book(&format!(r#"<col min="16384" max="16385" {w}/>"#)),
+        );
+    }
+
+    #[test]
+    fn n1_values_that_do_not_parse_are_kept_raw() {
+        let b = |v: &str| {
+            book(&format!(
+                r#"<row r="1"><c r="A1" t="b"><v>{v}</v></c></row>"#
+            ))
+        };
+        eq(&b("1"), &b("true"));
+        eq(&b("0"), &b("false"));
+        ne(&b("0"), &b("2"));
+        ne(&b("2"), &b("3"));
+        // a font index that is not a number is not font 0
+        let font = |id: &str| {
+            let styles = custom_styles(false).replace(
+                r#"<xf numFmtId="0" fontId="1" fillId="0""#,
+                &format!(r#"<xf numFmtId="0" fontId="{id}" fillId="0""#),
+            );
+            package(
+                &[(
+                    "Sheet1",
+                    format!(
+                        r#"{SHEET_HEAD}<row r="1"><c r="A1" s="1"><v>1</v></c></row></sheetData>"#
+                    ),
+                )],
+                &[],
+                None,
+                &styles,
+            )
+        };
+        ne(&font("0"), &font("zz"));
+        ne(&font("yy"), &font("zz"));
+    }
+
+    #[test]
+    fn m9_a_missing_styles_part_allows_only_s_0() {
+        let cell = |s: &str| {
+            without_styles(&package(
+                &[(
+                    "Sheet1",
+                    format!(
+                        r#"{SHEET_HEAD}<row r="1"><c r="A1" s="{s}"><v>1</v></c></row></sheetData>"#
+                    ),
+                )],
+                &[],
+                None,
+                &custom_styles(false),
+            ))
+        };
+        eq(&cell("0"), &cell("0"));
+        let m = project(&cell("0"));
+        assert!(m.0.values().any(|v| v.contains("<no styles>")));
+        assert!(std::panic::catch_unwind(|| project(&cell("1"))).is_err());
+    }
+
+    #[test]
+    fn m9_an_alternate_content_style_table_is_compared_raw() {
+        let styles = format!(
+            r#"{}<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"/>"#,
+            custom_styles(false)
+        );
+        let cell = |s: u32| {
+            package(
+                &[(
+                    "Sheet1",
+                    format!(
+                        r#"{SHEET_HEAD}<row r="1"><c r="A1" s="{s}"><v>1</v></c></row></sheetData>"#
+                    ),
+                )],
+                &[],
+                None,
+                &styles,
+            )
+        };
+        eq(&cell(1), &cell(1));
+        // the raw `s` is the content: 1 and 2 differ
+        ne(&cell(1), &cell(2));
+        // and the table is kept whole in the model: a change in it is seen
+        let other = styles.replace(r#"<sz val="11"/>"#, r#"<sz val="12"/>"#);
+        assert_ne!(styles, other);
+        let with = |st: &str| {
+            package(
+                &[(
+                    "Sheet1",
+                    format!(
+                        r#"{SHEET_HEAD}<row r="1"><c r="A1" s="1"><v>1</v></c></row></sheetData>"#
+                    ),
+                )],
+                &[],
+                None,
+                st,
+            )
+        };
+        ne(&with(&styles), &with(&other));
     }
 
     #[test]

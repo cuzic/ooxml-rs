@@ -211,6 +211,8 @@ fn insert_rows_cost() {
         if shadow {
             wb.set_calc_policy(CalcPolicy::KeepStaleCaches);
             wb.validate_strips = true;
+            // as the Journal's shadow is set (C5)
+            wb.freeze_dimension = true;
         }
         let ms: Vec<f64> = (0..10)
             .map(|_| {
@@ -276,8 +278,25 @@ fn axis_vec_cost() {
                 sink += u64::from(v.index_of(id).expect("a live id"));
             }
         }) / 1_000.0;
+        // the worst case of `index_of` scans every run: the id of the last run,
+        // and one that is not on the axis (never issued, and deleted)
+        let last = v.id_at(v.len() - 1);
+        let dead = v.id_at(1);
+        v.delete(1, 1, &mut ids);
+        let worst = |id: RowId, sink: &mut u64| {
+            let t = micros(|| {
+                for _ in 0..1_000 {
+                    *sink += u64::from(v.index_of(std::hint::black_box(id)).unwrap_or(0));
+                }
+            }) / 1_000.0;
+            (t, v.index_of(id))
+        };
+        let (last_us, last_at) = worst(last, &mut sink);
+        let (dead_us, dead_at) = worst(dead, &mut sink);
+        let (never_us, _) = worst(RowId::New(u64::MAX), &mut sink);
+        assert!(last_at.is_some() && dead_at.is_none());
         println!(
-            "R = {r} ({runs} runs): insert {ins:.2} us, delete {del:.2} us, id_at {id_at:.3} us, index_of {index_of:.2} us (sink {sink})"
+            "R = {r} ({runs} runs): insert {ins:.2} us, delete {del:.2} us, id_at {id_at:.3} us, index_of {index_of:.2} us (random live); worst: last run {last_us:.2} us, dead id {dead_us:.2} us, never issued {never_us:.2} us (sink {sink})"
         );
     }
 }

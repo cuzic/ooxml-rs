@@ -53,6 +53,30 @@ pub(crate) fn package(
     package_ext(sheets, sst, calc_chain, styles, &[])
 }
 
+/// `bytes` without its styles part and the workbook's relationship to it.
+pub(crate) fn without_styles(bytes: &[u8]) -> Vec<u8> {
+    use std::io::Read;
+    let mut z = zip::ZipArchive::new(Cursor::new(bytes)).expect("a package");
+    let mut parts: Vec<(String, String)> = Vec::new();
+    for i in 0..z.len() {
+        let mut f = z.by_index(i).expect("an entry");
+        let name = f.name().expect("a name").into_owned();
+        if name == "xl/styles.xml" {
+            continue;
+        }
+        let mut body = String::new();
+        f.read_to_string(&mut body).expect("text");
+        if name == "xl/_rels/workbook.xml.rels" {
+            let a = body.find(r#"<Relationship Id="rIdS""#).expect("styles rel");
+            let b = a + body[a..].find("/>").expect("end") + 2;
+            body.replace_range(a..b, "");
+        }
+        parts.push((name, body));
+    }
+    let parts: Vec<(&str, String)> = parts.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+    zip(&parts)
+}
+
 /// A part a [`package_ext`] adds, with its content type and its workbook relationship.
 pub(crate) struct Extra<'a> {
     /// The part name, e.g. `xl/metadata.xml`.

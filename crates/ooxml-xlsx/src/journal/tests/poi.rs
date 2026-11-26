@@ -62,8 +62,11 @@ fn cases() -> u32 {
 #[derive(Clone, Debug)]
 enum Where {
     Hot(usize),
-    /// A fraction of the sheet's rows and columns, dimension plus one.
-    Dim(u32, u32),
+    /// Around the sheet's extent: the first number picks a boundary (`0`: the
+    /// last row, `1`: the row after it, `2`: the last column, `3`: the column
+    /// after it; the other coordinate is uniform) or, from `4`, a uniform point
+    /// in the extent plus one; the others are the row and column numbers.
+    Dim(u8, u32, u32),
     Earlier(usize),
 }
 
@@ -134,7 +137,7 @@ fn sh_s() -> impl Strategy<Value = Sh> {
 fn where_s() -> impl Strategy<Value = Where> {
     prop_oneof![
         50 => (0usize..64).prop_map(Where::Hot),
-        20 => (0u32..1000, 0u32..1000).prop_map(|(r, c)| Where::Dim(r, c)),
+        20 => (0u8..8, 0u32..1000, 0u32..1000).prop_map(|(k, r, c)| Where::Dim(k, r, c)),
         30 => (0usize..64).prop_map(Where::Earlier),
     ]
 }
@@ -207,10 +210,24 @@ struct Info {
     others: Vec<usize>,
     /// Up to 12 hot cells per sheet.
     hot: HashMap<usize, Vec<CellIndex>>,
-    /// Per sheet: (rows, columns) of the Base, 0-based maxima.
+    /// Per sheet: (last row, last column), 0-based: the end of the `dimension`
+    /// element when there is one, else the Base's cell maxima.
     extent: HashMap<usize, (u32, u32)>,
     /// `cellXfs` count.
     formats: u32,
+}
+
+/// The last cell of a worksheet part's `dimension/@ref`.
+fn dimension_end(bytes: &[u8], part: &str) -> Option<(u32, u32)> {
+    let mut pkg = Package::from_bytes(bytes.to_vec()).expect("package");
+    let doc = pkg.xml_part(part).ok()?;
+    let d = doc
+        .root()
+        .elements()
+        .find(|e| e.name().local() == "dimension")?;
+    let r = d.attr(ooxml_core::QName::new("", "ref"))?;
+    let end = CellIndex::parse(r.split_once(':').map_or(r, |(_, b)| b)).ok()?;
+    Some((end.row, end.col))
 }
 
 /// The first non-anchor cell of each merge of a worksheet part.
@@ -265,6 +282,13 @@ impl Info {
             let e = extent.entry(sheet).or_default();
             for c in &mine {
                 *e = (e.0.max(c.at.row), e.1.max(c.at.col));
+            }
+            if let Some(d) = wb.sheets[sheet]
+                .part
+                .as_deref()
+                .and_then(|part| dimension_end(bytes, part))
+            {
+                *e = d;
             }
             let rank = |c: &BaseCell| match (&c.value, c.group, c.formula.is_some()) {
                 (_, true, _) => 0,
@@ -332,15 +356,17 @@ impl<'a> Resolver<'a> {
                 Some(h) => (sheet, h[i % h.len()]),
                 None => (sheet, CellIndex { row: 0, col: 0 }),
             },
-            Where::Dim(r, c) => {
+            Where::Dim(k, r, c) => {
                 let (mr, mc) = self.info.extent.get(&sheet).copied().unwrap_or((0, 0));
-                (
-                    sheet,
-                    CellIndex {
-                        row: r % (mr + 2),
-                        col: c % (mc + 2),
-                    },
-                )
+                let (ur, uc) = (r % (mr + 2), c % (mc + 2));
+                let (row, col) = match k {
+                    0 => (mr, uc),
+                    1 => (mr + 1, uc),
+                    2 => (ur, mc),
+                    3 => (ur, mc + 1),
+                    _ => (ur, uc),
+                };
+                (sheet, CellIndex { row, col })
             }
             Where::Earlier(i) if !self.targets.is_empty() => self.targets[i % self.targets.len()],
             Where::Earlier(_) => (sheet, CellIndex { row: 0, col: 0 }),
@@ -349,14 +375,20 @@ impl<'a> Resolver<'a> {
         p
     }
 
+    /// The call that writes the Base's content of `p` back. Approximate for a
+    /// cell with a raw value (`t="d"` and the like) and for a `c` without a
+    /// value: `RemoveFormula` does not clear a value an earlier op wrote. The
+    /// exact revert is `CellCall::ClearValue` (P1), which the Journal refuses
+    /// until J0b-1; the generator should use it then.
     fn revert(&self, p: (usize, CellIndex)) -> CellCall {
         match self.info.base.get(&p) {
             None => CellCall::RemoveFormula,
             Some(BaseCell {
                 formula: Some(t), ..
             }) => CellCall::Formula(t.clone()),
-            Some(BaseCell { value, .. }) => match value {
+            Some(BaseCell { value, inline, .. }) => match value {
                 PVal::Number(bits) => CellCall::Number(f64::from_bits(*bits)),
+                PVal::Str { text, .. } if *inline => CellCall::StringInline(text.clone()),
                 PVal::Str { text, .. } => CellCall::String(text.clone()),
                 PVal::Bool(b) => CellCall::Bool(*b),
                 PVal::Error(e) => CellCall::Error(e.clone()),
@@ -538,6 +570,20 @@ fn sequential_equals_shadow_on_the_poi_fixtures() {
     });
     for (name, (o, r)) in results {
         println!("{name}: {o} ok, {r} refused");
+        // every fixture runs a share of its ops: a guard that refuses all of
+        // them hides in the total. Two fixtures have sheets without `r`, which
+        // an edit refuses (`MissingReference`) nearly always, so they are
+        // exempt (PR 162 review, round 1 m5).
+        let exempt = ["59746_NoRowNums", "InlineString"]
+            .iter()
+            .any(|e| name.contains(e));
+        if !exempt {
+            assert!(
+                o >= cases(),
+                "{name}: only {o} ops accepted ({r} refused) in {} cases",
+                cases()
+            );
+        }
         ok += o;
         refused += r;
     }
@@ -596,6 +642,9 @@ fn meta_fixture_formula_without_ca_differs_from_the_base() {
     let mut p = Pair::new(&base);
     p.step(formula("E5", "A1+0")).expect("set_formula on E5");
     p.finish();
-    // `ca` is gone on both sides alike, and P sees it
-    assert!(first_diff(&project(&base), &project(&p.j.shadow().to_bytes().unwrap())).is_some());
+    // `ca` is gone on both sides alike, and P sees it, on that cell
+    let d = first_diff(&project(&base), &project(&p.j.shadow().to_bytes().unwrap()))
+        .expect("losing ca is a difference");
+    assert!(d.starts_with("xl/worksheets/sheet1.xml/cell/4,4:"), "{d}");
+    assert!(d.contains("ca: true"), "the Base side has ca: {d}");
 }
