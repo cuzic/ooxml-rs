@@ -38,6 +38,7 @@ fn sequential(input: &[u8], sheet: &str, writes: &Batch<'_>) -> Vec<u8> {
                 CellWrite::String(s) => cell.set_string(s),
                 CellWrite::Formula(t) => cell.set_formula(t),
                 CellWrite::RemoveFormula => cell.remove_formula(),
+                CellWrite::ClearValue => cell.clear_value(),
             }
             .unwrap();
         }

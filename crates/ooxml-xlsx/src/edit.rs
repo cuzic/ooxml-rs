@@ -37,6 +37,10 @@ pub(crate) enum CellOp {
     /// cell, keeping its style: `merge_clearing` (ADR-0014 §3). Unlike
     /// `RemoveFormula`, it also applies to a cell without a formula.
     Clear,
+    /// The public `clear_value` (ADR-0024 P1): as `Clear`, but a cell that
+    /// does not exist is left alone (nothing is created), as `RemoveFormula`
+    /// leaves a cell without a formula.
+    ClearValue,
     /// `t="s"` with this shared-string index (Phase2).
     Shared(u32),
     /// `t="b"`.
@@ -418,6 +422,12 @@ impl Workbook {
                 }
                 if matches!(op, CellOp::RemoveFormula) && target.is_none() {
                     continue;
+                }
+                if matches!(op, CellOp::ClearValue) && unshifted {
+                    self.ensure_index(sheet)?;
+                    if self.indexes.get(&sheet).expect("built").locate(&part, at)?.cell.is_none() {
+                        continue;
+                    }
                 }
             }
             if let Some(string) = &mut extra.string {
