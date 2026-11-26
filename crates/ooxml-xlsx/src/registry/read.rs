@@ -136,7 +136,7 @@ pub(crate) fn font_from_node(n: &RawNode) -> Option<Font> {
 }
 
 /// A `fill` entry: a pattern fill (`gradientFill` is outside the model).
-fn fill_from_node(n: &RawNode) -> Result<Fill, String> {
+pub(crate) fn fill_from_node(n: &RawNode) -> Result<Fill, String> {
     let mut kids = n.elements();
     let (Some(pf), None) = (kids.next(), kids.next()) else { return Err("fill".into()) };
     if !pf.is(sml::PatternFill::QNAME) {
@@ -159,7 +159,7 @@ fn fill_from_node(n: &RawNode) -> Result<Fill, String> {
 }
 
 /// A `border` entry.
-fn border_from_node(n: &RawNode) -> Result<Border, String> {
+pub(crate) fn border_from_node(n: &RawNode) -> Result<Border, String> {
     let mut b = Border::default();
     if has_foreign_attrs(n) {
         return Err("border attributes".into());

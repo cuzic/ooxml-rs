@@ -1,12 +1,15 @@
-//! Oracle 10, append cost (the task's §6). Not a gate: it prints numbers.
+//! Oracle 10 (the task's §6; J0b §4.4). Not a gate: it prints numbers.
 //!
 //! `cargo test -p ooxml-xlsx --release --lib journal::tests::measure -- --ignored --nocapture`
-//! with `OOXML_J0_ROWS` (default 10,000) and `OOXML_J0_OPS` (default 2,000).
+//! with `OOXML_J0_ROWS` (default 10,000) and `OOXML_J0_OPS` (default 2,000)
+//! for `append_cost`; `insert_rows_cost` and `axis_vec_cost` take no knobs.
 
 use std::time::Instant;
 
 use super::fixtures::large_workbook;
 use super::*;
+use crate::journal::ids::{AxisVec, IdCounter};
+use crate::reference::MAX_ROWS;
 use crate::workbook::CalcPolicy;
 
 fn env(name: &str, default: u32) -> u32 {
@@ -181,4 +184,119 @@ fn append_cost() {
         "write-back: Journal {jw:.1} us/op, bare KeepStaleCaches {bw:.1} ({:.1}x); open snapshots {snaps}",
         jw / bw
     );
+}
+
+fn median(mut v: Vec<f64>) -> f64 {
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    v[v.len() / 2]
+}
+
+fn profile() -> &'static str {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    }
+}
+
+/// 10 x `insert_rows(0, 1)` on 100,000 rows, on a bare workbook and on one
+/// opened as the shadow is.
+#[test]
+#[ignore = "a measurement, not a gate"]
+fn insert_rows_cost() {
+    println!("profile: {}, 100,000 rows x (A..J + K = A*2)", profile());
+    let base = large_workbook(100_000);
+    for (name, shadow) in [("bare (default policy)", false), ("shadow-like", true)] {
+        let mut wb = Workbook::from_bytes(base.clone()).unwrap();
+        if shadow {
+            wb.set_calc_policy(CalcPolicy::KeepStaleCaches);
+            wb.validate_strips = true;
+            // as the Journal's shadow is set (C5)
+            wb.freeze_dimension = true;
+        }
+        let ms: Vec<f64> = (0..10)
+            .map(|_| {
+                micros(|| {
+                    wb.worksheet_by_index(0)
+                        .unwrap()
+                        .insert_rows(0, 1)
+                        .expect("insert_rows");
+                }) / 1e3
+            })
+            .collect();
+        let each: Vec<String> = ms.iter().map(|m| format!("{m:.1}")).collect();
+        println!(
+            "{name}: insert_rows(0, 1) x10 in ms: [{}]; first {:.1}, last {:.1}, median {:.1}",
+            each.join(", "),
+            ms[0],
+            ms[9],
+            median(ms.clone())
+        );
+    }
+}
+
+/// `AxisVec::<RowId>` costs at R runs.
+#[test]
+#[ignore = "a measurement, not a gate"]
+fn axis_vec_cost() {
+    println!("profile: {}", profile());
+    let mut rng = Rng(0x1234_5678_9ABC_DEF1);
+    for r in [1usize, 1_000, 10_000] {
+        let mut ids = IdCounter::new();
+        let mut v = AxisVec::<RowId>::base(MAX_ROWS);
+        let step = (MAX_ROWS / r as u32).max(2);
+        let mut at = step;
+        while v.run_count() < r && at < MAX_ROWS - 1 {
+            v.insert(at, 1, &mut ids);
+            at += step;
+        }
+        let runs = v.run_count();
+        let ins = micros(|| {
+            for _ in 0..10 {
+                v.insert(0, 1, &mut ids);
+            }
+        }) / 10.0;
+        let del = micros(|| {
+            for _ in 0..10 {
+                v.delete(0, 1, &mut ids);
+            }
+        }) / 10.0;
+        let pos: Vec<u32> = (0..10_000)
+            .map(|_| (rng.next() % u64::from(MAX_ROWS)) as u32)
+            .collect();
+        let mut sink = 0u64;
+        let id_at = micros(|| {
+            for &p in &pos {
+                if let RowId::Base(n) = v.id_at(p) {
+                    sink += u64::from(n);
+                }
+            }
+        }) / 10_000.0;
+        let live: Vec<RowId> = pos[..1_000].iter().map(|&p| v.id_at(p)).collect();
+        let index_of = micros(|| {
+            for &id in &live {
+                sink += u64::from(v.index_of(id).expect("a live id"));
+            }
+        }) / 1_000.0;
+        // the worst case of `index_of` scans every run: the id of the last run,
+        // and one that is not on the axis (never issued, and deleted)
+        let last = v.id_at(v.len() - 1);
+        let dead = v.id_at(1);
+        v.delete(1, 1, &mut ids);
+        let worst = |id: RowId, sink: &mut u64| {
+            let t = micros(|| {
+                for _ in 0..1_000 {
+                    *sink += u64::from(v.index_of(std::hint::black_box(id)).unwrap_or(0));
+                }
+            }) / 1_000.0;
+            (t, v.index_of(id))
+        };
+        let (last_us, last_at) = worst(last, &mut sink);
+        let (dead_us, dead_at) = worst(dead, &mut sink);
+        let (never_us, _) = worst(RowId::New(u64::MAX), &mut sink);
+        assert!(last_at.is_some() && dead_at.is_none());
+        println!(
+            "R = {r} ({runs} runs): insert {ins:.2} us, delete {del:.2} us, id_at {id_at:.3} us, index_of {index_of:.2} us (random live); worst: last run {last_us:.2} us, dead id {dead_us:.2} us, never issued {never_us:.2} us (sink {sink})"
+        );
+    }
 }

@@ -166,6 +166,81 @@ pub(crate) enum StyleRequest {
     /// The cell's current `xf` if its number format is a date or time
     /// format, else that `xf` with built-in 14 (ADR-0006 §6).
     EnsureDate,
+    /// An `xf` given by its content (components by value or by `Base`
+    /// index), not by a session index.
+    #[cfg_attr(not(test), allow(dead_code))] // the edit journal's replay is the first caller
+    Xf(Box<XfContent>),
+}
+
+/// The sizes of the style tables when the workbook was opened: entries below
+/// them are the file's own (never renumbered), entries at or above them were
+/// appended by this session.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) struct BaseStyleCounts {
+    pub(crate) fonts: u32,
+    pub(crate) fills: u32,
+    pub(crate) borders: u32,
+    pub(crate) cell_xfs: u32,
+    /// The first `numFmtId` a session may create.
+    pub(crate) first_session_numfmt: u32,
+}
+
+/// A font, fill or border of an `xf`: the file's own entry by index, or a
+/// session entry by value.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Part<T> {
+    Base(u32),
+    Session(T),
+}
+
+/// The number format of an `xf`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum NumFmtRef {
+    /// A built-in id, or a custom id the file already had.
+    Id(u32),
+    /// A custom code appended by this session.
+    Code(String),
+}
+
+/// A `cellXfs` entry by content: stable across sessions that append
+/// different entries before it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct XfContent {
+    /// Every `xf` attribute except `numFmtId`, `fontId`, `fillId` and
+    /// `borderId`, verbatim, sorted by name.
+    pub(crate) attrs: Vec<(String, String)>,
+    pub(crate) num_fmt: NumFmtRef,
+    pub(crate) font: Part<Font>,
+    pub(crate) fill: Part<Fill>,
+    pub(crate) border: Part<Border>,
+    /// The `alignment` attributes, sorted by name.
+    pub(crate) alignment: Option<Vec<(String, String)>>,
+    /// The `protection` attributes, sorted by name.
+    pub(crate) protection: Option<Vec<(String, String)>>,
+}
+
+const XF_ID_ATTRS: [&str; 4] = ["numFmtId", "fontId", "fillId", "borderId"];
+
+/// The identity of an `xf` for reuse: its ids (an absent id is 0), the other
+/// attributes and the two children, each sorted by name.
+type XfKey = ([u32; 4], Vec<(String, String)>, Option<Vec<(String, String)>>, Option<Vec<(String, String)>>);
+
+fn xf_key(x: &XfInfo) -> Option<XfKey> {
+    let mut ids = [0u32; 4];
+    for (slot, k) in ids.iter_mut().zip(XF_ID_ATTRS) {
+        if let Some(v) = x.get(k) {
+            *slot = v.trim().parse().ok()?;
+        }
+    }
+    let sorted = |v: &Vec<(String, String)>| {
+        let mut v = v.clone();
+        v.sort();
+        v
+    };
+    let mut attrs: Vec<_> = x.attrs.iter().filter(|(k, _)| !XF_ID_ATTRS.contains(&k.as_str())).cloned().collect();
+    attrs.sort();
+    Some((ids, attrs, x.alignment.as_ref().map(sorted), x.protection.as_ref().map(sorted)))
 }
 
 fn table_node<'d>(root: &'d RawNode, local: &str) -> Option<&'d RawNode> {
@@ -496,6 +571,7 @@ impl Styles {
                 *n
             }
             StyleRequest::Format(f) => p.format(wb, f)?,
+            StyleRequest::Xf(c) => p.content(wb, c)?,
             StyleRequest::Named(name) => p.named(wb, name, current)?,
             StyleRequest::NumFormatOnly(nf) => p.derive(wb, &Group::NumFormat(nf), current)?,
             StyleRequest::FontOnly(f) => p.derive(wb, &Group::Font(f), current)?,
@@ -969,6 +1045,189 @@ impl Planner {
         spec.set(apply, "1");
         self.xf(wb, spec)
     }
+
+    /// The index of a file-own entry of table `w`. Known gap: `index` is
+    /// checked against the current table length, which includes the session's
+    /// appended entries, not against the Base count; `xf_content` never
+    /// produces such an index.
+    fn base_ref(&self, w: Which, index: u32) -> Result<u32> {
+        let t = self.next.table(w);
+        t.require_stable()?;
+        if index >= t.count {
+            return Err(Error::DanglingReference { table: w.name().into(), index });
+        }
+        Ok(index)
+    }
+
+    /// An `xf` by content ([`XfContent`]): file-own components by index,
+    /// session components reused or appended by value, then the `xf` itself
+    /// reused (an existing entry with the same content, lowest index) or
+    /// appended. Attributes are written in schema order.
+    fn content(&mut self, wb: &mut Workbook, c: &XfContent) -> Result<u32> {
+        self.next.table(Which::CellXfs).require_stable()?;
+        let probe = |f: Format| f.validate();
+        let num = match &c.num_fmt {
+            NumFmtRef::Id(i) => *i,
+            NumFmtRef::Code(code) => self.num_fmt_id(wb, &NumFormat::Code(code.clone()))?,
+        };
+        let font = match &c.font {
+            Part::Base(i) => self.base_ref(Which::Fonts, *i)?,
+            Part::Session(f) => {
+                probe(Format { font: Some(f.clone()), ..Format::default() })?;
+                self.ensure_reserved(wb, Which::Fonts)?;
+                self.entry::<sml::Fonts>(wb, Which::Fonts, &|p| build_font(p, f))?
+            }
+        };
+        let fill = match &c.fill {
+            Part::Base(i) => self.base_ref(Which::Fills, *i)?,
+            Part::Session(f) => {
+                probe(Format { fill: Some(f.clone()), ..Format::default() })?;
+                self.ensure_reserved(wb, Which::Fills)?;
+                self.entry::<sml::Fills>(wb, Which::Fills, &|p| build_fill(p, f))?
+            }
+        };
+        let border = match &c.border {
+            Part::Base(i) => self.base_ref(Which::Borders, *i)?,
+            Part::Session(b) => {
+                probe(Format { border: Some(b.clone()), ..Format::default() })?;
+                self.ensure_reserved(wb, Which::Borders)?;
+                self.entry::<sml::Borders>(wb, Which::Borders, &|p| build_border(p, b))?
+            }
+        };
+        let mut spec = XfInfo::default();
+        for k in XF_ATTRS {
+            let v = match *k {
+                "numFmtId" => num.to_string(),
+                "fontId" => font.to_string(),
+                "fillId" => fill.to_string(),
+                "borderId" => border.to_string(),
+                other => match c.attrs.iter().find(|(n, _)| n == other) {
+                    Some((_, v)) => v.clone(),
+                    None => continue,
+                },
+            };
+            spec.attrs.push(((*k).to_owned(), v));
+        }
+        if let Some((k, _)) = c.attrs.iter().find(|(k, _)| known(XF_ATTRS, k).is_none() || XF_ID_ATTRS.contains(&k.as_str())) {
+            return Err(Error::Malformed(format!("xf attribute {k}")));
+        }
+        let ordered = |v: &Vec<(String, String)>, set: &'static [&'static str]| {
+            let mut v = v.clone();
+            v.sort_by_key(|(k, _)| set.iter().position(|n| n == k).unwrap_or(usize::MAX));
+            v
+        };
+        spec.alignment = c.alignment.as_ref().map(|a| ordered(a, ALIGNMENT_ATTRS));
+        spec.protection = c.protection.as_ref().map(|a| ordered(a, PROTECTION_ATTRS));
+        self.ensure_reserved(wb, Which::CellXfs)?;
+        let want = xf_key(&spec);
+        if want.is_some()
+            && let Some(i) = self.next.xfs.iter().position(|x| x.as_ref().is_some_and(|x| !x.opaque && xf_key(x) == want))
+        {
+            return Ok(i as u32);
+        }
+        self.xf(wb, spec)
+    }
+}
+
+// ------------------------------------------------------------ xf by content
+
+impl Workbook {
+    /// The style table sizes now. Call it at open, before any style edit
+    /// (later it would count the session's own entries as the file's), and
+    /// again after every successful Commit (ADR section 10.1): the session
+    /// entries that survive a save become Base entries of the new file, and a
+    /// stale count would read them back as `Session` values. The Journal keeps
+    /// the counts together with its Base.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn base_style_counts(&mut self) -> Result<BaseStyleCounts> {
+        let st = self.styles()?;
+        Ok(BaseStyleCounts {
+            fonts: st.table(Which::Fonts).count,
+            fills: st.table(Which::Fills).count,
+            borders: st.table(Which::Borders).count,
+            cell_xfs: st.table(Which::CellXfs).count,
+            first_session_numfmt: st.next_numfmt,
+        })
+    }
+
+    /// `cellXfs[index]` as content. [`Error::NotExpressible`] for an `xf`
+    /// with extension content or an `mc:AlternateContent` entry, a style
+    /// table with `mc:AlternateContent`, a number format without a code, or a
+    /// session font, fill or border that cannot be read back as a value.
+    /// A reference past the end of a table (a dangling `fontId`, `fillId` or
+    /// `borderId` in the file, or one derived from it) is refused with
+    /// [`Error::DanglingReference`], even though the sequential API accepts it.
+    /// Changes nothing.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn xf_content(&mut self, index: u32, base: &BaseStyleCounts) -> Result<XfContent> {
+        self.styles()?;
+        let st = self.registries.styles.as_ref().expect("active");
+        for w in [Which::NumFmts, Which::Fonts, Which::Fills, Which::Borders, Which::CellXfs] {
+            let t = st.table(w);
+            if t.has_ac {
+                return Err(Error::NotExpressible(format!("{} has mc:AlternateContent", w.name())));
+            }
+            t.require_stable()?;
+        }
+        let count = st.table(Which::CellXfs).count;
+        if index >= count {
+            return Err(Error::DanglingReference { table: "cellXfs".into(), index });
+        }
+        let xf = st
+            .xfs
+            .get(index as usize)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| Error::NotExpressible(format!("cellXfs[{index}] is an mc:AlternateContent entry")))?;
+        if xf.opaque {
+            return Err(Error::NotExpressible(format!("cellXfs[{index}] has content the registry does not model")));
+        }
+        let id = |k: &str| -> Result<u32> {
+            match xf.get(k) {
+                None => Ok(0),
+                Some(v) => v.trim().parse().map_err(|_| Error::NotExpressible(format!("cellXfs[{index}]/@{k} = {v:?}"))),
+            }
+        };
+        let (num, font, fill, border) = (id("numFmtId")?, id("fontId")?, id("fillId")?, id("borderId")?);
+        let num_fmt = if num >= base.first_session_numfmt {
+            NumFmtRef::Code(st.codes.get(&num).cloned().ok_or_else(|| Error::NotExpressible(format!("numFmtId {num} has no format code")))?)
+        } else {
+            NumFmtRef::Id(num)
+        };
+        let part = st.part.clone();
+        let mut attrs: Vec<_> = xf.attrs.iter().filter(|(k, _)| !XF_ID_ATTRS.contains(&k.as_str())).cloned().collect();
+        attrs.sort();
+        let sorted = |v: &Option<Vec<(String, String)>>| {
+            v.clone().map(|mut v| {
+                v.sort();
+                v
+            })
+        };
+        let (alignment, protection) = (sorted(&xf.alignment), sorted(&xf.protection));
+        let doc = self.pkg.xml_part(&part)?;
+        let node = |local: &str, i: u32| -> Result<&RawNode> {
+            table_node(doc.root(), local)
+                .and_then(|t| t.elements().nth(i as usize))
+                .ok_or_else(|| Error::DanglingReference { table: local.into(), index: i })
+        };
+        let unreadable = |what: &str, i: u32| Error::NotExpressible(format!("session {what}[{i}] cannot be read back as a value"));
+        let font = if font < base.fonts {
+            Part::Base(font)
+        } else {
+            Part::Session(super::read::font_from_node(node("fonts", font)?).ok_or_else(|| unreadable("fonts", font))?)
+        };
+        let fill = if fill < base.fills {
+            Part::Base(fill)
+        } else {
+            Part::Session(super::read::fill_from_node(node("fills", fill)?).map_err(|_| unreadable("fills", fill))?)
+        };
+        let border = if border < base.borders {
+            Part::Base(border)
+        } else {
+            Part::Session(super::read::border_from_node(node("borders", border)?).map_err(|_| unreadable("borders", border))?)
+        };
+        Ok(XfContent { attrs, num_fmt, font, fill, border, alignment, protection })
+    }
 }
 
 // ------------------------------------------------------------ builders
@@ -1225,4 +1484,323 @@ const PROTECTION_ATTRS: &[&str] = &["locked", "hidden"];
 
 fn known(set: &'static [&'static str], k: &str) -> Option<&'static str> {
     set.iter().copied().find(|n| *n == k)
+}
+
+#[cfg(test)]
+mod xf_content_tests {
+    use std::io::{Cursor, Write};
+
+    use super::*;
+    use crate::reference::CellIndex;
+    use crate::{Color, ExcelDateTime};
+
+    const NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    /// A one-sheet package around a `styleSheet` body.
+    fn package(styles: &str) -> Vec<u8> {
+        let decl = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#;
+        let parts: Vec<(&str, String)> = vec![
+            ("[Content_Types].xml", format!(r#"{decl}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"#)),
+            ("_rels/.rels", format!(r#"{decl}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#)),
+            ("xl/workbook.xml", format!(r#"{decl}<workbook xmlns="{NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>"#)),
+            ("xl/_rels/workbook.xml.rels", format!(r#"{decl}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#)),
+            ("xl/styles.xml", format!(r#"{decl}<styleSheet xmlns="{NS}">{styles}</styleSheet>"#)),
+            ("xl/worksheets/sheet1.xml", format!(r#"{decl}<worksheet xmlns="{NS}"><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>"#)),
+        ];
+        let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let opts = zip::write::SimpleFileOptions::default();
+        for (n, b) in &parts {
+            z.start_file(*n, opts).unwrap();
+            z.write_all(b.as_bytes()).unwrap();
+        }
+        z.finish().unwrap().into_inner()
+    }
+
+    /// Entries the model cannot express: font 2 (`outline`), fill 2 (gradient);
+    /// named style, `pivotButton`, `quotePrefix`, `applyFont="0"`, a custom
+    /// number format and attributes out of schema order.
+    fn styles() -> String {
+        concat!(
+            r#"<numFmts count="1"><numFmt numFmtId="164" formatCode="0.0&quot;u&quot;"/></numFmts>"#,
+            r#"<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><outline/><sz val="11"/><name val="Calibri"/></font></fonts>"#,
+            r#"<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><gradientFill degree="90"><stop position="0"><color rgb="FFFF0000"/></stop><stop position="1"><color rgb="FF0000FF"/></stop></gradientFill></fill></fills>"#,
+            r#"<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color auto="1"/></left><right/><top/><bottom/><diagonal/></border></borders>"#,
+            r#"<cellStyleXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/></cellStyleXfs>"#,
+            r#"<cellXfs count="6">"#,
+            r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>"#,
+            r#"<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="1" applyFont="1"/>"#,
+            r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" quotePrefix="1" pivotButton="1"/>"#,
+            r#"<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="0" applyBorder="1"/>"#,
+            r#"<xf numFmtId="164" fontId="2" fillId="2" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1" applyProtection="1"><alignment wrapText="1" horizontal="center"/><protection hidden="1" locked="0"/></xf>"#,
+            r#"<xf applyFont="1" xfId="0" numFmtId="0" fontId="1" fillId="0" borderId="0"/>"#,
+            r#"</cellXfs><cellStyles count="2"><cellStyle name="Normal" xfId="0" builtinId="0"/><cellStyle name="Heading" xfId="1"/></cellStyles><dxfs count="0"/>"#,
+        )
+        .to_owned()
+    }
+
+    fn at(a1: &str) -> CellIndex {
+        CellIndex::parse(a1).unwrap()
+    }
+
+    fn styles_doc(wb: &mut Workbook) -> String {
+        let part = styles_part(wb).unwrap().unwrap();
+        wb.pkg.xml_part(&part).unwrap().serialize()
+    }
+
+    fn s_of(wb: &mut Workbook, a1: &str) -> u32 {
+        let c = at(a1);
+        wb.worksheet().unwrap().cell(c.row, c.col).unwrap().unwrap_or_else(|| panic!("no cell {a1}")).style_index().unwrap()
+    }
+
+    /// `cellXfs[s]` resolved to its content (P's resolution): the attributes
+    /// without ids, the number format code, the font, fill and border bytes,
+    /// the children sorted. `xfId` is compared as a value: it is an index
+    /// into `cellStyleXfs`, which a session never appends to, so this equals
+    /// resolving it through that table.
+    fn resolve(wb: &mut Workbook, s: u32) -> String {
+        let part = styles_part(wb).unwrap().unwrap();
+        let doc = super::super::current_document(wb.pkg.xml_part(&part).unwrap()).unwrap();
+        let root = doc.root();
+        let xf = table_node(root, "cellXfs").unwrap().elements().nth(s as usize).unwrap();
+        let id = |k: &'static str| xf.attr(QName::new("", k)).map_or(0, |v| v.parse::<usize>().unwrap());
+        let bytes = |t: &str, i: usize| {
+            let n = table_node(root, t).unwrap().elements().nth(i).unwrap();
+            let sp = n.span().unwrap();
+            doc.source()[sp.start..sp.end()].to_owned()
+        };
+        let num = id("numFmtId");
+        let code = table_node(root, "numFmts")
+            .and_then(|t| t.elements().find(|e| e.attr(QName::new("", "numFmtId")).map(|v| v.parse::<usize>().unwrap()) == Some(num)))
+            .and_then(|e| e.attr(QName::new("", "formatCode")).map(str::to_owned))
+            .unwrap_or_else(|| format!("builtin:{num}"));
+        let mut attrs: Vec<String> =
+            xf.attrs().iter().filter(|a| !XF_ID_ATTRS.contains(&a.name().local())).map(|a| format!("{}={}", a.name().local(), a.value())).collect();
+        attrs.sort();
+        let mut kids: Vec<String> = xf
+            .elements()
+            .map(|c| {
+                let mut a: Vec<String> = c.attrs().iter().map(|a| format!("{}={}", a.name().local(), a.value())).collect();
+                a.sort();
+                format!("{}[{}]", c.name().local(), a.join(","))
+            })
+            .collect();
+        kids.sort();
+        format!("{attrs:?}|{code}|{}|{}|{}|{kids:?}", bytes("fonts", id("fontId")), bytes("fills", id("fillId")), bytes("borders", id("borderId")))
+    }
+
+    /// Round trip of every `xf` of `wb` (acceptance 1): the content applied to
+    /// another cell resolves to the same index or an earlier one with the same
+    /// content, and nothing is appended.
+    fn round_trip_all(wb: &mut Workbook) -> usize {
+        let base = wb.base_style_counts().unwrap();
+        let mut done = 0;
+        for i in 0..base.cell_xfs {
+            let Ok(c) = wb.xf_content(i, &base) else { continue };
+            let before = styles_doc(wb);
+            wb.set_cell_xf(0, at("Z9"), &c).unwrap();
+            let s = s_of(wb, "Z9");
+            assert!(s <= i, "xf {i} resolved to {s}");
+            assert_eq!(resolve(wb, s), resolve(wb, i), "xf {i}");
+            assert_eq!(styles_doc(wb), before, "xf {i}: styles.xml changed");
+            done += 1;
+        }
+        done
+    }
+
+    #[test]
+    fn round_trip_custom_styles() {
+        let mut wb = Workbook::from_bytes(package(&styles())).unwrap();
+        // the six entries are all expressible as content (Base components by index)
+        assert_eq!(round_trip_all(&mut wb), 6);
+    }
+
+    #[test]
+    fn round_trip_poi_fixtures() {
+        let mut ran = 0;
+        for name in ["52348", "57523", "61605", "FillWithoutColor"] {
+            let path = format!("{}/../../reference/fixtures/xlsx/poi/{name}.xlsx", env!("CARGO_MANIFEST_DIR"));
+            let mut wb = Workbook::from_bytes(std::fs::read(&path).unwrap()).unwrap();
+            if wb.edit_refusal().is_some() {
+                continue;
+            }
+            let n = round_trip_all(&mut wb);
+            assert!(n > 0, "{name}: no xf was expressible");
+            eprintln!("{name}: {n} xfs round-tripped");
+            ran += 1;
+        }
+        assert_eq!(ran, 4, "every fixture must be editable");
+    }
+
+    #[test]
+    fn attrs_kept_verbatim() {
+        let mut wb = Workbook::from_bytes(package(&styles())).unwrap();
+        let base = wb.base_style_counts().unwrap();
+        let c1 = wb.xf_content(1, &base).unwrap();
+        assert!(c1.attrs.contains(&("xfId".into(), "1".into())));
+        let c2 = wb.xf_content(2, &base).unwrap();
+        assert!(c2.attrs.contains(&("pivotButton".into(), "1".into())) && c2.attrs.contains(&("quotePrefix".into(), "1".into())));
+        let c3 = wb.xf_content(3, &base).unwrap();
+        assert!(c3.attrs.contains(&("applyFont".into(), "0".into())));
+        // and they reach the written xf
+        wb.set_cell_xf(0, at("B2"), &c1).unwrap();
+        wb.set_cell_xf(0, at("B3"), &c2).unwrap();
+        wb.set_cell_xf(0, at("B4"), &c3).unwrap();
+        assert_eq!((s_of(&mut wb, "B2"), s_of(&mut wb, "B3"), s_of(&mut wb, "B4")), (1, 2, 3));
+        // a base font the model cannot express is carried by index
+        let c4 = wb.xf_content(4, &base).unwrap();
+        assert_eq!((&c4.font, &c4.fill), (&Part::Base(2), &Part::Base(2)));
+        assert_eq!(c4.num_fmt, NumFmtRef::Id(164));
+    }
+
+    /// `Format` cannot write these: the same content written through it
+    /// gives another `xf` (the reason for the request).
+    #[test]
+    fn content_differs_from_format() {
+        let mut wb = Workbook::from_bytes(package(&styles())).unwrap();
+        let base = wb.base_style_counts().unwrap();
+        let named = wb.xf_content(1, &base).unwrap();
+        wb.set_cell_xf(0, at("C1"), &named).unwrap();
+        assert_eq!(s_of(&mut wb, "C1"), 1);
+        let f = crate::Format::new().set_bold();
+        wb.worksheet().unwrap().cell_mut(0, 3).unwrap().set_format(&f).unwrap();
+        let via_format = s_of(&mut wb, "D1");
+        assert_ne!(via_format, 1, "set_format writes xfId 0");
+    }
+
+    /// Every request kind makes an `xf` that round-trips.
+    #[test]
+    fn round_trip_request_kinds() {
+        let mut wb = Workbook::from_bytes(package(&styles())).unwrap();
+        let base = wb.base_style_counts().unwrap();
+        let fmt = crate::Format::new()
+            .set_num_format("0.000\" z\"")
+            .set_bold()
+            .set_font_color(Color::rgb(0xFF0000))
+            .set_background_color(Color::rgb(0xFFFF00))
+            .set_border("thin");
+        let font = crate::Font { bold: true, italic: true, ..crate::Font::default() };
+        {
+            let mut ws = wb.worksheet().unwrap();
+            ws.cell_mut(1, 0).unwrap().set_format(&fmt).unwrap();
+            ws.cell_mut(1, 1).unwrap().set_num_format("0.0000\" n\"").unwrap();
+            ws.cell_mut(1, 2).unwrap().set_font(&font).unwrap();
+            ws.cell_mut(1, 3).unwrap().set_fill(&crate::Fill::Pattern { pattern: "solid".into(), fg: Some(Color::rgb(0x00FF00)), bg: None }).unwrap();
+            ws.cell_mut(1, 4).unwrap().set_border(&crate::Border { top: Some(crate::Side { style: "double".into(), color: None }), ..crate::Border::default() }).unwrap();
+            ws.cell_mut(1, 5).unwrap().set_named_style("Heading").unwrap();
+            ws.cell_mut(1, 6).unwrap().set_datetime(ExcelDateTime::from_ymd(2024, 5, 6).unwrap()).unwrap();
+            ws.cell_mut(1, 7).unwrap().set_number_with_format(1.5, &fmt).unwrap();
+            ws.cell_mut(1, 8).unwrap().set_string_with_format("x", &fmt).unwrap();
+            ws.cell_mut(1, 9).unwrap().set_datetime_with_format(ExcelDateTime::from_ymd(2024, 5, 6).unwrap(), &fmt).unwrap();
+        }
+        let mut seen = Vec::new();
+        for col in 0..10 {
+            let a1 = format!("{}2", CellIndex::column_name(col));
+            seen.push(s_of(&mut wb, &a1));
+        }
+        for (k, &s) in seen.iter().enumerate() {
+            let c = wb.xf_content(s, &base).unwrap_or_else(|e| panic!("kind {k}: {e}"));
+            let before = styles_doc(&mut wb);
+            wb.set_cell_xf(0, at("Z9"), &c).unwrap();
+            let t = s_of(&mut wb, "Z9");
+            assert!(t <= s, "kind {k}: {t} > {s}");
+            assert_eq!(resolve(&mut wb, t), resolve(&mut wb, s), "kind {k}");
+            assert_eq!(styles_doc(&mut wb), before, "kind {k}: styles.xml changed");
+        }
+    }
+
+    /// Replay invariance (acceptance 2): content captured on A, applied on a
+    /// fresh B that first appended unrelated session entries.
+    #[test]
+    fn replay_invariance() {
+        let fmt = crate::Format::new()
+            .set_num_format("0.000\" q\"")
+            .set_italic()
+            .set_background_color(Color::rgb(0x112233))
+            .set_border("thin");
+        let mut a = Workbook::from_bytes(package(&styles())).unwrap();
+        let base = a.base_style_counts().unwrap();
+        a.worksheet().unwrap().cell_mut(0, 0).unwrap().set_format(&fmt).unwrap();
+        let sa = s_of(&mut a, "A1");
+        let c = a.xf_content(sa, &base).unwrap();
+        assert!(matches!(c.font, Part::Session(_)) && matches!(c.fill, Part::Session(_)) && matches!(c.border, Part::Session(_)));
+        assert!(matches!(c.num_fmt, NumFmtRef::Code(_)));
+
+        let mut b = Workbook::from_bytes(package(&styles())).unwrap();
+        {
+            let mut ws = b.worksheet().unwrap();
+            let junk = crate::Format::new().set_num_format("0.99\" junk\"").set_underline(Underline::Single).set_background_color(Color::rgb(0x998877)).set_border("thick");
+            ws.cell_mut(4, 4).unwrap().set_format(&junk).unwrap();
+            ws.cell_mut(4, 5).unwrap().set_num_format("0.98\" junk\"").unwrap();
+        }
+        b.set_cell_xf(0, at("A1"), &c).unwrap();
+        let sb = s_of(&mut b, "A1");
+        assert_ne!(sa, sb, "the garbage must shift the indices");
+        assert_eq!(resolve(&mut a, sa), resolve(&mut b, sb));
+        // and the content captured on B equals the one captured on A
+        assert_eq!(b.xf_content(sb, &base).unwrap(), c);
+    }
+
+    /// An empty styleSheet: replaying a session font and border reserves
+    /// entry 0 first, so no duplicate of the reserved entries is appended.
+    #[test]
+    fn empty_tables_replay_without_duplicates() {
+        let fmt = crate::Format::new().set_italic().set_border("thin");
+        let mut a = Workbook::from_bytes(package("")).unwrap();
+        let base = a.base_style_counts().unwrap();
+        a.worksheet().unwrap().cell_mut(0, 0).unwrap().set_format(&fmt).unwrap();
+        let sa = s_of(&mut a, "A1");
+        let c = a.xf_content(sa, &base).unwrap();
+        let mut b = Workbook::from_bytes(package("")).unwrap();
+        b.set_cell_xf(0, at("A1"), &c).unwrap();
+        let sb = s_of(&mut b, "A1");
+        assert_eq!(resolve(&mut a, sa), resolve(&mut b, sb));
+        // the default content maps to the reserved xf 0, adding nothing
+        let zero = a.xf_content(0, &base).unwrap();
+        let before = styles_doc(&mut b);
+        b.set_cell_xf(0, at("A2"), &zero).unwrap();
+        assert_eq!(s_of(&mut b, "A2"), 0);
+        assert_eq!(styles_doc(&mut b), before);
+    }
+
+    #[test]
+    fn refusals_change_nothing() {
+        // an xf with extension content, and a session font the readers cannot read
+        let opaque = styles().replace(r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" quotePrefix="1" pivotButton="1"/>"#, r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><extLst/></xf>"#);
+        let mut wb = Workbook::from_bytes(package(&opaque)).unwrap();
+        let base = wb.base_style_counts().unwrap();
+        let before = wb.to_bytes().unwrap();
+        assert!(matches!(wb.xf_content(2, &base), Err(Error::NotExpressible(_))));
+        assert!(matches!(wb.xf_content(99, &base), Err(Error::DanglingReference { .. })));
+        // font 2 (`outline`) treated as a session entry cannot be read back
+        let low = BaseStyleCounts { fonts: 1, ..base };
+        assert!(matches!(wb.xf_content(4, &low), Err(Error::NotExpressible(_))));
+        let good = wb.xf_content(1, &base).unwrap();
+        for bad in [
+            XfContent { font: Part::Base(99), ..good.clone() },
+            XfContent { fill: Part::Base(3), ..good.clone() },
+            XfContent { border: Part::Base(2), ..good.clone() },
+            XfContent { attrs: vec![("fontId".into(), "1".into())], ..good.clone() },
+            XfContent { attrs: vec![("bogus".into(), "1".into())], ..good.clone() },
+            XfContent { num_fmt: NumFmtRef::Code(String::new()), ..good.clone() },
+        ] {
+            assert!(wb.set_cell_xf(0, at("C3"), &bad).is_err(), "{bad:?}");
+            assert_eq!(wb.to_bytes().unwrap(), before, "{bad:?}");
+        }
+        assert_eq!(wb.to_bytes().unwrap(), before);
+    }
+
+    #[test]
+    fn alternate_content_table_is_refused() {
+        let ac = styles().replace(
+            "<fonts count=\"3\">",
+            r#"<fonts count="3" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:AlternateContent><mc:Choice Requires="x"><font><sz val="11"/><name val="Calibri"/></font></mc:Choice></mc:AlternateContent>"#,
+        );
+        // fonts: AC counts as one entry, so drop one plain font to keep three
+        let ac = ac.replacen(r#"<font><b/><sz val="11"/><name val="Calibri"/></font>"#, "", 1);
+        let mut wb = Workbook::from_bytes(package(&ac)).unwrap();
+        let base = wb.base_style_counts().unwrap();
+        let before = wb.to_bytes().unwrap();
+        assert!(matches!(wb.xf_content(0, &base), Err(Error::NotExpressible(_))));
+        assert_eq!(wb.to_bytes().unwrap(), before);
+    }
 }
