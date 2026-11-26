@@ -92,16 +92,16 @@ impl CellSnapshot {
 
 /// Item indices from the root to the `sheetData`, the row and the cell, as
 /// far as they exist.
-struct Spot {
-    sheet_data: Option<usize>,
-    row: Option<usize>,
-    cell: Option<usize>,
+pub(crate) struct Spot {
+    pub(crate) sheet_data: Option<usize>,
+    pub(crate) row: Option<usize>,
+    pub(crate) cell: Option<usize>,
     row_insert_at: usize,
     cell_insert_at: usize,
 }
 
 impl Workbook {
-    fn cell_spot(&mut self, sheet: usize, at: CellIndex) -> Result<(String, Spot)> {
+    pub(crate) fn cell_spot(&mut self, sheet: usize, at: CellIndex) -> Result<(String, Spot)> {
         self.check_poisoned()?;
         self.ensure_index(sheet)?;
         let part = self.sheets[sheet].part.clone().ok_or_else(|| Error::Malformed("worksheet part".into()))?;
