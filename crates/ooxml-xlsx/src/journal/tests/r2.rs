@@ -58,7 +58,19 @@ fn r2_write_back_leaves_part_clean() {
 
 #[test]
 fn r2_style_index_zero_restores_absent_s() {
-    let mut p = run(&base(), [c1("A1", CellCall::StyleIndex(0))]);
+    // with R1, a lone `set_style_index(0)` on an `s`-less cell skips, so
+    // the restore is exercised after a real change instead
+    let mut p = run(
+        &base(),
+        [
+            c1("A1", CellCall::StyleIndex(1)),
+            c1("A1", CellCall::StyleIndex(0)),
+        ],
+    );
+    assert_eq!(
+        p.j.log().iter().map(|o| o.applied).collect::<Vec<_>>(),
+        vec![true, true]
+    );
     let a1 = p.j.cell_key(0, at("A1"));
     assert!(!p.j.changed_cells().contains(&a1));
     assert_eq!(

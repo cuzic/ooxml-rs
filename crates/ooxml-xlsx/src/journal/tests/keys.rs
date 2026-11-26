@@ -150,9 +150,14 @@ fn refusals_push_nothing_and_seqs_count_from_one() {
     assert_eq!(p.j.next_seq(), 4);
     assert_eq!(seqs(&mut p.j, "A1", Field::Content), vec![1, 3]);
     assert_eq!(seqs(&mut p.j, "A2", Field::Content), vec![2]);
+    // the Base values skip (R1) but still consume seqs and push keys (C10)
+    assert_eq!(
+        p.j.log().iter().map(|o| o.applied).collect::<Vec<_>>(),
+        vec![false, false, true]
+    );
     assert!(
         p.j.log()
             .iter()
-            .all(|o| o.applied && o.born == crate::journal::ids::Epoch(0))
+            .all(|o| o.born == crate::journal::ids::Epoch(0))
     );
 }

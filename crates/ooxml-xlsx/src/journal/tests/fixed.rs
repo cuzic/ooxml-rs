@@ -311,9 +311,11 @@ fn fixed_24_p1_on_a_missing_cell_under_a_bold_column() {
     p.finish();
     assert!(node_tree(&mut p.seq, "B5").is_none());
     assert!(node_tree(p.j.shadow_mut(), "B5").is_none());
-    let b5 = p.j.cell_key(0, at("B5"));
-    assert_eq!(p.j.tracked_differs(), vec![(b5, false)]);
-    assert!(p.j.snapshot_node(&b5).unwrap().is_none());
+    // C1: a conditional op that skips its cell is not a target (replaces
+    // B7), but it is applied and pushes its key
+    assert!(last_applied(&p));
+    assert!(p.j.tracked_differs().is_empty());
+    assert_eq!(p.j.open_snapshots(), 0);
     assert_eq!(content_seqs(&p.j, "B5"), vec![1]);
 }
 
@@ -553,4 +555,203 @@ fn fixed_34_p2_dangling_base_reference_is_refused_by_the_journal_only() {
         "{r:?}"
     );
     assert_eq!(state_of_journal(&p.j), before, "a refusal changed the Journal");
+}
+
+// C1's R1 cases (spec 34-42; numbered 35+ after the existing fixed_34).
+// Each asserts the `applied` flag; Pair asserts bytes/snapshots/tracked on
+// every skip.
+
+#[test]
+fn fixed_35_spec34_plain_over_rich_is_applied() {
+    let mut p = Pair::new(&base());
+    p.step(c1("D1", CellCall::String("abc".into()))).unwrap();
+    assert!(last_applied(&p), "the runs are dropped: not a no-op");
+    let d1 = p.j.cell_key(0, at("D1"));
+    assert!(p.j.changed_cells().contains(&d1));
+    p.finish();
+}
+
+#[test]
+fn fixed_36_spec35_a_member_written_back_splits_then_batch_verdicts_agree() {
+    let mut p = Pair::new(&group());
+    p.step(formula("E3", "$A3+E$1")).unwrap();
+    assert!(last_applied(&p), "a member's own text splits as sequentially");
+    p.step(write_cells(&[
+        ("D2", WriteValue::Number(1.0)),
+        ("E3", WriteValue::Number(2.0)),
+    ]))
+    .unwrap();
+    assert!(last_applied(&p));
+    p.finish();
+}
+
+#[test]
+fn fixed_37_spec36_a_missing_cell_is_never_a_noop() {
+    // both ops target a missing cell (B5 then B7, both under the bold
+    // column): a second write to the now-existing B5 would skip instead,
+    // which is fixed 39's case
+    let mut p = Pair::new(&base());
+    p.step(num("B5", 5.0)).unwrap();
+    assert!(last_applied(&p));
+    p.step(num("B7", 5.0)).unwrap();
+    assert!(last_applied(&p));
+    p.finish();
+    // `set_style_index(0)` on missing B5 under the bold column (round 5 M1)
+    let mut p = Pair::new(&base());
+    p.step(c1("B5", CellCall::StyleIndex(0))).unwrap();
+    assert!(last_applied(&p));
+    assert_eq!(p.j.changed_cells().len(), 1);
+    p.finish();
+}
+
+#[test]
+fn fixed_38_spec37_conditional_on_missing_is_applied_but_noop() {
+    let mut p = Pair::new(&base());
+    p.step(remove_formula("D10")).unwrap();
+    assert!(last_applied(&p));
+    p.step(clear("B5")).unwrap();
+    assert!(last_applied(&p));
+    p.finish();
+    assert!(node_tree(&mut p.seq, "D10").is_none());
+    assert!(node_tree(p.j.shadow_mut(), "D10").is_none());
+    assert!(node_tree(&mut p.seq, "B5").is_none());
+    assert!(node_tree(p.j.shadow_mut(), "B5").is_none());
+    assert!(p.j.tracked_differs().is_empty());
+    assert_eq!(p.j.open_snapshots(), 0);
+    assert_eq!(content_seqs(&p.j, "D10"), vec![1]);
+    assert_eq!(content_seqs(&p.j, "B5"), vec![2]);
+}
+
+#[test]
+fn fixed_39_spec38_identity_writes_skip_and_push_keys() {
+    let mut p = Pair::new(&base());
+    p.step(num("C3", 7.0)).unwrap();
+    assert!(!last_applied(&p));
+    // same string, same `si`
+    p.step(c1("B1", CellCall::String("x".into()))).unwrap();
+    assert!(!last_applied(&p));
+    // same formula text on a plain formula
+    p.step(formula("C1", "A1*2")).unwrap();
+    assert!(!last_applied(&p));
+    p.finish();
+    assert_eq!(content_seqs(&p.j, "C3"), vec![1]);
+    assert_eq!(content_seqs(&p.j, "B1"), vec![2]);
+    assert_eq!(content_seqs(&p.j, "C1"), vec![3]);
+}
+
+#[test]
+fn fixed_40_spec39_style_identity_skips() {
+    let mut p = Pair::new(&base());
+    // A3 holds s=1
+    p.step(c1("A3", CellCall::StyleIndex(1))).unwrap();
+    assert!(!last_applied(&p));
+    // C3 is s-less: missing s equals 0
+    p.step(c1("C3", CellCall::StyleIndex(0))).unwrap();
+    assert!(!last_applied(&p));
+    // a patch resolving to another xf applies
+    p.step(c1("A3", CellCall::Font(italic()))).unwrap();
+    assert!(last_applied(&p));
+    p.finish();
+}
+
+#[test]
+fn fixed_41_spec40_two_half_needs_both_halves() {
+    let serial = date().serial(false).unwrap();
+    let mut p = Pair::new(&base());
+    p.step(num("C3", serial)).unwrap();
+    assert!(last_applied(&p));
+    // same serial, but EnsureDate changes the style: the style half vetoes
+    p.step(c1("C3", CellCall::DateTime(date()))).unwrap();
+    assert!(last_applied(&p));
+    // same serial on a date format now: both halves same
+    p.step(c1("C3", CellCall::DateTime(date()))).unwrap();
+    assert!(!last_applied(&p));
+    // same number, other format: the style half vetoes
+    p.step(c1("A3", CellCall::NumberWithFormat(3.0, full_format())))
+        .unwrap();
+    assert!(last_applied(&p));
+    p.finish();
+}
+
+#[test]
+fn fixed_42_spec41_write_cells_skips_only_whole() {
+    let mut p = Pair::new(&base());
+    p.step(write_cells(&[
+        ("C3", WriteValue::Number(7.0)),
+        ("A3", WriteValue::Number(3.0)),
+    ]))
+    .unwrap();
+    assert!(!last_applied(&p));
+    assert_eq!(p.j.log().len(), 1, "skipped as one call");
+    p.step(write_cells(&[
+        ("C3", WriteValue::Number(7.0)),
+        ("A3", WriteValue::Number(9.0)),
+    ]))
+    .unwrap();
+    assert!(last_applied(&p), "one change applies the whole call");
+    p.finish();
+}
+
+#[test]
+fn fixed_43_spec42_dynamic_and_remove_on_a_formula_apply() {
+    let mut p = Pair::new(&base());
+    p.step(dynamic("A6", "1+1")).unwrap();
+    assert!(last_applied(&p), "dynamic never reports same (C3)");
+    p.step(remove_formula("C1")).unwrap();
+    assert!(last_applied(&p), "removing f+cache always changes content (C4)");
+    p.finish();
+}
+
+/// Re-zips `bytes` with one string replaced in `part`: builds files no
+/// public call produces (here, a header cell the column name disagrees
+/// with, as a third-party writer may leave it).
+fn rezip_replace(bytes: &[u8], part: &str, from: &str, to: &str) -> Vec<u8> {
+    use std::io::{Cursor, Read, Write};
+    let mut z = zip::ZipArchive::new(Cursor::new(bytes)).expect("a package");
+    let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for i in 0..z.len() {
+        let mut f = z.by_index(i).expect("an entry");
+        let name = f.name().expect("a name").into_owned();
+        let mut body = String::new();
+        f.read_to_string(&mut body).expect("text");
+        if name == part {
+            assert_eq!(body.matches(from).count(), 1, "one {from} in {part}");
+            body = body.replace(from, to);
+        }
+        out.start_file(name, opts).expect("zip");
+        out.write_all(body.as_bytes()).expect("zip");
+    }
+    out.finish().expect("zip").into_inner()
+}
+
+/// B1: an identity write to a diverged header cell is applied, not
+/// skipped. Table `T` over `A1:A2` whose header cell holds `Old` while
+/// the column is named `Diverged`: the cell report is all-same, but the
+/// plan stages a rename, so the skip would drop a real change.
+#[test]
+fn fixed_44_b1_identity_write_to_a_diverged_header_is_applied() {
+    use crate::{CellRange, Table};
+    let mut wb = Workbook::new().unwrap();
+    wb.worksheet()
+        .unwrap()
+        .cell_mut(0, 0)
+        .unwrap()
+        .set_string("Old")
+        .unwrap();
+    wb.worksheet()
+        .unwrap()
+        .add_table(Table::new(CellRange::parse("A1:A2").unwrap()).name("T"))
+        .unwrap();
+    let diverged = rezip_replace(
+        &wb.to_bytes().unwrap(),
+        "xl/tables/table1.xml",
+        r#"name="Old""#,
+        r#"name="Diverged""#,
+    );
+    let mut p = Pair::new(&diverged);
+    p.step(c1("A1", CellCall::String("Old".into()))).unwrap();
+    assert!(last_applied(&p), "the staged rename is not the identity");
+    p.finish();
 }

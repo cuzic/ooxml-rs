@@ -1,12 +1,12 @@
-//! The xlsx Edit Journal, delivery J0a (ADR-0024 §3, §4, §7.1 R2): keyed ops
-//! on cells (content and style) appended to a shadow workbook, logged by id,
-//! with the snapshot-and-write-back rule R2 on C2's snapshots. No save, no
-//! Commit, no structural ops (J1, J2); R1 is off until C1 lands (§4.5).
+//! The xlsx Edit Journal, delivery J0a (ADR-0024 §3, §4, §7.1 R1/R2):
+//! keyed ops on cells (content and style) planned on a shadow workbook and
+//! logged by id, with R1's no-op test after validation (§4.5) on C1's plan
+//! report and the snapshot-and-write-back rule R2 on C2's snapshots. No
+//! save, no Commit, no structural ops (J1, J2).
 //!
-//! Stand-ins, until their core APIs land (decisions A2, A8, A16 of the task):
-//! C1's target report is read off the census here; C8's typed cell-state
-//! reads are `state.rs`'s raw reads; C3's deferred caches are the shadow's
-//! `KeepStaleCaches` policy.
+//! Stand-ins, until their core APIs land (decisions A2, A16 of the task):
+//! C8's typed cell-state reads are `state.rs`'s raw reads; C3's deferred
+//! caches are the shadow's `KeepStaleCaches` policy.
 //!
 //! Nothing here is public API.
 
@@ -29,16 +29,18 @@ use std::sync::Arc;
 use ids::{AxisVec, ColId, Epoch, IdCounter, RowId, SheetId};
 use op::{
     Api, CellCall, Field, Key, LoggedOp, Op, OpInput, OpKind, Origin, WriteValue, apply_seq,
-    col_prop, fields, row_prop, writes_content,
+    cell_write, col_prop, fields, plan_call, row_prop, writes_content,
 };
 use replay::Mark;
 use state::{CellState, state_of};
 
-use crate::census::FKind;
+use crate::dynamic::MetaAction;
+use crate::edit::{CellOp, CellWritePlan, Extra};
 use crate::error::{Error, Result};
 use crate::reference::{CellIndex, MAX_COLS, MAX_ROWS};
 use crate::registry::styles::BaseStyleCounts;
 use crate::snapshot::{CellSnapshot, RestoreStyle};
+use crate::tables::StagedTables;
 use crate::workbook::Workbook;
 
 #[derive(Debug)]
@@ -114,6 +116,26 @@ pub(crate) struct RestoreStats {
 struct Target {
     at: CellIndex,
     named: bool,
+}
+
+/// What an apply installs besides the cell plan: staged header renames,
+/// or the metadata work of a dynamic write.
+enum Staged {
+    Headers(StagedTables),
+    Dynamic(MetaAction),
+}
+
+impl Staged {
+    /// Whether the staged work is empty: only then may R1 skip (a staged
+    /// header rename is a real change even when the cell report is
+    /// all-same, e.g. an identity write to a diverged header cell). A
+    /// dynamic write always stages metadata work.
+    fn is_empty(&self) -> bool {
+        match self {
+            Staged::Headers(staged) => staged.is_empty(),
+            Staged::Dynamic(_) => false,
+        }
+    }
 }
 
 impl Journal {
@@ -293,7 +315,7 @@ impl Journal {
             seq,
             origin: Origin::Session { seq, api },
             born: Epoch(0),
-            applied: true,
+            applied: acc.applied,
             op: acc.op,
         });
         self.r2(input, &acc.targets, acc.snapshot_failed, seq)?;
@@ -301,22 +323,153 @@ impl Journal {
     }
 
     /// Everything up to and including the keys, shared by `append` and
-    /// replay: targets, snapshots, the sequential call, the key index.
-    /// Nothing is logged here. `Err(Op)` changed nothing.
-    fn accept(
-        &mut self,
-        input: &OpInput,
-        seq: u64,
-    ) -> std::result::Result<Accepted, JournalError> {
+    /// replay: the plan, R1's test, skip or apply, the key index. Nothing
+    /// is logged here. `Err(Op)` changed nothing.
+    fn accept(&mut self, input: &OpInput, seq: u64) -> std::result::Result<Accepted, JournalError> {
         if let Err(e) = self.shadow.worksheet_by_index(input.sheet).map(drop) {
             return Err(JournalError::Op(e));
         }
-        let targets = self.targets(input);
-        for t in &targets {
-            if let Err(e) = CellIndex::new(t.at.row, t.at.col) {
-                return Err(JournalError::Op(e));
+        match &input.kind {
+            // row/column properties target no cell (§4.4) and R1 never
+            // skips them: no plan, the sequential call directly, as before C1
+            OpKind::Row { .. } | OpKind::Cols { .. } => {
+                if let Err(e) = apply_seq(&mut self.shadow, input) {
+                    if self.shadow.check_poisoned().is_err() {
+                        return Err(JournalError::Internal { seq, source: e });
+                    }
+                    return Err(JournalError::Op(e));
+                }
+                let op = self.op_of(input).map_err(|source| JournalError::Internal { seq, source })?;
+                for key in self.keys_of(&op) {
+                    self.keys.entry(key).or_default().push(seq);
+                }
+                Ok(Accepted {
+                    op,
+                    targets: Vec::new(),
+                    snapshot_failed: false,
+                    applied: true,
+                })
+            }
+            OpKind::Cell {
+                at,
+                call: CellCall::DynamicFormula(text),
+            } => self.accept_dynamic(input, *at, text, seq),
+            OpKind::Cell { at, call } => {
+                let was_active = self.shadow.registries.strings.is_some();
+                let (op, extra) = match plan_call(&mut self.shadow, *at, call) {
+                    Ok(p) => p,
+                    Err(e) => return Err(self.plan_err(was_active, e)),
+                };
+                self.accept_headers(input, vec![(input.sheet, *at, op, extra)], was_active, seq)
+            }
+            OpKind::WriteCells(cells) => {
+                // `check_editable` before prep, as `write_cells` does
+                if let Err(e) = self.shadow.check_editable() {
+                    return Err(JournalError::Op(e));
+                }
+                let was_active = self.shadow.registries.strings.is_some();
+                let mut prepared = Vec::with_capacity(cells.len());
+                for (at, v) in cells {
+                    match self.shadow.plan_write_value(*at, cell_write(v)) {
+                        Ok((op, extra)) => prepared.push((input.sheet, *at, op, extra)),
+                        Err(e) => return Err(self.plan_err(was_active, e)),
+                    }
+                }
+                self.accept_headers(input, prepared, was_active, seq)
             }
         }
+    }
+
+    /// A prep or plan refusal: forget a fresh string activation, as the
+    /// sequential setters do, and return the refusal. Nothing else changed.
+    fn plan_err(&mut self, was_active: bool, e: Error) -> JournalError {
+        let r: Result<()> = Err(e);
+        self.shadow.forget_activation_on_error(was_active, &r);
+        match r {
+            Err(e) => JournalError::Op(e),
+            Ok(()) => unreachable!("just constructed as Err"),
+        }
+    }
+
+    /// Plans prepared writes with header staging, then R1 decides.
+    fn accept_headers(
+        &mut self,
+        input: &OpInput,
+        prepared: Vec<(usize, CellIndex, CellOp, Extra)>,
+        was_active: bool,
+        seq: u64,
+    ) -> std::result::Result<Accepted, JournalError> {
+        let (staged, plan) = match self.shadow.plan_with_headers(prepared) {
+            Ok(p) => p,
+            Err(e) => return Err(self.plan_err(was_active, e)),
+        };
+        self.accept_decided(input, Staged::Headers(staged), plan, was_active, seq)
+    }
+
+    /// Plans a dynamic write (metadata work plus cells), then R1 decides
+    /// (a dynamic write never reports same, so it always applies).
+    fn accept_dynamic(
+        &mut self,
+        input: &OpInput,
+        at: CellIndex,
+        text: &str,
+        seq: u64,
+    ) -> std::result::Result<Accepted, JournalError> {
+        // `cell_mut`'s range check first, as sequentially
+        if let Err(e) = CellIndex::new(at.row, at.col) {
+            return Err(JournalError::Op(e));
+        }
+        let was_active = self.shadow.registries.strings.is_some();
+        let (action, plan) = match self.shadow.plan_dynamic_formula(input.sheet, at, text) {
+            Ok(p) => p,
+            Err(e) => return Err(JournalError::Op(e)),
+        };
+        self.accept_decided(input, Staged::Dynamic(action), plan, was_active, seq)
+    }
+
+    /// R1's test over a plan's report, then skip or apply. Between the R1
+    /// test and the apply nothing mutates — only snapshot reads — so the
+    /// plan's positions stay valid. Apply failures keep today's meaning
+    /// (bug → poison → `Internal`); apply never re-plans and never
+    /// re-validates.
+    fn accept_decided(
+        &mut self,
+        input: &OpInput,
+        staged: Staged,
+        plan: CellWritePlan,
+        was_active: bool,
+        seq: u64,
+    ) -> std::result::Result<Accepted, JournalError> {
+        let report = plan
+            .report(&mut self.shadow)
+            .map_err(|source| JournalError::Internal { seq, source })?;
+        if !report.is_empty()
+            && staged.is_empty()
+            && report
+                .iter()
+                .all(|t| t.exists && !t.group_or_array && t.state_same && t.node_same && t.validation_same)
+        {
+            // R1 skip (a call is skipped only whole, §7.1): no snapshots,
+            // no apply, no R2. Keys are pushed (echo needs them); a fresh
+            // string activation is forgotten, so the skipped op is invisible
+            // even white-box. This is `forget_activation_on_error`'s Err
+            // branch inlined: the plan and the report only read, so the
+            // shadow cannot have poisoned here and its guard is vacuous.
+            if !was_active {
+                self.shadow.registries.strings = None;
+            }
+            let op = self.op_of(input).map_err(|source| JournalError::Internal { seq, source })?;
+            for key in self.keys_of(&op) {
+                self.keys.entry(key).or_default().push(seq);
+            }
+            return Ok(Accepted {
+                op,
+                targets: Vec::new(),
+                snapshot_failed: false,
+                applied: false,
+            });
+        }
+        let targets: Vec<Target> = report.iter().map(|t| Target { at: t.at, named: t.named }).collect();
         // snapshots of the targets not yet tracked (kept local until the op is accepted)
         let mut fresh: Vec<(CellKey, Tracked)> = Vec::new();
         let mut snapshot_error = None;
@@ -357,7 +510,20 @@ impl Journal {
         let part_before = snapshot_error
             .as_ref()
             .map(|_| self.sheet_part_text(input.sheet));
-        if let Err(e) = apply_seq(&mut self.shadow, input) {
+        let applied = match staged {
+            Staged::Headers(staged) => self.shadow.apply_with_headers(staged, plan),
+            Staged::Dynamic(action) => {
+                let registry = match action.into_registry(&self.shadow.pkg, &self.shadow.workbook_part) {
+                    Ok(registry) => registry,
+                    Err(e) => {
+                        drop(fresh);
+                        return Err(JournalError::Op(e));
+                    }
+                };
+                self.shadow.apply_writes_with(plan, registry)
+            }
+        };
+        if let Err(e) = applied {
             drop(fresh);
             if self.shadow.check_poisoned().is_err() {
                 return Err(JournalError::Internal { seq, source: e });
@@ -387,6 +553,7 @@ impl Journal {
             op,
             targets,
             snapshot_failed,
+            applied: true,
         })
     }
 
@@ -561,59 +728,11 @@ impl Journal {
         r.map_err(internal)
     }
 
-    /// The cells the op touches (C1's target report, read off the census): the
-    /// named cells in op order, then each shared-formula master a content
-    /// write may hand off, as its first member by position (`plan_handoff`).
-    fn targets(&mut self, input: &OpInput) -> Vec<Target> {
-        let mut own: Vec<(CellIndex, bool)> = Vec::new();
-        match &input.kind {
-            OpKind::Cell { at, call } => own.push((*at, writes_content(call))),
-            OpKind::WriteCells(cells) => own.extend(cells.iter().map(|(at, _)| (*at, true))),
-            // a row or column property targets no cell (§4.4)
-            OpKind::Row { .. } | OpKind::Cols { .. } => {}
-        }
-        let mut out: Vec<Target> = Vec::new();
-        for &(at, _) in &own {
-            if !out.iter().any(|t| t.at == at) {
-                out.push(Target { at, named: true });
-            }
-        }
-        let census = &self.shadow.census;
-        for &(at, content) in &own {
-            if !content {
-                continue;
-            }
-            let Some(c) = census.at(input.sheet, at).and_then(|f| census.get(f)) else {
-                continue;
-            };
-            let FKind::Shared { si, master: true } = c.kind else {
-                continue;
-            };
-            if c.ambiguous_group {
-                continue;
-            }
-            let member = census
-                .alive()
-                .filter(|(_, m)| {
-                    m.sheet == c.sheet && m.kind == (FKind::Shared { si, master: false })
-                })
-                .map(|(_, m)| m.at)
-                .min();
-            if let Some(m) = member
-                && !out.iter().any(|t| t.at == m)
-            {
-                out.push(Target {
-                    at: m,
-                    named: false,
-                });
-            }
-        }
-        out
-    }
-
     /// The logged form of an op the shadow accepted (ids from the vectors).
-    /// Row and column indices are read only now, after `apply_seq` returned
-    /// `Ok`: a refused out-of-range op never reaches the id vectors.
+    /// Row and column indices are read only now, after the plan accepted
+    /// the op (or, for row/column ops, after the sequential call returned
+    /// `Ok`): a refused out-of-range op never reaches the id vectors, and
+    /// an R1 skip reads them with no apply at all.
     fn op_of(&mut self, input: &OpInput) -> Result<Op> {
         let sheet = self.sheets[input.sheet];
         Ok(match &input.kind {
@@ -685,12 +804,13 @@ fn restore(
     wb.restore_cell(sheet, at, snap, style)
 }
 
-/// What `accept` hands on: the logged form, the targets, and whether a
-/// snapshot failed (R2 then skips the untracked cells).
+/// What `accept` hands on: the logged form, the targets, whether a
+/// snapshot failed (R2 then skips the untracked cells), and R1's verdict.
 struct Accepted {
     op: Op,
     targets: Vec<Target>,
     snapshot_failed: bool,
+    applied: bool,
 }
 
 /// `sheet/@sheetId` of every sheet, in workbook order.

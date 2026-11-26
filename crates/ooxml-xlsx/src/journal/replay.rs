@@ -207,7 +207,8 @@ mod tests {
     use crate::journal::op::{Api, CellCall, ColCall, RowCall, WriteValue};
     use crate::journal::tests::fixtures::{group_workbook, large_workbook, oracle_workbook};
     use crate::journal::tests::{
-        bold, blue, c1, formula, index_of_key, italic, num, red, remove_formula, write_cells,
+        bold, blue, c1, formula, full_format, index_of_key, italic, num, red, remove_formula,
+        write_cells,
     };
     use crate::journal::{part_unchanged, Journal, JournalError};
     #[cfg(feature = "fault-injection")]
@@ -565,7 +566,12 @@ mod tests {
         let mut j = Journal::open(oracle()).unwrap();
         let ok = feed(&mut j, &[num("A1", 9.0), num("A1", 1.0), num("B1", 5.0)]);
         j.fail_restore_once = Some(false);
-        let r = j.append(Api::Native, num("C3", 7.0));
+        // same content, other style: applies, then a content restore fails
+        // (a same-value write would skip under R1 and restore nothing)
+        let r = j.append(
+            Api::Native,
+            c1("C3", CellCall::NumberWithFormat(7.0, full_format())),
+        );
         assert!(matches!(r, Err(JournalError::Internal { .. })), "{r:?}");
         assert!(!j.broken);
         let mut t = twin(&oracle(), &ok);
@@ -588,7 +594,8 @@ mod tests {
     fn n1_untracked_target_asserts() {
         let mut j = Journal::open(oracle()).unwrap();
         j.drop_fresh_once = true;
-        let _ = j.append(Api::Native, num("A1", 1.0));
+        // a changing write (a same-value write would skip under R1)
+        let _ = j.append(Api::Native, num("A1", 9.0));
     }
 
     /// The input of a logged op is the op the caller gave (ids round trip).

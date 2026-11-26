@@ -2,10 +2,13 @@
 //! they write (§4.2, §4.3) and the one sequential call that applies an op.
 
 use super::ids::{ColId, Epoch, RowId, SheetId};
+use crate::edit::{CellOp, Extra};
 use crate::error::Result;
 use crate::reference::CellIndex;
-use crate::registry::styles::{BaseStyleCounts, XfContent};
+use crate::registry::styles::{BaseStyleCounts, StyleRequest, XfContent};
+use crate::setters::error_value;
 use crate::workbook::Workbook;
+use crate::worksheet::{format_number, plan_inline_write};
 use crate::{Border, CellWrite, ExcelDateTime, Fill, Font, Format};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,7 +174,7 @@ pub(crate) struct LoggedOp {
     pub(crate) seq: u64,
     pub(crate) origin: Origin,
     pub(crate) born: Epoch,
-    /// Always true in J0: R1 is off.
+    /// False when R1 skipped the op (logged but not applied).
     pub(crate) applied: bool,
     pub(crate) op: Op,
 }
@@ -263,24 +266,109 @@ pub(crate) fn writes_content(call: &CellCall) -> bool {
     fields(call).contains(&Field::Content)
 }
 
+/// A `write_cells` item as the sequential call: [`WriteValue`] is the
+/// Journal's mirror of [`CellWrite`], translated here (single source for
+/// `apply_seq` and the plan input).
+pub(crate) fn cell_write(v: &WriteValue) -> CellWrite<'_> {
+    match v {
+        WriteValue::Number(v) => CellWrite::Number(*v),
+        WriteValue::String(s) => CellWrite::String(s),
+        WriteValue::Formula(t) => CellWrite::Formula(t),
+        WriteValue::RemoveFormula => CellWrite::RemoveFormula,
+        WriteValue::ClearValue => CellWrite::ClearValue,
+    }
+}
+
+/// The pipeline input of a single-cell call: the `(op, extra)` the
+/// sequential setter passes to `edit_cell_ext`, built with the same prep
+/// fns (not copies). `DynamicFormula` never reaches here (the dynamic
+/// path plans separately). String reservation may activate the registry;
+/// the caller forgets a fresh activation on `Err` and on an R1 skip, as
+/// the sequential setters do.
+pub(crate) fn plan_call(wb: &mut Workbook, at: CellIndex, call: &CellCall) -> Result<(CellOp, Extra)> {
+    use CellCall::*;
+    // `cell_mut`'s range check first, as sequentially
+    CellIndex::new(at.row, at.col)?;
+    let style = |style| Extra {
+        string: None,
+        style: Some(style),
+    };
+    let format = |f: &crate::Format| style(StyleRequest::Format(Box::new(f.clone())));
+    Ok(match call {
+        Number(v) => {
+            if !v.is_finite() {
+                return Err(crate::error::Error::InvalidNumber(*v));
+            }
+            (CellOp::Number(format_number(*v)), Extra::default())
+        }
+        String(s) => wb.plan_string_write(s)?,
+        StringInline(s) => (plan_inline_write(s)?, Extra::default()),
+        RichString(runs) => {
+            let rs: Vec<(&crate::Font, &str)> = runs.iter().map(|(f, t)| (f, t.as_str())).collect();
+            wb.plan_rich_write(at, &rs)?
+        }
+        Bool(b) => (CellOp::Bool(*b), Extra::default()),
+        Error(e) => (CellOp::Error(error_value(at, e)?), Extra::default()),
+        DateTime(d) => {
+            let serial = d.serial(wb.date1904()?).ok_or(crate::error::Error::DateOutOfRange)?;
+            (
+                CellOp::Number(format_number(serial)),
+                style(StyleRequest::EnsureDate),
+            )
+        }
+        Formula(t) => (
+            CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+            Extra::default(),
+        ),
+        RemoveFormula => (CellOp::RemoveFormula, Extra::default()),
+        ClearValue => (CellOp::ClearValue, Extra::default()),
+        DynamicFormula(_) => unreachable!("the dynamic path plans separately"),
+        NumberWithFormat(v, f) => {
+            if !v.is_finite() {
+                return Err(crate::error::Error::InvalidNumber(*v));
+            }
+            (CellOp::Number(format_number(*v)), format(f))
+        }
+        StringWithFormat(s, f) => {
+            let (op, mut extra) = wb.plan_string_write(s)?;
+            extra.style = Some(StyleRequest::Format(Box::new(f.clone())));
+            (op, extra)
+        }
+        FormulaWithFormat(t, f) => (
+            CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+            format(f),
+        ),
+        DateTimeWithFormat(d, f) => {
+            let serial = d.serial(wb.date1904()?).ok_or(crate::error::Error::DateOutOfRange)?;
+            (CellOp::Number(format_number(serial)), format(f))
+        }
+        Format(f) => (CellOp::StyleOnly, format(f)),
+        NumFormat(code) => (
+            CellOp::StyleOnly,
+            style(StyleRequest::NumFormatOnly(crate::registry::format::NumFormat::Code(code.clone()))),
+        ),
+        Font(f) => (
+            CellOp::StyleOnly,
+            style(StyleRequest::FontOnly(Box::new(f.clone()))),
+        ),
+        Fill(f) => (CellOp::StyleOnly, style(StyleRequest::FillOnly(f.clone()))),
+        Border(b) => (
+            CellOp::StyleOnly,
+            style(StyleRequest::BorderOnly(Box::new(b.clone()))),
+        ),
+        StyleIndex(i) => (CellOp::StyleOnly, style(StyleRequest::Index(*i))),
+        StyleXf(x, base) => (CellOp::StyleOnly, style(StyleRequest::Xf(x.clone(), *base))),
+        NamedStyle(n) => (CellOp::StyleOnly, style(StyleRequest::Named(n.clone()))),
+    })
+}
+
 /// Applies `input` by its one sequential API call: the shadow's engine and
 /// the sequential reference of oracle 1.
 pub(crate) fn apply_seq(wb: &mut Workbook, input: &OpInput) -> Result<()> {
     match &input.kind {
         OpKind::WriteCells(cells) => {
-            let writes: Vec<(CellIndex, CellWrite<'_>)> = cells
-                .iter()
-                .map(|(at, w)| {
-                    let w = match w {
-                        WriteValue::Number(v) => CellWrite::Number(*v),
-                        WriteValue::String(s) => CellWrite::String(s),
-                        WriteValue::Formula(t) => CellWrite::Formula(t),
-                        WriteValue::RemoveFormula => CellWrite::RemoveFormula,
-                        WriteValue::ClearValue => CellWrite::ClearValue,
-                    };
-                    (*at, w)
-                })
-                .collect();
+            let writes: Vec<(CellIndex, CellWrite<'_>)> =
+                cells.iter().map(|(at, w)| (*at, cell_write(w))).collect();
             wb.worksheet_by_index(input.sheet)?.write_cells(&writes)
         }
         OpKind::Row { row, call } => {
