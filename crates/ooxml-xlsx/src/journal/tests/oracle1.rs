@@ -100,6 +100,11 @@ enum GenOp {
     Style(Where, StyleK),
     TwoHalf(Where, u8),
     Bait(u8),
+    /// A shared-string round trip on a fixed cell: odd occurrences write
+    /// the cell away to a shared string, even ones write the Base value
+    /// back, so a case with two fires a full write-back restore on
+    /// `shared` (Oracle) or `value` (Group).
+    SharedBait,
     RowCol(Rc),
 }
 
@@ -120,6 +125,11 @@ struct Rc {
 /// `(op index, step selector, panic)`: the fault is injected before that op
 /// (`fault-injection` only).
 type Fault = Option<(usize, u8, bool)>;
+
+/// Faults waiting for a turn: each case attempts the front fault (its own
+/// joins the back), and an unfired fault rotates to the back, so a fault
+/// waiting on a rare op never starves the rest.
+type FaultQueue = std::collections::VecDeque<(usize, u8, bool)>;
 
 #[derive(Clone, Debug)]
 struct Case {
@@ -213,6 +223,7 @@ fn op_s() -> impl Strategy<Value = GenOp> {
         26 => (where_s(), style_s()).prop_map(|(w, s)| GenOp::Style(w, s)),
         9 => (where_s(), 0u8..4).prop_map(|(w, k)| GenOp::TwoHalf(w, k)),
         7 => (0u8..5).prop_map(GenOp::Bait),
+        7 => Just(GenOp::SharedBait),
         8 => rc_s().prop_map(GenOp::RowCol),
     ]
 }
@@ -256,6 +267,8 @@ struct Resolver {
     /// `cellXfs` count of the Base.
     base_xfs: u32,
     written: HashMap<(usize, CellIndex), CellCall>,
+    /// `SharedBait` occurrences so far: odd ones write away, even ones back.
+    shared_bait: u32,
 }
 
 impl Resolver {
@@ -273,6 +286,7 @@ impl Resolver {
             base_xfs,
             targets: Vec::new(),
             written: HashMap::new(),
+            shared_bait: 0,
         }
     }
 
@@ -464,6 +478,27 @@ impl Resolver {
                     kind: OpKind::Cell { at: at(a1), call },
                 }
             }
+            GenOp::SharedBait => {
+                // a fixed plain cell per fixture (Oracle B1 holds shared
+                // "x"; Group A2 holds a number; OutOfOrder A1 refuses, so
+                // the bait is a refusal or a skip there)
+                let p = match self.fx {
+                    Fx::Oracle(_) => (0, at("B1")),
+                    Fx::Group => (0, at("A2")),
+                    Fx::OutOfOrder => (0, at("A1")),
+                };
+                self.shared_bait += 1;
+                self.targets.push(p);
+                let call = if self.shared_bait % 2 == 1 {
+                    CellCall::String("shbait".into())
+                } else {
+                    self.revert(p)
+                };
+                OpInput {
+                    sheet: p.0,
+                    kind: OpKind::Cell { at: p.1, call },
+                }
+            }
         }
     }
 
@@ -578,18 +613,24 @@ fn tally_skip(tally: &mut Tally, p: &Pair, input: &OpInput) {
             | CellCall::NamedStyle(_) => tally.skip_style += 1,
             _ => tally.skip_content += 1,
         },
-        OpKind::Row { .. } | OpKind::Cols { .. } => unreachable!("row/col ops are never skipped"),
+        OpKind::Row { .. } | OpKind::Cols { .. } => {
+            unreachable!("row/col ops bypass R1 and are always applied (C2)")
+        }
     }
 }
 
 /// Runs a case through a Pair. A fault op runs the Journal first: if it
 /// returns `Internal` the sequential side skips the op and the Journal is as
-/// it was before; otherwise the usual checks apply.
-fn drive(case: &Case, tally: &mut Tally) -> Pair {
+/// it was before; otherwise the usual checks apply. `carried` is the
+/// round-robin fault queue (see [`FaultQueue`]).
+fn drive(case: &Case, tally: &mut Tally, carried: &mut FaultQueue) -> Pair {
     let mut r = Resolver::new(case.fx);
     let mut p = Pair::new(&case.fx.bytes());
-    let mut pending = case
-        .fault
+    if let Some(f) = case.fault {
+        carried.push_back(f);
+    }
+    let mut pending = carried
+        .pop_front()
         .map(|(at, k, panic)| (at, ALL_STEPS[usize::from(k) % ALL_STEPS.len()], panic));
     for (i, op) in case.ops.iter().enumerate() {
         let input = r.resolve(op);
@@ -649,13 +690,10 @@ fn drive(case: &Case, tally: &mut Tally) -> Pair {
                     continue;
                 }
                 // not a failure: finish what `Pair::step` does, with the
-                // Journal's result in hand
-                let skipped =
-                    matches!(&rj, Ok(Ok(_))) && p.j.log().last().is_some_and(|o| !o.applied);
-                if skipped {
-                    // R1 skipped the op, so the fault never fired: re-arm it
-                    pending = Some((i + 1, step, panic));
-                }
+                // Journal's result in hand. The fault never fired (a
+                // refusal, an R1 skip, or the op never reached the step),
+                // so it is re-armed at the next op.
+                pending = Some((i + 1, step, panic));
                 let rj = rj.unwrap();
                 let rs = crate::journal::op::apply_seq(&mut p.seq, &input);
                 p.applied.push(input.clone());
@@ -690,6 +728,13 @@ fn drive(case: &Case, tally: &mut Tally) -> Pair {
             }
         }
     }
+    if let Some((at, step, panic)) = pending {
+        let k = ALL_STEPS
+            .iter()
+            .position(|s| *s == step)
+            .expect("a selected step") as u8;
+        carried.push_back((at, k, panic));
+    }
     p
 }
 
@@ -700,7 +745,7 @@ proptest! {
     #[test]
     fn sequential_equals_shadow(case in case_s()) {
         let mut tally = Tally::default();
-        drive(&case, &mut tally).finish();
+        drive(&case, &mut tally, &mut FaultQueue::new()).finish();
     }
 }
 
@@ -715,12 +760,13 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
     let mut families = std::collections::HashSet::new();
     let mut full: HashMap<&'static str, u32> = HashMap::new();
     let mut content = 0;
+    let mut carried = FaultQueue::new();
     for _ in 0..256 {
         let case = case_s().new_tree(&mut runner).unwrap().current();
         for op in &case.ops {
             families.insert(std::mem::discriminant(op));
         }
-        let p = drive(&case, &mut tally);
+        let p = drive(&case, &mut tally, &mut carried);
         for (k, n) in &p.j.stats().full {
             *full.entry(k).or_default() += n;
         }
@@ -739,7 +785,7 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
         "full restores {full:?}"
     );
     assert!(content >= 10, "content restores {content}");
-    assert_eq!(families.len(), 6);
+    assert_eq!(families.len(), 7);
     let t = &tally;
     println!(
         "ok {} refused {}; row/col ok {} refused {}; clear ok {}; dynamic ok {}; faults fired {} recovered {}; steps {:?}",

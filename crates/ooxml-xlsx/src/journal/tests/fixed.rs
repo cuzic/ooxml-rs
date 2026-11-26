@@ -701,3 +701,57 @@ fn fixed_43_spec42_dynamic_and_remove_on_a_formula_apply() {
     assert!(last_applied(&p), "removing f+cache always changes content (C4)");
     p.finish();
 }
+
+/// Re-zips `bytes` with one string replaced in `part`: builds files no
+/// public call produces (here, a header cell the column name disagrees
+/// with, as a third-party writer may leave it).
+fn rezip_replace(bytes: &[u8], part: &str, from: &str, to: &str) -> Vec<u8> {
+    use std::io::{Cursor, Read, Write};
+    let mut z = zip::ZipArchive::new(Cursor::new(bytes)).expect("a package");
+    let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    for i in 0..z.len() {
+        let mut f = z.by_index(i).expect("an entry");
+        let name = f.name().expect("a name").into_owned();
+        let mut body = String::new();
+        f.read_to_string(&mut body).expect("text");
+        if name == part {
+            assert_eq!(body.matches(from).count(), 1, "one {from} in {part}");
+            body = body.replace(from, to);
+        }
+        out.start_file(name, opts).expect("zip");
+        out.write_all(body.as_bytes()).expect("zip");
+    }
+    out.finish().expect("zip").into_inner()
+}
+
+/// B1: an identity write to a diverged header cell is applied, not
+/// skipped. Table `T` over `A1:A2` whose header cell holds `Old` while
+/// the column is named `Diverged`: the cell report is all-same, but the
+/// plan stages a rename, so the skip would drop a real change.
+#[test]
+fn fixed_44_b1_identity_write_to_a_diverged_header_is_applied() {
+    use crate::{CellRange, Table};
+    let mut wb = Workbook::new().unwrap();
+    wb.worksheet()
+        .unwrap()
+        .cell_mut(0, 0)
+        .unwrap()
+        .set_string("Old")
+        .unwrap();
+    wb.worksheet()
+        .unwrap()
+        .add_table(Table::new(CellRange::parse("A1:A2").unwrap()).name("T"))
+        .unwrap();
+    let diverged = rezip_replace(
+        &wb.to_bytes().unwrap(),
+        "xl/tables/table1.xml",
+        r#"name="Old""#,
+        r#"name="Diverged""#,
+    );
+    let mut p = Pair::new(&diverged);
+    p.step(c1("A1", CellCall::String("Old".into()))).unwrap();
+    assert!(last_applied(&p), "the staged rename is not the identity");
+    p.finish();
+}

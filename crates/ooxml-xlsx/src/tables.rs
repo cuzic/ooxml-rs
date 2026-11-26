@@ -231,6 +231,15 @@ pub(crate) struct StagedTables {
     docs: HashMap<String, XmlDocument>,
 }
 
+impl StagedTables {
+    /// Whether the plan staged no header rename: an R1 skip must leave
+    /// the tables alone too (ADR-0024 §7.1 R1(c)), so a non-empty stage
+    /// vetoes the skip even when the cell report is all-same.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.docs.is_empty()
+    }
+}
+
 fn column_name(name: &str) -> Result<String> {
     if name.is_empty()
         || name

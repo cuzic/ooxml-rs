@@ -125,6 +125,19 @@ enum Staged {
     Dynamic(MetaAction),
 }
 
+impl Staged {
+    /// Whether the staged work is empty: only then may R1 skip (a staged
+    /// header rename is a real change even when the cell report is
+    /// all-same, e.g. an identity write to a diverged header cell). A
+    /// dynamic write always stages metadata work.
+    fn is_empty(&self) -> bool {
+        match self {
+            Staged::Headers(staged) => staged.is_empty(),
+            Staged::Dynamic(_) => false,
+        }
+    }
+}
+
 impl Journal {
     pub(crate) fn open(base: impl Into<Arc<[u8]>>) -> Result<Journal> {
         let base: Arc<[u8]> = base.into();
@@ -415,9 +428,10 @@ impl Journal {
     }
 
     /// R1's test over a plan's report, then skip or apply. Between the R1
-    /// test and the apply nothing runs (adjacent statements), so the plan's
-    /// positions stay valid. Apply failures keep today's meaning (bug →
-    /// poison → `Internal`); apply never re-plans and never re-validates.
+    /// test and the apply nothing mutates — only snapshot reads — so the
+    /// plan's positions stay valid. Apply failures keep today's meaning
+    /// (bug → poison → `Internal`); apply never re-plans and never
+    /// re-validates.
     fn accept_decided(
         &mut self,
         input: &OpInput,
@@ -430,6 +444,7 @@ impl Journal {
             .report(&mut self.shadow)
             .map_err(|source| JournalError::Internal { seq, source })?;
         if !report.is_empty()
+            && staged.is_empty()
             && report
                 .iter()
                 .all(|t| t.exists && !t.group_or_array && t.state_same && t.node_same && t.validation_same)
@@ -437,7 +452,9 @@ impl Journal {
             // R1 skip (a call is skipped only whole, §7.1): no snapshots,
             // no apply, no R2. Keys are pushed (echo needs them); a fresh
             // string activation is forgotten, so the skipped op is invisible
-            // even white-box.
+            // even white-box. This is `forget_activation_on_error`'s Err
+            // branch inlined: the plan and the report only read, so the
+            // shadow cannot have poisoned here and its guard is vacuous.
             if !was_active {
                 self.shadow.registries.strings = None;
             }
@@ -712,8 +729,10 @@ impl Journal {
     }
 
     /// The logged form of an op the shadow accepted (ids from the vectors).
-    /// Row and column indices are read only now, after `apply_seq` returned
-    /// `Ok`: a refused out-of-range op never reaches the id vectors.
+    /// Row and column indices are read only now, after the plan accepted
+    /// the op (or, for row/column ops, after the sequential call returned
+    /// `Ok`): a refused out-of-range op never reaches the id vectors, and
+    /// an R1 skip reads them with no apply at all.
     fn op_of(&mut self, input: &OpInput) -> Result<Op> {
         let sheet = self.sheets[input.sheet];
         Ok(match &input.kind {
