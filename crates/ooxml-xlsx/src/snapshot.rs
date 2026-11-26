@@ -775,4 +775,29 @@ mod tests {
         wb.restore_cell(0, at("C1"), &snap, RestoreStyle::Snapshot).unwrap();
         assert_eq!(wb.style_sensitive, None);
     }
+
+    /// A refused write leaves the registry inactive, as a workbook that never
+    /// saw the call: the count of `t="s"` cells must not depend on refused
+    /// calls (a replay does not repeat them).
+    #[test]
+    fn a_refused_write_does_not_activate_the_registry() {
+        use crate::worksheet::CellWrite;
+        let sheet = format!("{HEAD}{}{TAIL}", r#"<row r="1"><c r="A1" t="s"><v>0</v></c></row>"#);
+        let sst = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="5" uniqueCount="1"><si><t>zero</t></si></sst>"#;
+        let mut pkg = Package::from_bytes(TEMPLATE).unwrap();
+        pkg.set_part(PART, sheet.into_bytes()).unwrap();
+        pkg.set_part(SST, sst.as_bytes().to_vec()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        // the plan of the string cell activates, the NaN is refused after it
+        let r = wb.worksheet().unwrap().write_cells(&[(at("B1"), CellWrite::String("x")), (at("C1"), CellWrite::Number(f64::NAN))]);
+        assert!(r.is_err());
+        assert!(wb.registries.strings.is_none(), "write_cells");
+        // an accepted write activates, and a later refusal keeps it
+        wb.worksheet().unwrap().write_cells(&[(at("B1"), CellWrite::String("x"))]).unwrap();
+        assert!(wb.registries.strings.is_some());
+        let r = wb.worksheet().unwrap().write_cells(&[(at("C1"), CellWrite::Number(f64::NAN))]);
+        assert!(r.is_err());
+        assert!(wb.registries.strings.is_some(), "an active registry stays");
+    }
 }

@@ -20,9 +20,24 @@ impl Workbook {
     /// A string write: shared when the workbook has a shared-string table,
     /// else inline.
     pub(crate) fn write_string(&mut self, sheet: usize, at: CellIndex, value: &str, style: Option<StyleRequest>) -> Result<()> {
-        let (op, mut extra) = self.plan_string_write(value)?;
-        extra.style = style;
-        self.edit_cell_ext(sheet, at, op, extra)
+        let was_active = self.registries.strings.is_some();
+        let r = (|| {
+            let (op, mut extra) = self.plan_string_write(value)?;
+            extra.style = style;
+            self.edit_cell_ext(sheet, at, op, extra)
+        })();
+        self.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    /// A refused write leaves the registry as it found it: activation is
+    /// otherwise a side effect of the call (the registry keeps the count of
+    /// `t="s"` cells exact only once active), and a workbook rebuilt from
+    /// the ops that were accepted would not have it (ADR-0024 §4.4, R2).
+    pub(crate) fn forget_activation_on_error<T>(&mut self, was_active: bool, r: &Result<T>) {
+        if !was_active && r.is_err() && self.poisoned.is_none() {
+            self.registries.strings = None;
+        }
     }
 
     pub(crate) fn plan_string_write(&mut self, value: &str) -> Result<(CellOp, Extra)> {
@@ -46,6 +61,13 @@ impl Workbook {
     /// A rich-string write (ADR-0006 §4.2): shared when the workbook has a
     /// shared-string table, else inline (`is/r`).
     pub(crate) fn write_rich(&mut self, sheet: usize, at: CellIndex, runs: &[(&Font, &str)]) -> Result<()> {
+        let was_active = self.registries.strings.is_some();
+        let r = self.write_rich_inner(sheet, at, runs);
+        self.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    fn write_rich_inner(&mut self, sheet: usize, at: CellIndex, runs: &[(&Font, &str)]) -> Result<()> {
         use crate::registry::strings::{RichRun, SiContent};
         let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
         if runs.is_empty() {
