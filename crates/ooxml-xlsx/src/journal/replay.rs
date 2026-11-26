@@ -469,7 +469,7 @@ mod tests {
         assert!(j.append(Api::Native, num("A2", 9.0)).is_ok());
         let mut prefix = ok;
         prefix.push(num("A2", 9.0));
-        j.fail_restore_once = true;
+        j.fail_restore_once = Some(false);
         let r = j.append(Api::Native, num("A2", 2.0));
         let Err(JournalError::Internal { seq, .. }) = r else {
             panic!("{r:?}");
@@ -480,6 +480,27 @@ mod tests {
         same(&mut j, &mut t);
         j.append(Api::Native, num("A2", 2.0)).unwrap();
         t.append(Api::Native, num("A2", 2.0)).unwrap();
+        same(&mut j, &mut t);
+    }
+
+    /// A panic outside the workbook's own apply leaves the shadow unpoisoned:
+    /// only the stale mark tells the next call to recover.
+    #[test]
+    fn a_panic_outside_the_workbook_recovers_on_the_next_call() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+        let mut j = Journal::open(oracle()).unwrap();
+        let mut ok = feed(&mut j, &oracle_prefix());
+        ok.extend(feed(&mut j, &[num("A2", 9.0)]));
+        j.fail_restore_once = Some(true);
+        let r = catch_unwind(AssertUnwindSafe(|| j.append(Api::Native, num("A2", 2.0))));
+        assert!(r.is_err());
+        assert!(j.shadow().check_poisoned().is_ok(), "not poisoned");
+        assert!(j.stale.is_some());
+        let next = c1("A3", CellCall::Number(4.0));
+        let seq = j.append(Api::Native, next.clone()).unwrap();
+        assert_eq!(seq, ok.len() as u64 + 1);
+        ok.push(next);
+        let mut t = twin(&oracle(), &ok);
         same(&mut j, &mut t);
     }
 

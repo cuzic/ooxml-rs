@@ -93,7 +93,8 @@ pub(crate) struct Journal {
     #[cfg(all(test, feature = "fault-injection"))]
     replay_fault: Option<(crate::workbook::ApplyStep, bool)>,
     #[cfg(test)]
-    fail_restore_once: bool,
+    /// `Some(panic)`: the next restore fails (or panics).
+    fail_restore_once: Option<bool>,
     #[cfg(test)]
     drop_fresh_once: bool,
 }
@@ -147,7 +148,7 @@ impl Journal {
             #[cfg(all(test, feature = "fault-injection"))]
             replay_fault: None,
             #[cfg(test)]
-            fail_restore_once: false,
+            fail_restore_once: None,
             #[cfg(test)]
             drop_fresh_once: false,
         })
@@ -637,14 +638,15 @@ fn part_unchanged(before: &Option<String>, after: &Option<String>) -> bool {
 
 fn restore(
     wb: &mut Workbook,
-    #[cfg(test)] fail_once: &mut bool,
+    #[cfg(test)] fail_once: &mut Option<bool>,
     sheet: usize,
     at: CellIndex,
     snap: &CellSnapshot,
     style: RestoreStyle,
 ) -> Result<()> {
     #[cfg(test)]
-    if std::mem::take(fail_once) {
+    if let Some(panic) = fail_once.take() {
+        assert!(!panic, "injected panic in a restore");
         return Err(Error::Malformed("injected restore failure".into()));
     }
     wb.restore_cell(sheet, at, snap, style)
