@@ -12,7 +12,7 @@ use crate::escape;
 use crate::reference::CellIndex;
 use crate::registry::dates::ExcelDateTime;
 use crate::registry::format::{Border, Fill, Font, Format, NumFormat};
-use crate::registry::styles::StyleRequest;
+use crate::registry::styles::{StyleRequest, XfContent};
 use crate::workbook::Workbook;
 use crate::worksheet::{CellMut, MAX_STRING_LEN};
 
@@ -92,6 +92,13 @@ impl Workbook {
             Some("1" | "true") => Ok(true),
             Some(v) => Err(Error::Malformed(format!("workbookPr/@date1904 = {v:?}"))),
         }
+    }
+
+    /// Gives the cell the `xf` described by `xf` (see
+    /// [`XfContent`]); the value is kept. Nothing is changed on `Err`.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn set_cell_xf(&mut self, sheet: usize, at: CellIndex, xf: &XfContent) -> Result<()> {
+        self.edit_cell_ext(sheet, at, CellOp::StyleOnly, Extra { string: None, style: Some(StyleRequest::Xf(Box::new(xf.clone()))) })
     }
 
     /// Number of entries in `cellXfs` (activates the style registry).
