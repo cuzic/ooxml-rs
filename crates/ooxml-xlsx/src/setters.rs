@@ -67,7 +67,14 @@ impl Workbook {
         r
     }
 
-    fn write_rich_inner(&mut self, sheet: usize, at: CellIndex, runs: &[(&Font, &str)]) -> Result<()> {
+    /// Plans a rich-string write: validates the runs and reserves the
+    /// item (shared) or builds inline runs, without applying. The caller
+    /// edits the cell with the op ([`edit_cell_ext`](Workbook::edit_cell_ext)).
+    pub(crate) fn plan_rich_write(
+        &mut self,
+        at: CellIndex,
+        runs: &[(&Font, &str)],
+    ) -> Result<(CellOp, Extra)> {
         use crate::registry::strings::{RichRun, SiContent};
         let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
         if runs.is_empty() {
@@ -98,10 +105,26 @@ impl Workbook {
         if self.shared_strings_active()? {
             let plan = self.registries.strings.as_ref().expect("active").plan_content(SiContent::Rich(out), &decoded)?;
             let index = plan.index;
-            self.edit_cell_ext(sheet, at, CellOp::Shared(index), Extra { string: Some(plan), style: None })
+            Ok((
+                CellOp::Shared(index),
+                Extra {
+                    string: Some(plan),
+                    style: None,
+                },
+            ))
         } else {
-            self.edit_cell_ext(sheet, at, CellOp::InlineRich(out), Extra::default())
+            Ok((CellOp::InlineRich(out), Extra::default()))
         }
+        }
+
+    fn write_rich_inner(
+        &mut self,
+        sheet: usize,
+        at: CellIndex,
+        runs: &[(&Font, &str)],
+    ) -> Result<()> {
+        let (op, extra) = self.plan_rich_write(at, runs)?;
+        self.edit_cell_ext(sheet, at, op, extra)
     }
 
     /// Is the workbook in the 1904 date system (`workbookPr/@date1904`)?
@@ -128,6 +151,30 @@ impl Workbook {
     pub fn cell_format_count(&mut self) -> Result<u32> {
         Ok(self.styles()?.xf_count())
     }
+}
+
+/// The error value `value` names (ECMA-376 §18.17.4.6 plus Excel's
+/// `#GETTING_DATA`), else [`Error::InvalidValue`]. Shared by `set_error`
+/// and the Journal's plan input, so the table cannot diverge.
+pub(crate) fn error_value(at: CellIndex, value: &str) -> Result<&'static str> {
+    const ERRORS: &[&str] = &[
+        "#NULL!",
+        "#DIV/0!",
+        "#VALUE!",
+        "#REF!",
+        "#NAME?",
+        "#NUM!",
+        "#N/A",
+        "#GETTING_DATA",
+    ];
+    ERRORS
+        .iter()
+        .copied()
+        .find(|e| *e == value)
+        .ok_or_else(|| Error::InvalidValue {
+            cell: at.to_string(),
+            message: format!("{value:?} is not an error value"),
+        })
 }
 
 impl CellMut<'_, '_> {
@@ -170,11 +217,8 @@ impl CellMut<'_, '_> {
     /// (ECMA-376 §18.17.4.6 plus Excel's `#GETTING_DATA`), else
     /// [`Error::InvalidValue`]. A value write, as [`Self::set_number`].
     pub fn set_error(self, value: &str) -> Result<()> {
-        const ERRORS: &[&str] = &["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"];
-        let Some(e) = ERRORS.iter().copied().find(|e| *e == value) else {
-            return Err(Error::InvalidValue { cell: self.at.to_string(), message: format!("{value:?} is not an error value") });
-        };
-        self.edit(CellOp::Error(e), None)
+        let at = self.at;
+        self.edit(CellOp::Error(error_value(at, value)?), None)
     }
 
     /// Writes a rich string: runs of text, each in its own font (ADR-0006

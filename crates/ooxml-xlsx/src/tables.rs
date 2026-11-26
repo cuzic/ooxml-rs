@@ -10,7 +10,7 @@ use ooxml_schema::sml;
 use sml::Table as TableElement;
 
 use crate::census::FKind;
-use crate::edit::{CellOp, Extra};
+use crate::edit::{CellOp, CellWritePlan, Extra};
 use crate::escape;
 use crate::formula::precedents::fold;
 use crate::workbook::{ApplyStepHook, REL_TABLE, TableHeader};
@@ -225,6 +225,12 @@ impl Col {
 
 type Write = (usize, CellIndex, CellOp, Extra);
 
+/// The header renames a plan stages: cloned table docs, owned by the plan.
+#[derive(Debug)]
+pub(crate) struct StagedTables {
+    docs: HashMap<String, XmlDocument>,
+}
+
 fn column_name(name: &str) -> Result<String> {
     if name.is_empty()
         || name
@@ -361,7 +367,14 @@ impl Workbook {
             .unwrap_or_default()
     }
 
-    pub(crate) fn write_with_headers(&mut self, writes: Vec<Write>) -> Result<()> {
+    /// Plans cell writes with header staging (C1's plan entry for the
+    /// `write_with_headers` funnel): renames staged on cloned table docs,
+    /// cells planned without applying. The caller applies both
+    /// ([`apply_with_headers`](Self::apply_with_headers)).
+    pub(crate) fn plan_with_headers(
+        &mut self,
+        writes: Vec<Write>,
+    ) -> Result<(StagedTables, CellWritePlan)> {
         self.check_editable()?;
         let mut staged = HashMap::new();
         let mut headers = HashSet::new();
@@ -458,14 +471,29 @@ impl Workbook {
             }
         }
         let plan = self.plan_writes_after(None, writes, &headers, Default::default())?;
-        if staged.is_empty() {
+        Ok((StagedTables { docs: staged }, plan))
+    }
+
+    /// Applies staged header renames and a cell-write plan (the tail of
+    /// `write_with_headers`).
+    pub(crate) fn apply_with_headers(
+        &mut self,
+        staged: StagedTables,
+        plan: CellWritePlan,
+    ) -> Result<()> {
+        if staged.docs.is_empty() {
             return self.apply_writes(plan);
         }
         let mut registry = RegistryPlan::new(&self.pkg);
-        for (part, doc) in staged {
+        for (part, doc) in staged.docs {
             registry.stage_part(&self.pkg, &part, doc)?;
         }
         self.apply_writes_with(plan, registry)
+    }
+
+    pub(crate) fn write_with_headers(&mut self, writes: Vec<Write>) -> Result<()> {
+        let (staged, plan) = self.plan_with_headers(writes)?;
+        self.apply_with_headers(staged, plan)
     }
 }
 
@@ -956,4 +984,154 @@ fn table_document(
         if table.column_stripes { "1" } else { "0" },
     )?;
     Ok(doc)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(a1: &str) -> CellIndex {
+        CellIndex::parse(a1).unwrap()
+    }
+
+    fn assert_clean(wb: &Workbook) {
+        for name in wb.pkg.part_names() {
+            if let Some(doc) = wb.pkg.parsed_part(name) {
+                assert!(!doc.is_dirty(), "{name} is dirty");
+                assert!(!doc.root().subtree_dirty(), "{name} has a dirty subtree");
+            }
+        }
+    }
+
+    /// One table `T` over `A1:A2`, header `Name` at `A1`.
+    fn table_wb() -> Workbook {
+        let mut wb = Workbook::new().unwrap();
+        let mut ws = wb.worksheet().unwrap();
+        ws.write_string(0, 0, "Name").unwrap();
+        ws.write_string(1, 0, "ann").unwrap();
+        ws.add_table(Table::new(crate::CellRange::parse("A1:A2").unwrap()).name("T"))
+            .unwrap();
+        wb
+    }
+
+    fn table_xml(wb: &Workbook, part: &str) -> String {
+        String::from_utf8(wb.pkg.read_part(part).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn plan_plus_apply_equals_write_with_headers_and_plans_nothing() {
+        let wb = table_wb();
+        let rename = || {
+            vec![(
+                0,
+                at("A1"),
+                CellOp::Text("Renamed".into()),
+                crate::edit::Extra::default(),
+            )]
+        };
+        let plain = || {
+            vec![(
+                0,
+                at("B1"),
+                CellOp::Number("7".into()),
+                crate::edit::Extra::default(),
+            )]
+        };
+        let run = |make: &dyn Fn() -> Vec<Write>, renamed: bool| {
+            let bytes = wb.to_bytes().unwrap();
+            let mut fresh = Workbook::from_bytes(bytes.clone()).unwrap();
+            assert_clean(&fresh);
+            let (staged, plan) = fresh.plan_with_headers(make()).unwrap();
+            assert_eq!(fresh.to_bytes().unwrap(), bytes, "a plan changes nothing");
+            assert_clean(&fresh);
+            fresh.apply_with_headers(staged, plan).unwrap();
+            let mut combined = Workbook::from_bytes(bytes).unwrap();
+            combined.write_with_headers(make()).unwrap();
+            assert_eq!(fresh.to_bytes().unwrap(), combined.to_bytes().unwrap());
+            let xml = table_xml(&fresh, "xl/tables/table1.xml");
+            assert_eq!(xml.contains(r#"name="Renamed""#), renamed, "{xml}");
+        };
+        run(&rename, true);
+        run(&plain, false);
+    }
+
+    #[test]
+    fn single_header_writes_funnel_through_plan_with_headers() {
+        let wb = table_wb();
+        let bytes = wb.to_bytes().unwrap();
+        // the real single-write funnel stages the rename and applies it
+        let mut renamed = Workbook::from_bytes(bytes.clone()).unwrap();
+        renamed
+            .edit_cell(0, at("A1"), CellOp::Text("Renamed".into()))
+            .unwrap();
+        let xml = table_xml(&renamed, "xl/tables/table1.xml");
+        assert!(xml.contains(r#"name="Renamed""#), "{xml}");
+        // `plan_cell_write` stages no rename: the same write refuses there,
+        // so slice B must plan single writes via `plan_with_headers`
+        let mut planned = Workbook::from_bytes(bytes.clone()).unwrap();
+        std::assert_matches!(
+            planned.plan_cell_write(
+                0,
+                at("A1"),
+                CellOp::Text("Renamed".into()),
+                crate::edit::Extra::default()
+            ),
+            Err(Error::TableHeaderCell { .. })
+        );
+        assert_eq!(planned.to_bytes().unwrap(), bytes);
+        assert_clean(&planned);
+    }
+
+    #[test]
+    fn header_staging_refusals_are_byte_identical() {
+        let wb = table_wb();
+        let text = |cell: &str, t: &str| {
+            (
+                0,
+                at(cell),
+                CellOp::Text(t.into()),
+                crate::edit::Extra::default(),
+            )
+        };
+        let duplicate = vec![text("A1", "x"), text("A1", "y")];
+        let empty = vec![text("A1", "")];
+        let number = vec![(
+            0,
+            at("A1"),
+            CellOp::Number("1".into()),
+            crate::edit::Extra::default(),
+        )];
+        // a rename plus a formula using the column refuses before any parse
+        let in_use = vec![
+            text("A1", "New"),
+            (
+                0,
+                at("B1"),
+                CellOp::Formula("T[Name]*2".into()),
+                crate::edit::Extra::default(),
+            ),
+        ];
+        for (batch, kind) in [
+            (duplicate, "DuplicateCellWrite"),
+            (empty, "TableHeaderCell"),
+            (number, "TableHeaderCell"),
+            (in_use, "ColumnInUse"),
+        ] {
+            let bytes = wb.to_bytes().unwrap();
+            let mut fresh = Workbook::from_bytes(bytes.clone()).unwrap();
+            let err = fresh.plan_with_headers(batch).unwrap_err();
+            let ok = match kind {
+                "DuplicateCellWrite" => matches!(err, Error::DuplicateCellWrite { .. }),
+                "TableHeaderCell" => matches!(err, Error::TableHeaderCell { .. }),
+                _ => matches!(err, Error::ColumnInUse(_)),
+            };
+            assert!(ok, "wrong refusal: {err:?}");
+            assert_eq!(
+                fresh.to_bytes().unwrap(),
+                bytes,
+                "a refusal changes nothing"
+            );
+            assert_clean(&fresh);
+        }
+    }
 }
