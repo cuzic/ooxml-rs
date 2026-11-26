@@ -42,7 +42,7 @@ use ooxml_core::{ElementSpec, RawItem, RawNode, XmlDocument};
 use ooxml_schema::sml;
 
 use crate::error::{Error, Result};
-use crate::reference::CellIndex;
+use crate::reference::{CellIndex, CellRange};
 use crate::workbook::Workbook;
 
 /// The attributes of a cell that a canonical rebuild can copy. A cell with
@@ -161,6 +161,47 @@ impl Workbook {
         let doc = self.pkg.xml_part_mut(&part)?;
         for path in paths {
             canonicalize_at(doc, path);
+        }
+        Ok(())
+    }
+
+    /// Grows `dimension/@ref` of `sheet` to cover `cells` (ADR-0024 C5, §6.1).
+    ///
+    /// A shadow workbook with `freeze_dimension` set leaves `dimension` alone
+    /// on cell writes; the Journal's Commit calls this once with the changed
+    /// set. A sheet without `dimension` stays without one. When `cells` is
+    /// empty or already inside the range, the element is not touched, so its
+    /// bytes stay the Base's. A `dimension/@ref` that is not a cell range is
+    /// `Error::Malformed`, as on the write path; nothing changes then.
+    pub(crate) fn grow_dimension(
+        &mut self,
+        sheet: usize,
+        cells: impl IntoIterator<Item = CellIndex>,
+    ) -> Result<()> {
+        self.check_poisoned()?;
+        let part = self.sheets[sheet]
+            .part
+            .clone()
+            .ok_or_else(|| Error::Malformed("worksheet part".into()))?;
+        let doc = self.pkg.xml_part_mut(&part)?;
+        let Some(r) = sml::WorksheetView(doc.lens::<sml::Worksheet>()?)
+            .sheet_dimension()
+            .map(|d| d.reference().map(str::to_owned))
+        else {
+            return Ok(());
+        };
+        let Some(Ok(range)) = r.as_deref().map(CellRange::parse) else {
+            return Err(Error::Malformed(format!(
+                "{part}: dimension/@ref {:?} is not a cell range; it could not be kept up to date",
+                r.unwrap_or_default()
+            )));
+        };
+        let grown = cells.into_iter().fold(range, |acc, c| acc.union(c));
+        if grown != range {
+            sml::WorksheetViewMut(doc.lens_mut::<sml::Worksheet>()?)
+                .sheet_dimension_mut()
+                .expect("dimension exists")
+                .set_reference(&grown.to_string())?;
         }
         Ok(())
     }
@@ -615,5 +656,98 @@ mod tests {
             .unwrap();
         let out = canon(&mut wb, &["A2"]);
         assert!(out.contains(r#"<c r="A2"><v>9</v></c>"#), "{out}");
+    }
+
+    // ---- ADR-0024 C5: freeze_dimension and grow_dimension ----
+
+    fn dim_of(out: &str) -> &str {
+        let a = out.find("<dimension ref=\"").expect("dimension") + 16;
+        &out[a..a + out[a..].find('"').unwrap()]
+    }
+
+    fn malformed_xml() -> String {
+        sheet_xml().replace(r#"ref="A1:F3""#, r#"ref="nope""#)
+    }
+
+    #[test]
+    fn frozen_write_outside_the_range_leaves_dimension_bytes() {
+        let mut wb = open(&sheet_xml());
+        wb.freeze_dimension = true;
+        wb.edit_cell(0, at("Z9"), CellOp::Number("1".into())).unwrap();
+        let out = part(&mut wb);
+        assert!(out.contains(r#"<dimension ref="A1:F3"/>"#), "{out}");
+        assert!(out.contains(r#"r="Z9""#), "{out}");
+        // unfrozen grows, as before
+        let mut wb = open(&sheet_xml());
+        wb.edit_cell(0, at("Z9"), CellOp::Number("1".into())).unwrap();
+        assert_eq!(dim_of(&part(&mut wb)), "A1:Z9");
+    }
+
+    #[test]
+    fn frozen_write_still_refuses_a_malformed_dimension() {
+        let mut errs = Vec::new();
+        for frozen in [false, true] {
+            let mut wb = open(&malformed_xml());
+            wb.freeze_dimension = frozen;
+            let before = part(&mut wb);
+            let e = wb.edit_cell(0, at("A1"), CellOp::Number("9".into())).unwrap_err();
+            assert!(matches!(e, Error::Malformed(_)), "{e:?}");
+            assert_eq!(part(&mut wb), before, "Err leaves the part as it was");
+            errs.push(e.to_string());
+        }
+        assert_eq!(errs[0], errs[1]);
+    }
+
+    #[test]
+    fn structural_insert_rows_rewrites_dimension_when_frozen() {
+        let mut outs = Vec::new();
+        for frozen in [false, true] {
+            let mut wb = open(&sheet_xml());
+            wb.freeze_dimension = frozen;
+            wb.worksheet().unwrap().insert_rows(0, 1).unwrap();
+            outs.push(part(&mut wb));
+        }
+        assert_eq!(dim_of(&outs[0]), "A2:F4");
+        assert_eq!(outs[0], outs[1]);
+    }
+
+    #[test]
+    fn grow_dimension_without_the_element_creates_none() {
+        let xml = sheet_xml().replace(r#"<dimension ref="A1:F3"/>"#, "");
+        let mut wb = open(&xml);
+        let before = part(&mut wb);
+        wb.grow_dimension(0, [at("Z9")]).unwrap();
+        assert_eq!(part(&mut wb), before);
+        assert!(!before.contains("<dimension"));
+    }
+
+    #[test]
+    fn grow_dimension_touches_nothing_when_no_growth_is_needed() {
+        // a ref that a rewrite would normalize shows any touch
+        let mut wb = open(&sheet_xml().replace(r#"ref="A1:F3""#, r#"ref="a1:f3""#));
+        let before = part(&mut wb);
+        assert!(before.contains(r#"ref="a1:f3""#), "{before}");
+        wb.grow_dimension(0, []).unwrap();
+        assert_eq!(part(&mut wb), before);
+        wb.grow_dimension(0, [at("A1"), at("F3"), at("C2")]).unwrap();
+        assert_eq!(part(&mut wb), before);
+    }
+
+    #[test]
+    fn grow_dimension_grows_to_the_union() {
+        let mut wb = open(&sheet_xml());
+        wb.grow_dimension(0, [at("B2"), at("H2"), at("A5")]).unwrap();
+        let out = part(&mut wb);
+        assert_eq!(dim_of(&out), "A1:H5");
+        assert!(wb.pkg.xml_part(PART).unwrap().dirty_counts_consistent());
+    }
+
+    #[test]
+    fn grow_dimension_refuses_a_malformed_ref() {
+        let mut wb = open(&malformed_xml());
+        let before = part(&mut wb);
+        let e = wb.grow_dimension(0, [at("A1")]).unwrap_err();
+        assert!(matches!(e, Error::Malformed(_)), "{e:?}");
+        assert_eq!(part(&mut wb), before);
     }
 }

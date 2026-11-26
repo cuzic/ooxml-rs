@@ -107,6 +107,8 @@ impl Journal {
         shadow.set_calc_policy(CalcPolicy::KeepStaleCaches);
         // the strip is deferred (C3's), its refusals are not: ADR §4.5
         shadow.validate_strips = true;
+        // cell writes leave `dimension` to the save (ADR-0024 C5)
+        shadow.freeze_dimension = true;
         let base_xf_count = shadow.cell_format_count()?;
         let sheets = sheet_ids(&mut shadow)?;
         // identity vectors for every sheet, so a refused op creates nothing
