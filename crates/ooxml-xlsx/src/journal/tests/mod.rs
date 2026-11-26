@@ -171,7 +171,7 @@ impl Pair {
         let rj = self.j.append(Api::Native, input.clone());
         self.applied.push(input.clone());
         match (&rs, &rj) {
-            (Ok(()), Ok(_)) => self.check_written_back(&input),
+            (Ok(()), Ok(_)) => self.check_accepted(&input, &before),
             (Err(es), Err(JournalError::Op(ej))) => {
                 assert_eq!(
                     discriminant(es),
@@ -187,6 +187,22 @@ impl Pair {
             _ => panic!("{input:?}: sequential {rs:?}, Journal {rj:?}"),
         }
         rs
+    }
+
+    /// After an accepted op: the write-back invariant, plus R1's skip
+    /// assertions — a skipped op changes no byte, takes no snapshot,
+    /// tracks nothing (oracle 1 §4(a)(b)).
+    pub(crate) fn check_accepted(&mut self, input: &OpInput, before: &JournalState) {
+        if !last_applied(self) {
+            let after = state_of_journal(&self.j);
+            assert_eq!(after.bytes, before.bytes, "{input:?}: a skipped op changed bytes");
+            assert_eq!(after.open, before.open, "{input:?}: a skipped op took a snapshot");
+            assert_eq!(
+                after.tracked, before.tracked,
+                "{input:?}: a skipped op tracked a cell"
+            );
+        }
+        self.check_written_back(input);
     }
 
     /// Every tracked cell that is not changed has its snapshot's node.
@@ -217,6 +233,11 @@ impl Pair {
             panic!("P differs at {d}\nops: {:#?}", self.applied);
         }
     }
+}
+
+/// The last logged op was applied (not skipped by R1).
+pub(crate) fn last_applied(p: &Pair) -> bool {
+    p.j.log().last().expect("logged").applied
 }
 
 /// Runs `ops` through a [`Pair`] and compares the projections at the end.

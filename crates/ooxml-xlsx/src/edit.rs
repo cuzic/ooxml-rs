@@ -162,7 +162,6 @@ pub(crate) struct StripPlan {
 /// C1's per-target report (ADR-0024 §7.4 C1): what R1's conditions (a/b/c)
 /// are judged from. Computed from a plan over the unmutated workbook.
 #[derive(Clone, Debug)]
-#[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
 pub(crate) struct TargetReport {
     pub(crate) sheet: usize,
     pub(crate) at: CellIndex,
@@ -192,7 +191,12 @@ impl CellWritePlan {
     /// skipped cells have no `PlannedWrite` and so are not targets. Reads
     /// only; the plan did not mutate, so current state is pre-plan state.
     /// `Err` only for an inconsistent plan (a bug).
-    #[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
+    ///
+    /// Nothing may run between the plan and the report: R1's (b) flag
+    /// reuses the plan guards' answer instead of re-scanning the census
+    /// (an unshifted plan that accepted a non-style write refused result
+    /// cells, so none is there; `StyleOnly` and hand-off masters, which
+    /// the guards never judged, are scanned).
     pub(crate) fn report(&self, wb: &mut Workbook) -> Result<Vec<TargetReport>> {
         let masters: Vec<(usize, CellIndex)> = self
             .handoffs
@@ -204,10 +208,14 @@ impl CellWritePlan {
                     .ok_or_else(|| Error::Malformed("a hand-off names no cell".into()))
             })
             .collect::<Result<_>>()?;
+        let unshifted = self.shifted_sheet.is_none();
         let mut out = Vec::with_capacity(self.writes.len() + masters.len());
         for w in &self.writes {
             let touched = masters.contains(&(w.sheet, w.at));
-            out.push(report_write(wb, w, touched)?);
+            // the guards judged every unshifted non-style write; anything
+            // else is scanned below
+            let guarded = unshifted && !matches!(w.op, CellOp::StyleOnly);
+            out.push(report_write(wb, w, touched, guarded)?);
         }
         for (sheet, at) in &masters {
             if out
@@ -224,12 +232,14 @@ impl CellWritePlan {
 
 /// The target's current cell: existence, §4.4 state, the R1 (b) flag, and a
 /// clone of the `c` (reads need no tree borrow held across `state_of`).
-#[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
+/// With `guarded`, the plan's guards already refused result cells here,
+/// so the census is not scanned again (see [`CellWritePlan::report`]).
 fn current_cell(
     wb: &mut Workbook,
     sheet: usize,
     part: &str,
     at: CellIndex,
+    guarded: bool,
 ) -> Result<(bool, CellState, bool, Option<RawNode>)> {
     wb.ensure_index(sheet)?;
     let node = {
@@ -239,19 +249,20 @@ fn current_cell(
         located_cell(doc, &loc).cloned()
     };
     let state = state_of(wb, sheet, at, node.as_ref())?;
-    let grouped = wb
-        .census
-        .at(sheet, at)
-        .and_then(|f| wb.census.get(f))
-        .is_some_and(|c| !matches!(c.kind, FKind::Normal) || c.dynamic)
-        || wb.census.result_anchor(sheet, at).is_some();
+    let grouped = wb.census.at(sheet, at).and_then(|f| wb.census.get(f)).is_some_and(|c| {
+        !matches!(c.kind, FKind::Normal) || c.dynamic
+    }) || (!guarded && wb.census.result_anchor(sheet, at).is_some());
     Ok((node.is_some(), state, grouped, node))
 }
 
 /// The report entry of one planned write.
-#[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
-fn report_write(wb: &mut Workbook, w: &PlannedWrite, touched: bool) -> Result<TargetReport> {
-    let (exists, state, group_or_array, node) = current_cell(wb, w.sheet, &w.part, w.at)?;
+fn report_write(
+    wb: &mut Workbook,
+    w: &PlannedWrite,
+    touched: bool,
+    guarded: bool,
+) -> Result<TargetReport> {
+    let (exists, state, group_or_array, node) = current_cell(wb, w.sheet, &w.part, w.at, guarded)?;
     let (content_same, style_same) = content_style_same(w, &state, node.as_ref())?;
     // always the conjunction (two-half ops: both halves), so a mutant
     // dropping either conjunct is natural
@@ -274,14 +285,14 @@ fn report_write(wb: &mut Workbook, w: &PlannedWrite, touched: bool) -> Result<Ta
 /// The report entry of a hand-off's new master: the hand-off rewrites its
 /// `f`, so its state is never the plan's (R1 (b) vetoes it anyway: it is a
 /// shared member).
-#[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
 fn report_master(wb: &mut Workbook, sheet: usize, at: CellIndex) -> Result<TargetReport> {
     let part = wb
         .sheets
         .get(sheet)
         .and_then(|s| s.part.clone())
         .ok_or_else(|| Error::Malformed("a hand-off names no sheet".into()))?;
-    let (exists, _, group_or_array, _) = current_cell(wb, sheet, &part, at)?;
+    // the guards never judged the new master: scan
+    let (exists, _, group_or_array, _) = current_cell(wb, sheet, &part, at, false)?;
     Ok(TargetReport {
         sheet,
         at,
@@ -297,7 +308,6 @@ fn report_master(wb: &mut Workbook, sheet: usize, at: CellIndex) -> Result<Targe
 /// Whether the op leaves the target's content and style (§4.4) as `state`
 /// holds them (`s`: missing = 0, as `state_of` reads it). `node` is the
 /// target's current `c`, if any. Reads only.
-#[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
 fn content_style_same(
     w: &PlannedWrite,
     state: &CellState,
@@ -1913,6 +1923,15 @@ mod tests {
             sheet,
             "A1",
             CellOp::InlineRich(reprops),
+            Extra::default(),
+        ));
+        assert!(!t.state_same && !t.validation_same);
+        // plain text over the rich runs differs (runs and single `t` both)
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "A1",
+            CellOp::Text("abc".into()),
             Extra::default(),
         ));
         assert!(!t.state_same && !t.validation_same);

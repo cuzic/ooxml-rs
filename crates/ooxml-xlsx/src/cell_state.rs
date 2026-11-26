@@ -211,7 +211,6 @@ fn string_state_of_item(item: &RawNode) -> StringState {
 /// write builds them (no phonetics, no extras), so a same-runs write
 /// compares equal to the current inline state. C1's report compares it
 /// against the live cell (single source: the write's own builder).
-#[cfg_attr(not(test), expect(dead_code))] // slice A: unit tests only; slice B wires the Journal
 pub(crate) fn rich_state_of_runs(
     runs: &[crate::registry::strings::RichRun],
 ) -> Result<StringState> {

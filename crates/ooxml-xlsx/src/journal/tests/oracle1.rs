@@ -498,6 +498,11 @@ struct Tally {
     fired: u32,
     recovered: u32,
     steps: std::collections::HashSet<String>,
+    skips: u32,
+    skip_content: u32,
+    skip_style: u32,
+    skip_twohalf: u32,
+    skip_cells: u32,
 }
 
 const ALL_STEPS: [ApplyStep; 7] = [
@@ -546,6 +551,34 @@ fn family(kind: &OpKind) -> (bool, bool, bool) {
             false,
         ),
         _ => (false, false, false),
+    }
+}
+
+/// R1 coverage: when the Journal skipped the op, tally its kind.
+fn tally_skip(tally: &mut Tally, p: &Pair, input: &OpInput) {
+    if p.j.log().last().is_none_or(|o| o.applied) {
+        return;
+    }
+    tally.skips += 1;
+    match &input.kind {
+        OpKind::WriteCells(_) => tally.skip_cells += 1,
+        OpKind::Cell { call, .. } => match call {
+            CellCall::DateTime(_)
+            | CellCall::NumberWithFormat(..)
+            | CellCall::StringWithFormat(..)
+            | CellCall::FormulaWithFormat(..)
+            | CellCall::DateTimeWithFormat(..) => tally.skip_twohalf += 1,
+            CellCall::Format(_)
+            | CellCall::NumFormat(_)
+            | CellCall::Font(_)
+            | CellCall::Fill(_)
+            | CellCall::Border(_)
+            | CellCall::StyleIndex(_)
+            | CellCall::StyleXf(..)
+            | CellCall::NamedStyle(_) => tally.skip_style += 1,
+            _ => tally.skip_content += 1,
+        },
+        OpKind::Row { .. } | OpKind::Cols { .. } => unreachable!("row/col ops are never skipped"),
     }
 }
 
@@ -617,11 +650,17 @@ fn drive(case: &Case, tally: &mut Tally) -> Pair {
                 }
                 // not a failure: finish what `Pair::step` does, with the
                 // Journal's result in hand
+                let skipped =
+                    matches!(&rj, Ok(Ok(_))) && p.j.log().last().is_some_and(|o| !o.applied);
+                if skipped {
+                    // R1 skipped the op, so the fault never fired: re-arm it
+                    pending = Some((i + 1, step, panic));
+                }
                 let rj = rj.unwrap();
                 let rs = crate::journal::op::apply_seq(&mut p.seq, &input);
                 p.applied.push(input.clone());
                 match (&rs, &rj) {
-                    (Ok(()), Ok(_)) => p.check_written_back(&input),
+                    (Ok(()), Ok(_)) => p.check_accepted(&input, &before),
                     (Err(es), Err(JournalError::Op(ej))) => assert_eq!(
                         discriminant(es),
                         discriminant(ej),
@@ -636,6 +675,7 @@ fn drive(case: &Case, tally: &mut Tally) -> Pair {
         match result {
             Ok(()) => {
                 tally.ok += 1;
+                tally_skip(tally, &p, &input);
                 tally.rc_ok += u32::from(rc);
                 tally.clear_ok += u32::from(clear);
                 tally.dynamic_ok += u32::from(dynamic);
@@ -675,7 +715,7 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
     let mut families = std::collections::HashSet::new();
     let mut full: HashMap<&'static str, u32> = HashMap::new();
     let mut content = 0;
-    for _ in 0..200 {
+    for _ in 0..256 {
         let case = case_s().new_tree(&mut runner).unwrap().current();
         for op in &case.ops {
             families.insert(std::mem::discriminant(op));
@@ -688,11 +728,14 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
         p.finish();
     }
     // R2 is actually exercised: full restores on every string kind and on
-    // formulas, and content-only restores
+    // formulas, and content-only restores. R1 absorbs the write-backs that
+    // repeat the current value (they skip instead of apply-and-restore),
+    // so the formula/shared floors sit below their R1-off levels; every
+    // kind still restores.
     println!("full restores {full:?}, content {content}");
     let n = |k: &str| full.get(k).copied().unwrap_or(0);
     assert!(
-        n("value") >= 10 && n("formula") >= 10 && n("shared") >= 3 && n("inline") >= 1,
+        n("value") >= 10 && n("formula") >= 3 && n("shared") >= 1 && n("inline") >= 1,
         "full restores {full:?}"
     );
     assert!(content >= 10, "content restores {content}");
@@ -701,6 +744,23 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
     println!(
         "ok {} refused {}; row/col ok {} refused {}; clear ok {}; dynamic ok {}; faults fired {} recovered {}; steps {:?}",
         t.ok, t.refused, t.rc_ok, t.rc_refused, t.clear_ok, t.dynamic_ok, t.fired, t.recovered, t.steps
+    );
+    println!(
+        "skips {} (content {} style {} two-half {} cells {})",
+        t.skips, t.skip_content, t.skip_style, t.skip_twohalf, t.skip_cells
+    );
+    // R1 fires on every kind (fail loudly if it never fires). Two-half
+    // and whole-batch skips are rare under the fixed generator (fixed
+    // two-half values, all-cells-must-match batches), so their floors sit
+    // at "fires", not > 5; the seed is fixed, so they are still exact.
+    assert!(t.skips > 50, "skips {}", t.skips);
+    assert!(
+        t.skip_content > 5 && t.skip_style > 5 && t.skip_twohalf > 2 && t.skip_cells > 0,
+        "content {} style {} two-half {} cells {}",
+        t.skip_content,
+        t.skip_style,
+        t.skip_twohalf,
+        t.skip_cells
     );
     assert!(t.ok > 1000 && t.refused > 100, "ok {}, refused {}", t.ok, t.refused);
     assert!(t.rc_ok > 50 && t.rc_refused > 10, "row/col {} {}", t.rc_ok, t.rc_refused);
