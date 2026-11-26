@@ -84,6 +84,7 @@ mod sheet_ops;
 mod registry;
 mod setters;
 mod canonical;
+mod cell_state;
 mod snapshot;
 mod workbook;
 mod worksheet;
