@@ -693,21 +693,21 @@ impl Workbook {
         at: CellIndex,
         w: CellWrite<'_>,
     ) -> Result<(CellOp, Extra)> {
-            CellIndex::new(at.row, at.col)?;
+        CellIndex::new(at.row, at.col)?;
         Ok(match w {
-                CellWrite::Number(v) => {
-                    if !v.is_finite() {
-                        return Err(Error::InvalidNumber(v));
-                    }
-                    (CellOp::Number(format_number(v)), Default::default())
+            CellWrite::Number(v) => {
+                if !v.is_finite() {
+                    return Err(Error::InvalidNumber(v));
                 }
+                (CellOp::Number(format_number(v)), Default::default())
+            }
             CellWrite::String(s) => self.plan_string_write(s)?,
             CellWrite::Formula(t) => (
                 CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
                 Default::default(),
             ),
-                CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
-                CellWrite::ClearValue => (CellOp::ClearValue, Default::default()),
+            CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
+            CellWrite::ClearValue => (CellOp::ClearValue, Default::default()),
         })
     }
 }
