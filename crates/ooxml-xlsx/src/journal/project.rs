@@ -210,7 +210,7 @@ impl Styles {
         // (it is a difference, not a 0)
         let id = |attrs: &mut BTreeMap<String, String>, a: &str| match attrs
             .get(a)
-            .map(|v| v.parse::<usize>())
+            .map(|v| v.trim().parse::<usize>())
         {
             Some(Ok(i)) => {
                 attrs.remove(a);
