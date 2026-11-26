@@ -4,7 +4,7 @@
 use super::fixtures::{group_workbook, oracle_workbook, out_of_order_dependent_workbook};
 use super::*;
 use crate::census::FKind;
-use crate::journal::op::{Api, CellCall, ColCall, ColProp, OpKind, RowCall, RowProp, WriteValue};
+use crate::journal::op::{CellCall, ColCall, ColProp, Op, OpKind, RowCall, RowProp, WriteValue};
 use crate::reference::MAX_ROWS;
 
 fn base() -> Vec<u8> {
@@ -196,28 +196,6 @@ fn fixed_18_round_9_m5_write_cells_with_a_base_value() {
 #[test]
 fn fixed_19_b2_an_input_under_an_array() {
     run(&group(), [num("A2", 99.0)]);
-}
-
-#[test]
-fn fixed_20_p2_is_unsupported_and_changes_nothing() {
-    let mut p = Pair::new(&base());
-    p.step(c1("A1", CellCall::Font(italic()))).unwrap(); // creates xf 4
-    let before = state_of_journal(&p.j);
-    // accepted sequentially, so not part of (i)
-    let r = p.j.append(Api::Native, c1("A2", CellCall::StyleIndex(4)));
-    assert!(
-        matches!(
-            r,
-            Err(JournalError::Unsupported {
-                op: "set_style_index(session xf)"
-            })
-        ),
-        "{r:?}"
-    );
-    assert_eq!(state_of_journal(&p.j), before);
-    // a Base xf is fine
-    p.step(c1("A2", CellCall::StyleIndex(3))).unwrap();
-    p.finish();
 }
 
 #[test]
@@ -506,4 +484,73 @@ fn fixed_32_keys_of_the_new_calls() {
         );
     }
     assert_eq!(before, 2, "a refused row op pushes nothing");
+}
+
+/// P2 (ADR-0024 F12): a session `xf` is logged and applied by content, live
+/// and in replay; the sequential reference takes the index directly.
+#[test]
+fn fixed_33_p2_session_xf_is_logged_by_content() {
+    use crate::journal::op::StyleGroup;
+    let mut p = Pair::new(&base());
+    p.step(c1("A1", CellCall::Font(italic()))).unwrap(); // creates xf 4
+    p.step(c1("A2", CellCall::StyleIndex(4))).unwrap();
+    let last = p.j.log().last().unwrap();
+    let Op::Cell { call, .. } = &last.op else { panic!("{last:?}") };
+    assert!(matches!(call, CellCall::StyleXf(..)), "logged {call:?}, not an index");
+    // all six style groups of A2 are keyed by the op, content is not
+    let k = p.j.cell_key(0, at("A2"));
+    let seq = last.seq;
+    for g in [
+        StyleGroup::NumFmt,
+        StyleGroup::Font,
+        StyleGroup::Fill,
+        StyleGroup::Border,
+        StyleGroup::Alignment,
+        StyleGroup::Protection,
+    ] {
+        let key = Key::Cell { sheet: k.sheet, row: k.row, col: k.col, field: crate::journal::op::Field::Style(g) };
+        assert_eq!(p.j.key_seqs(&key), [seq], "{g:?}");
+    }
+    assert!(content_seqs(&p.j, "A2").is_empty());
+    // a Base xf stays an index
+    p.step(c1("A3", CellCall::StyleIndex(3))).unwrap();
+    let last = p.j.log().last().unwrap();
+    assert!(matches!(&last.op, Op::Cell { call: CellCall::StyleIndex(3), .. }));
+    // past the table: refused on both sides, nothing changes
+    let r = p.step(c1("A2", CellCall::StyleIndex(99)));
+    assert!(matches!(r, Err(Error::StyleIndexOutOfRange { .. })), "{r:?}");
+    p.finish();
+    let live = p.j.shadow().to_bytes().unwrap();
+    p.j.rebuild().unwrap();
+    assert_eq!(p.j.shadow().to_bytes().unwrap(), live, "replay by content equals the live bytes");
+    p.finish();
+}
+
+/// P2 asymmetry (PR 165 review, round 1 m1): a session `xf` derived from a
+/// Base `xf` with a dangling reference is refused by the Journal
+/// (`xf_content`), though the sequential call takes the index. The Journal is
+/// unchanged by the refusal. Part B is outside oracle 1 (i) (F8).
+#[test]
+fn fixed_34_p2_dangling_base_reference_is_refused_by_the_journal_only() {
+    use super::fixtures::{custom_styles, package, plain};
+    use crate::journal::op::apply_seq;
+    let sheet = r#"<dimension ref="A1:A2"/><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#;
+    // xf 2 names border 9 of 1
+    let styles = custom_styles(false).replace(
+        r#"fillId="1" borderId="0""#,
+        r#"fillId="1" borderId="9""#,
+    );
+    let bytes = package(&[("Sheet1", sheet.to_owned())], &[plain("x")], None, &styles);
+    let mut p = Pair::new(&bytes);
+    p.step(c1("A1", CellCall::StyleIndex(2))).unwrap();
+    p.step(c1("A1", CellCall::Font(italic()))).unwrap(); // session xf 4, border 9
+    let input = c1("A2", CellCall::StyleIndex(4));
+    let before = state_of_journal(&p.j);
+    assert!(apply_seq(&mut p.seq, &input).is_ok(), "the sequential call accepts it");
+    let r = p.j.append(Api::Native, input);
+    assert!(
+        matches!(&r, Err(JournalError::Op(Error::DanglingReference { .. }))),
+        "{r:?}"
+    );
+    assert_eq!(state_of_journal(&p.j), before, "a refusal changed the Journal");
 }

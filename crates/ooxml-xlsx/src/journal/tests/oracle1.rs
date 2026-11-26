@@ -79,6 +79,8 @@ enum StyleK {
     NumFmt(bool),
     Format,
     Index(u32),
+    /// An `xf` created earlier in the case: `base_xf_count + k` (P2).
+    Session(u32),
     Named(bool),
 }
 
@@ -168,6 +170,7 @@ fn style_s() -> impl Strategy<Value = StyleK> {
         any::<bool>().prop_map(StyleK::NumFmt),
         Just(StyleK::Format),
         prop::sample::select(vec![0u32, 1, 2, 3, 99]).prop_map(StyleK::Index),
+        (0u32..3).prop_map(StyleK::Session),
         any::<bool>().prop_map(StyleK::Named),
     ]
 }
@@ -250,6 +253,8 @@ struct Resolver {
     fx: Fx,
     base: HashMap<(usize, CellIndex), BaseCell>,
     targets: Vec<(usize, CellIndex)>,
+    /// `cellXfs` count of the Base.
+    base_xfs: u32,
     written: HashMap<(usize, CellIndex), CellCall>,
 }
 
@@ -259,9 +264,13 @@ impl Resolver {
             .into_iter()
             .map(|c| ((c.sheet, c.at), c))
             .collect();
+        let base_xfs = Workbook::from_bytes(fx.bytes())
+            .and_then(|mut w| w.cell_format_count())
+            .expect("a fixture opens");
         Resolver {
             fx,
             base,
+            base_xfs,
             targets: Vec::new(),
             written: HashMap::new(),
         }
@@ -382,6 +391,7 @@ impl Resolver {
                     }
                     StyleK::Format => CellCall::Format(full_format()),
                     StyleK::Index(i) => CellCall::StyleIndex(*i),
+                    StyleK::Session(k) => CellCall::StyleIndex(self.base_xfs + k),
                     StyleK::Named(b) => {
                         CellCall::NamedStyle(if *b { "Normal" } else { "Nope" }.into())
                     }
@@ -484,6 +494,7 @@ struct Tally {
     rc_refused: u32,
     clear_ok: u32,
     dynamic_ok: u32,
+    session_ok: u32,
     fired: u32,
     recovered: u32,
     steps: std::collections::HashSet<String>,
@@ -654,6 +665,10 @@ fn drive(case: &Case, tally: &mut Tally) -> Pair {
                 tally.rc_ok += u32::from(rc);
                 tally.clear_ok += u32::from(clear);
                 tally.dynamic_ok += u32::from(dynamic);
+                tally.session_ok += u32::from(matches!(
+                    &input.kind,
+                    OpKind::Cell { call: CellCall::StyleIndex(i), .. } if *i >= p.j.base_counts.cell_xfs
+                ));
             }
             Err(_) => {
                 tally.refused += 1;
@@ -717,6 +732,7 @@ fn the_generator_hits_every_op_family_and_some_refusals() {
     assert!(t.rc_ok > 50 && t.rc_refused > 10, "row/col {} {}", t.rc_ok, t.rc_refused);
     assert!(t.clear_ok > 20, "clear {}", t.clear_ok);
     assert!(t.dynamic_ok > 10, "dynamic {}", t.dynamic_ok);
+    assert!(t.session_ok > 10, "session xf {}", t.session_ok);
     #[cfg(feature = "fault-injection")]
     {
         assert!(t.fired > 10 && t.recovered > 10, "faults {} {}", t.fired, t.recovered);
