@@ -320,12 +320,13 @@ fn content_style_same(
                 && matches!(&state.content, Content::Str { inline: true, text, string }
                     if text == e && string.runs.is_none() && string.phonetic.is_none())
         }
-        // the same item (`sst` is append-only); the spelling of `v` is not compared
+        // the same item (`sst` is append-only); the `v` spelling is
+        // compared literally (C5: `00` over `0` applies, as sequentially)
         CellOp::Shared(i) => node.is_some_and(|c| {
             c.attr(sml::Cell::ATTR_T) == Some("s")
                 && c.elements()
                     .find(|e| e.is(sml::CellValue::QNAME))
-                    .is_some_and(|v| ooxml_core::value::parse_u32(&v.text()) == Some(*i))
+                    .is_some_and(|v| v.text() == i.to_string())
         }),
         CellOp::Bool(b) => {
             let want = if *b { "1" } else { "0" };
@@ -552,6 +553,9 @@ impl Workbook {
     /// a single write). Header renames are not staged (a header write
     /// refuses), so [`edit_cell_ext`](Self::edit_cell_ext) plans through
     /// [`write_with_headers`](Self::write_with_headers)'s split instead.
+    /// Slice-B note: the Journal must plan single writes via
+    /// `plan_with_headers` for the same reason, never via this fn (a
+    /// header-cell write refuses here but renames through the funnel).
     pub(crate) fn plan_cell_write(
         &mut self,
         sheet: usize,
@@ -1804,6 +1808,47 @@ mod tests {
     }
 
     #[test]
+    fn report_shared_compares_the_v_spelling_literally() {
+        let mut wb = Workbook::new().unwrap();
+        let sheet = sheet(&wb, "Sheet1");
+        wb.worksheet().unwrap().write_string(0, 0, "zero").unwrap();
+        // a foreign spelling of the same shared index
+        let part = wb.sheets[sheet].part.clone().unwrap();
+        let bytes = wb.to_bytes().unwrap();
+        let mut pkg = ooxml_core::Package::from_bytes(bytes).unwrap();
+        let xml = String::from_utf8(pkg.read_part(&part).unwrap()).unwrap();
+        let a1 = xml.find("r=\"A1\"").expect("the written cell");
+        let v = xml[a1..]
+            .split("<v>")
+            .nth(1)
+            .and_then(|s| s.split("</v>").next())
+            .expect("a shared index");
+        let index: u32 = v.parse().expect("a numeric index");
+        let padded = format!("<v>0{v}</v>");
+        let tail = xml[a1..].replacen(&format!("<v>{v}</v>"), &padded, 1);
+        let patched = format!("{}{tail}", &xml[..a1]);
+        assert!(patched.contains(&padded), "{patched}");
+        pkg.set_part(&part, patched.into_bytes()).unwrap();
+        let wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "A1",
+            CellOp::Shared(index),
+            Extra::default(),
+        ));
+        assert!(t.exists && !t.group_or_array);
+        assert!(!t.state_same && !t.validation_same, "a padded `v` applies");
+        // the sequential write normalizes the spelling, so a skip would diverge
+        let bytes = wb.to_bytes().unwrap();
+        let mut applied = Workbook::from_bytes(bytes).unwrap();
+        applied.edit_cell(sheet, at("A1"), CellOp::Shared(index)).unwrap();
+        let xml = applied.pkg.xml_part(&part).unwrap().serialize();
+        assert!(xml.contains(&format!("<v>{index}</v>")), "{xml}");
+        assert!(!xml.contains(&padded), "{xml}");
+    }
+
+    #[test]
     fn report_bool_and_error_are_literal() {
         let mut wb = Workbook::new().unwrap();
         let sheet = sheet(&wb, "Sheet1");
@@ -1919,6 +1964,54 @@ mod tests {
     }
 
     #[test]
+    fn report_inline_rich_with_escapable_text() {
+        let mut wb = Workbook::new().unwrap();
+        let sheet = sheet(&wb, "Sheet1");
+        // a control character and a literal `_xHHHH_`, as `plan_rich_write`
+        // escapes them
+        let runs = vec![
+            PlannedRichRun {
+                font: None,
+                escaped: crate::escape::encode("x\x01y").into_owned(),
+            },
+            PlannedRichRun {
+                font: None,
+                escaped: crate::escape::encode("_x0001_").into_owned(),
+            },
+        ];
+        wb.edit_cell(sheet, at("A1"), CellOp::InlineRich(runs.clone()))
+            .unwrap();
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "A1",
+            CellOp::InlineRich(runs),
+            Extra::default(),
+        ));
+        assert!(t.state_same && t.node_same && t.validation_same);
+        // a raw `_x0001_` is not the stored `_x005F_x0001_`: nothing
+        // decodes (else both would read as U+0001 and compare same)
+        let raw = vec![
+            PlannedRichRun {
+                font: None,
+                escaped: crate::escape::encode("x\x01y").into_owned(),
+            },
+            PlannedRichRun {
+                font: None,
+                escaped: "_x0001_".into(),
+            },
+        ];
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "A1",
+            CellOp::InlineRich(raw),
+            Extra::default(),
+        ));
+        assert!(!t.state_same && !t.validation_same);
+    }
+
+    #[test]
     fn report_formula_compares_text_and_attributes() {
         let mut wb = Workbook::new().unwrap();
         let s0 = sheet(&wb, "Sheet1");
@@ -1957,7 +2050,13 @@ mod tests {
         assert!(t.group_or_array && !t.state_same && !t.validation_same);
         // the master's own text differs too: same stored text, but the
         // group attributes are not a plain `f` (plus the hand-off target)
-        let r = report_of(&g, gs, "D2", CellOp::Formula("$A2+D$1".into()), Extra::default());
+        let r = report_of(
+            &g,
+            gs,
+            "D2",
+            CellOp::Formula("$A2+D$1".into()),
+            Extra::default(),
+        );
         assert_eq!(r.len(), 2);
         assert!(r[0].group_or_array && !r[0].state_same && !r[0].validation_same);
     }
@@ -2135,6 +2234,70 @@ mod tests {
     }
 
     #[test]
+    fn report_two_half_with_real_style_requests() {
+        use crate::registry::dates::ExcelDateTime;
+        let mut wb = Workbook::new().unwrap();
+        let sheet = sheet(&wb, "Sheet1");
+        let date1904 = wb.date1904().unwrap();
+        let d = ExcelDateTime::from_ymd(2026, 1, 1).unwrap();
+        let serial = d.serial(date1904).unwrap();
+        let serial_text = crate::worksheet::format_number(serial);
+        let ensure_date = || Extra {
+            string: None,
+            style: Some(StyleRequest::EnsureDate),
+        };
+        // the same serial on a date-formatted cell: both halves same
+        wb.worksheet().unwrap().cell_mut(0, 0).unwrap().set_datetime(d).unwrap();
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "A1",
+            CellOp::Number(serial_text.clone()),
+            ensure_date(),
+        ));
+        assert!(t.state_same && t.validation_same);
+        // the same serial on a non-date format: `EnsureDate` changes the style
+        wb.worksheet().unwrap().cell_mut(1, 0).unwrap().set_number(serial).unwrap();
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "A2",
+            CellOp::Number(serial_text),
+            ensure_date(),
+        ));
+        assert!(!t.state_same && !t.validation_same);
+        // a `Format` request resolving to the current xf is the same style
+        let two = crate::Format::new().set_num_format("0.00");
+        let three = crate::Format::new().set_num_format("0.000");
+        wb.worksheet()
+            .unwrap()
+            .cell_mut(0, 1)
+            .unwrap()
+            .set_number_with_format(5.0, &two)
+            .unwrap();
+        let with = |f: &crate::Format| Extra {
+            string: None,
+            style: Some(StyleRequest::Format(Box::new(f.clone()))),
+        };
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "B1",
+            CellOp::Number("5".into()),
+            with(&two),
+        ));
+        assert!(t.state_same && t.validation_same);
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "B1",
+            CellOp::Number("5".into()),
+            with(&three),
+        ));
+        assert!(!t.state_same && !t.validation_same);
+    }
+
+    #[test]
     fn report_conditional_skips_are_not_targets() {
         let mut wb = Workbook::new().unwrap();
         wb.worksheet()
@@ -2195,6 +2358,34 @@ mod tests {
     }
 
     #[test]
+    fn report_group_flags_a_data_table_cell() {
+        let wb = Workbook::new().unwrap();
+        let part = wb.sheets[0].part.clone().unwrap();
+        let bytes = wb.to_bytes().unwrap();
+        let mut pkg = ooxml_core::Package::from_bytes(bytes).unwrap();
+        let sheet = format!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="{ns}"><sheetData><row r="4"><c r="C4"><f t="dataTable" ref="C4:C5" r1="A1" r2="A2"/></c></row></sheetData></worksheet>"#,
+            ns = crate::SML_NS
+        );
+        pkg.set_part(&part, sheet.into_bytes()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        // content refuses, as for an array anchor ...
+        std::assert_matches!(
+            wb.plan_cell_write(
+                0,
+                at("C4"),
+                CellOp::Number("1".into()),
+                Extra::default()
+            ),
+            Err(Error::ArrayAnchor { .. })
+        );
+        // ... so StyleOnly plans where content refuses, and the flag is set
+        let t = single(report_of(&wb, 0, "C4", CellOp::StyleOnly, Extra::default()));
+        assert!(t.exists && t.group_or_array);
+    }
+
+    #[test]
     fn report_handoff_names_the_new_master() {
         let g = Workbook::from_bytes(synthetic("o1_shared.xlsx")).unwrap();
         let sheet = sheet(&g, "Sheet2");
@@ -2217,6 +2408,54 @@ mod tests {
         assert!(!r[1].state_same && !r[1].validation_same);
         assert_eq!(fresh.to_bytes().unwrap(), bytes);
         assert_clean(&fresh);
+    }
+
+    #[test]
+    fn report_named_handoff_collision_reports_once_with_the_touched_veto() {
+        let g = Workbook::from_bytes(synthetic("o1_shared.xlsx")).unwrap();
+        let sheet = sheet(&g, "Sheet2");
+        let bytes = g.to_bytes().unwrap();
+        let mut fresh = Workbook::from_bytes(bytes.clone()).unwrap();
+        assert_clean(&fresh);
+        // a master content write (hands off to C2) plus a style write at C2
+        let plan = fresh
+            .plan_writes(vec![
+                (sheet, at("D2"), CellOp::Number("1".into()), Extra::default()),
+                (sheet, at("C2"), CellOp::StyleOnly, Extra::default()),
+            ])
+            .unwrap();
+        let r = plan.report(&mut fresh).unwrap();
+        assert_eq!(r.len(), 2, "the new master is reported once, as named: {r:?}");
+        assert!(r[0].named && r[0].at == at("D2"));
+        assert!(r[1].named && r[1].at == at("C2"));
+        assert!(r[1].state_same && r[1].node_same, "style kept is same: {r:?}");
+        assert!(!r[1].validation_same, "the hand-off vetoes the skip: {r:?}");
+        assert_eq!(fresh.to_bytes().unwrap(), bytes);
+        assert_clean(&fresh);
+    }
+
+    #[test]
+    fn string_reservation_plans_change_no_byte_and_set_no_flag() {
+        // a workbook with an `sst` part, its registry not yet active
+        let mut wb = Workbook::new().unwrap();
+        let sheet = sheet(&wb, "Sheet1");
+        assert!(wb.registries.strings.is_none());
+        let bytes = wb.to_bytes().unwrap();
+        // `plan_string_write` reserves through the (activating) registry
+        let (op, extra) = wb.plan_string_write("hello").unwrap();
+        assert!(matches!(op, CellOp::Shared(_)), "{op:?}");
+        assert!(extra.string.is_some(), "a reservation-bearing plan");
+        assert!(wb.registries.strings.is_some(), "the registry activates invisibly");
+        let plan = wb.plan_cell_write(sheet, at("A1"), op, extra).unwrap();
+        plan.report(&mut wb).unwrap();
+        // and one `plan_write_value` String item, as `write_cells` plans it
+        let (op, extra) = wb
+            .plan_write_value(at("B2"), crate::worksheet::CellWrite::String("world"))
+            .unwrap();
+        let plan = wb.plan_cell_write(sheet, at("B2"), op, extra).unwrap();
+        plan.report(&mut wb).unwrap();
+        assert_eq!(wb.to_bytes().unwrap(), bytes, "string plans change nothing");
+        assert_clean(&wb);
     }
 
     #[test]

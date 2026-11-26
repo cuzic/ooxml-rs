@@ -1056,6 +1056,33 @@ mod tests {
     }
 
     #[test]
+    fn single_header_writes_funnel_through_plan_with_headers() {
+        let wb = table_wb();
+        let bytes = wb.to_bytes().unwrap();
+        // the real single-write funnel stages the rename and applies it
+        let mut renamed = Workbook::from_bytes(bytes.clone()).unwrap();
+        renamed
+            .edit_cell(0, at("A1"), CellOp::Text("Renamed".into()))
+            .unwrap();
+        let xml = table_xml(&renamed, "xl/tables/table1.xml");
+        assert!(xml.contains(r#"name="Renamed""#), "{xml}");
+        // `plan_cell_write` stages no rename: the same write refuses there,
+        // so slice B must plan single writes via `plan_with_headers`
+        let mut planned = Workbook::from_bytes(bytes.clone()).unwrap();
+        std::assert_matches!(
+            planned.plan_cell_write(
+                0,
+                at("A1"),
+                CellOp::Text("Renamed".into()),
+                crate::edit::Extra::default()
+            ),
+            Err(Error::TableHeaderCell { .. })
+        );
+        assert_eq!(planned.to_bytes().unwrap(), bytes);
+        assert_clean(&planned);
+    }
+
+    #[test]
     fn header_staging_refusals_are_byte_identical() {
         let wb = table_wb();
         let text = |cell: &str, t: &str| {
