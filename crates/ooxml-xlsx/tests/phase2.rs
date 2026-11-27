@@ -676,6 +676,7 @@ fn explicit_iso_date_validation_is_atomic() {
     let e = sheet.cell_mut(0, 0).unwrap().set_iso_date("2023-02-29T00:00:00.000Z").unwrap_err();
     assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
     assert_eq!(e.cell(), Some("A1"));
+    assert_eq!(e.to_string(), "cell A1: expected a UTC ISO date");
     assert_eq!(book.to_bytes().unwrap(), original);
     let mut sheet = book.worksheet().unwrap();
     sheet.cell_mut(0, 0).unwrap().set_iso_date("2024-02-29T00:00:00.123Z").unwrap();

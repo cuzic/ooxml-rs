@@ -223,7 +223,7 @@ fn encode_row_inner(
         if previous.is_some_and(|previous| previous >= column) {
             return Err(Error::InvalidArgument {
                 cell: Some(at.to_string()),
-                message: "streaming row columns must be strictly increasing".into(),
+                message: format!("cell {at}: streaming row columns must be strictly increasing"),
             });
         }
         previous = Some(column);
@@ -231,13 +231,13 @@ fn encode_row_inner(
             Some(RowFormula::Array { range, .. }) if range.first != at => {
                 return Err(Error::InvalidArgument {
                     cell: Some(at.to_string()),
-                    message: "array formula must start at its anchor cell".into(),
+                    message: format!("cell {at}: array formula must start at its anchor cell"),
                 });
             }
             Some(RowFormula::SharedMaster { range, .. }) if range.first != at => {
                 return Err(Error::InvalidArgument {
                     cell: Some(at.to_string()),
-                    message: "shared formula must start at its anchor cell".into(),
+                    message: format!("cell {at}: shared formula must start at its anchor cell"),
                 });
             }
             Some(
@@ -255,7 +255,7 @@ fn encode_row_inner(
             if formula.is_some() || value != CellValue::Empty {
                 return Err(Error::InvalidArgument {
                     cell: Some(at.to_string()),
-                    message: "rich text must be a cell value".into(),
+                    message: format!("cell {at}: rich text must be a cell value"),
                 });
             }
             let runs = rich_text

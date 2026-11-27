@@ -199,7 +199,9 @@ pub enum Error {
     InvalidArgument {
         /// The cell, A1 style, when the error is about one cell.
         cell: Option<String>,
-        /// What is wrong.
+        /// What is wrong. When `cell` is `Some`, constructors prefix it
+        /// with `cell {at}: ` so the Display keeps the old InvalidValue
+        /// shape (`cell()` stays the machine-readable location).
         message: String,
     },
 
