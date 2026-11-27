@@ -1140,6 +1140,17 @@ impl XlsxDocument {
             .map(|range| range.to_string()))
     }
 
+    /// The raw declared `dimension/@ref` when it parses (any form,
+    /// including a lone cell): presence tells reads apart a missing
+    /// dimension (fail closed) from a single-cell one (data fallback).
+    pub fn sheet_declared_range(&mut self, name: &str) -> Result<Option<String>, JsError> {
+        Ok(self
+            .worksheet(name)
+            .map_err(js_error)?
+            .declared_range()
+            .map(|range| range.to_string()))
+    }
+
     pub fn guarded_ranges(&mut self, name: &str) -> Result<Vec<String>, JsError> {
         Ok(self
             .worksheet(name)
