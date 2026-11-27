@@ -4,7 +4,7 @@ use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{Content, ElementSpec, EnumValue, QName, RawNode, XmlDocument};
 use ooxml_schema::sml::{self, CellValues, TextView};
 
-use crate::edit::CellOp;
+use crate::edit::{CellOp, Extra};
 use crate::index::{Located, SheetIndex, located_cell, sheet_data};
 use crate::error::{Error, Result};
 use crate::escape;
@@ -296,8 +296,8 @@ pub(crate) struct TargetPlan {
 /// ooxml-core's non-mutating `check_insert_at` (O(1), no scan of the rows).
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
-        CellOp::Number(t) | CellOp::Date(t) | CellOp::Text(t) | CellOp::Formula(t, _) | CellOp::ArrayFormula(t, ..) | CellOp::SharedFormula(t, ..) => Some(t.as_str()),
-        CellOp::RemoveFormula | CellOp::Clear | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
+        CellOp::Number(t) | CellOp::Date(t) | CellOp::Text(t) | CellOp::Formula(t, _) | CellOp::DynamicFormula(t, _) | CellOp::ArrayFormula(t, ..) | CellOp::SharedFormula(t, ..) => Some(t.as_str()),
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     };
     if let Some(t) = text
         && let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(t)
@@ -330,8 +330,8 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
     let new_child = match op {
         CellOp::Number(_) | CellOp::Date(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) | CellOp::InlineRich(_) => Some(sml::InlineString::QNAME),
-        CellOp::Formula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => Some(sml::CellFormula::QNAME),
-        CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly => None,
+        CellOp::Formula(..) | CellOp::DynamicFormula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => Some(sml::CellFormula::QNAME),
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
         None => {},
@@ -399,13 +399,13 @@ fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
     let first = |q: QName| c.indexed_elements().find(|(_, n)| n.is(q)).map(|(i, _)| i);
     match op {
         CellOp::Number(_) | CellOp::Date(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => first(sml::CellValue::QNAME),
-        CellOp::Formula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => first(sml::CellFormula::QNAME),
+        CellOp::Formula(..) | CellOp::DynamicFormula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => first(sml::CellFormula::QNAME),
         CellOp::Text(_) => first(sml::InlineString::QNAME).filter(|&i| {
             let is = c.children()[i].as_element().expect("element");
             let mut kids = is.elements();
             matches!((kids.next(), kids.next()), (Some(t), None) if t.is(sml::Text::QNAME))
         }),
-        CellOp::RemoveFormula | CellOp::Clear | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
+        CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     }
 }
 
@@ -493,8 +493,8 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     crate::registry::strings::build_run(&mut is.0, r)?;
                 }
             }
-            CellOp::Formula(text, _) | CellOp::ArrayFormula(text, ..) | CellOp::SharedFormula(text, ..) => {
-                if let CellOp::ArrayFormula(_, _, Some(cm), _) = op {
+            CellOp::Formula(text, _) | CellOp::DynamicFormula(text, _) | CellOp::ArrayFormula(text, ..) | CellOp::SharedFormula(text, ..) => {
+                if let CellOp::ArrayFormula(_, _, Some(cm), _) | CellOp::DynamicFormula(_, cm) = op {
                     c.set_cell_meta_index(*cm)?;
                 }
                 c.remove_data_type()?;
@@ -518,6 +518,10 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     f.set_formula_type(sml::CellFormulaValues::Array)?;
                     f.set_reference(&range.to_string())?;
                 }
+                if matches!(op, CellOp::DynamicFormula(..)) {
+                    f.set_formula_type(sml::CellFormulaValues::Array)?;
+                    f.set_reference(&at.to_string())?;
+                }
                 if let CellOp::SharedFormula(_, si, range, _) = op {
                     f.set_formula_type(sml::CellFormulaValues::Shared)?;
                     f.set_shared_index(*si)?;
@@ -531,7 +535,7 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     c.get_or_insert_cell_value()?.set_text(value)?;
                 }
             }
-            CellOp::RemoveFormula | CellOp::Clear => {
+            CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue => {
                 c.remove_data_type()?;
             }
             CellOp::Shared(index) => {
@@ -608,7 +612,7 @@ impl<'wb> Worksheet<'wb> {
                 name.ns().is_empty() && (name.local() == "r" ||
                     (name.local() == "s" && ooxml_core::value::parse_u32(attr.value()) == Some(0)))
             }) {
-                remove.push((loc.row.expect("located cell row"), loc.cell.expect("located cell"), at.row + 1));
+                remove.push((loc.row.expect("located cell row"), loc.cell.expect("located cell"), at.row + 1, at.col));
             }
         }
         if remove.is_empty() {
@@ -620,11 +624,11 @@ impl<'wb> Worksheet<'wb> {
             let doc = workbook.pkg.xml_part_mut(&part)?;
             let mut worksheet = doc.lens_mut::<sml::Worksheet>()?;
             let index = workbook.indexes.get_mut(&sheet).expect("built");
-            for (row, cell, row_no) in remove.into_iter().rev() {
+            for (row, cell, row_no, col) in remove.into_iter().rev() {
                 let mut row = worksheet.child_mut::<sml::SheetData>().expect("located")
                     .into_child_at::<sml::Row>(row).expect("located");
                 row.remove_at(cell);
-                index.cell_removed(row_no, cell);
+                index.cell_removed(row_no, col, cell);
             }
             Ok(())
         })
@@ -802,6 +806,16 @@ pub struct CellMut<'s, 'wb> {
 /// Excel's cell text limit, in UTF-16 code units.
 pub(crate) const MAX_STRING_LEN: usize = 32_767;
 
+/// Plans an inline-string write: the length check and `_xHHHH_` escaping.
+/// Shared by `set_string_inline` and the Journal's plan input.
+pub(crate) fn plan_inline_write(value: &str) -> Result<CellOp> {
+    let units = value.encode_utf16().count();
+    if units > MAX_STRING_LEN {
+        return Err(Error::StringTooLong(units));
+    }
+    Ok(CellOp::Text(escape::encode(value).into_owned()))
+}
+
 /// Formats a finite number as `xsd:double`: plain decimal in the usual
 /// range, `1E300`-style outside it; `-0` is written as `0`.
 pub(crate) fn format_number(v: f64) -> String {
@@ -837,6 +851,8 @@ pub enum CellWrite<'a> {
     FormulaWithResult(&'a str, &'a CellValue),
     /// As [`CellMut::remove_formula`].
     RemoveFormula,
+    /// As [`CellMut::clear_value`].
+    ClearValue,
 }
 
 impl<'wb> Worksheet<'wb> {
@@ -869,6 +885,13 @@ impl<'wb> Worksheet<'wb> {
     /// [`Error::SharedFormulaMaster`] when two cells of one shared-formula
     /// group are written together (write them in separate calls).
     pub fn write_cells(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()> {
+        let was_active = self.wb.registries.strings.is_some();
+        let r = self.write_cells_inner(writes);
+        self.wb.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    fn write_cells_inner(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()> {
         self.wb.check_editable()?;
         let ops = self.prepare_cell_writes(writes)?;
         self.wb.write_with_headers(ops)
@@ -892,32 +915,49 @@ impl<'wb> Worksheet<'wb> {
     pub(crate) fn prepare_cell_writes(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<Vec<crate::tables::Write>> {
         let mut ops = Vec::with_capacity(writes.len());
         for &(at, w) in writes {
-            CellIndex::new(at.row, at.col)?;
-            let (op, extra) = match w {
-                CellWrite::Number(v) => {
-                    if !v.is_finite() {
-                        return Err(Error::InvalidNumber(v));
-                    }
-                    (CellOp::Number(format_number(v)), Default::default())
-                }
-                CellWrite::String(s) => self.wb.plan_string_write(s)?,
-                CellWrite::IsoDate(value) => (crate::setters::iso_date_op(at, value)?, Default::default()),
-                CellWrite::Error(value) => (crate::setters::error_cell_op(at, value)?, Default::default()),
-                CellWrite::Bool(value) => (CellOp::Bool(value), Default::default()),
-                CellWrite::Clear => (CellOp::Clear, Default::default()),
-                CellWrite::Formula(t) => (CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned(), None), Default::default()),
-                CellWrite::FormulaWithResult(text, result) => (
-                    CellOp::Formula(
-                        text.strip_prefix('=').unwrap_or(text).to_owned(),
-                        crate::dynamic::formula_cache(at, result.clone())?,
-                    ),
-                    Default::default(),
-                ),
-                CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
-            };
+            let (op, extra) = self.wb.plan_write_value(at, w)?;
             ops.push((self.sheet, at, op, extra));
         }
         Ok(ops)
+    }
+}
+
+impl Workbook {
+    /// Plans one `write_cells` item: validates the coordinate and the value
+    /// and reserves its string, without applying. Shared by `write_cells`
+    /// and the Journal's plan input.
+    pub(crate) fn plan_write_value(
+        &mut self,
+        at: CellIndex,
+        w: CellWrite<'_>,
+    ) -> Result<(CellOp, Extra)> {
+        CellIndex::new(at.row, at.col)?;
+        Ok(match w {
+            CellWrite::Number(v) => {
+                if !v.is_finite() {
+                    return Err(Error::InvalidNumber(v));
+                }
+                (CellOp::Number(format_number(v)), Default::default())
+            }
+            CellWrite::String(s) => self.plan_string_write(s)?,
+            CellWrite::Formula(t) => (
+                CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned(), None),
+                Default::default(),
+            ),
+            CellWrite::FormulaWithResult(text, result) => (
+                CellOp::Formula(
+                    text.strip_prefix('=').unwrap_or(text).to_owned(),
+                    crate::dynamic::formula_cache(at, result.clone())?,
+                ),
+                Default::default(),
+            ),
+            CellWrite::IsoDate(value) => (crate::setters::iso_date_op(at, value)?, Default::default()),
+            CellWrite::Error(value) => (CellOp::Error(crate::setters::error_value(at, value)?), Default::default()),
+            CellWrite::Bool(value) => (CellOp::Bool(value), Default::default()),
+            CellWrite::Clear => (CellOp::Clear, Default::default()),
+            CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
+            CellWrite::ClearValue => (CellOp::ClearValue, Default::default()),
+        })
     }
 }
 
@@ -972,12 +1012,9 @@ impl CellMut<'_, '_> {
     /// `<is><t>…</t></is>`), never touching the shared-string table (the
     /// Phase0 behaviour of [`Self::set_string`]). Same rules and refusals.
     pub fn set_string_inline(self, value: &str) -> Result<()> {
-        let units = value.encode_utf16().count();
-        if units > MAX_STRING_LEN {
-            return Err(Error::StringTooLong(units));
-        }
         let ws = &mut *self.ws;
-        ws.wb.edit_cell(ws.sheet, self.at, CellOp::Text(escape::encode(value).into_owned()))
+        ws.wb
+            .edit_cell(ws.sheet, self.at, plan_inline_write(value)?)
     }
 
     /// Writes a formula (ADR-0003 §4.1): `<f>text</f>` with no cached value
@@ -1008,22 +1045,28 @@ impl CellMut<'_, '_> {
         ws.wb.edit_cell(ws.sheet, self.at, CellOp::Formula(text.to_owned(), cache))
     }
 
-    /// Clears a stored value and formula while preserving the cell's style.
-    /// The normal edit guards and dependent invalidation apply.
-    pub fn clear_value(self) -> Result<()> {
-        let ws = &mut *self.ws;
-        if ws.cell(self.at.row, self.at.col)?.is_none() {
-            return Ok(());
-        }
-        ws.wb.edit_cell(ws.sheet, self.at, CellOp::Clear)
-    }
-
     /// Removes the cell's formula and its cached value (`f`, `v`, `t`, `is`);
     /// the cell keeps its style. Dependents are invalidated and
     /// `calcChain.xml` is removed. A cell without a formula is left alone.
     pub fn remove_formula(self) -> Result<()> {
         let ws = &mut *self.ws;
         ws.wb.edit_cell(ws.sheet, self.at, CellOp::RemoveFormula)
+    }
+
+    /// Clears the cell's value and formula (`v`, `is`, `f`, `t`) and keeps its
+    /// style (`s`): the equivalent of ExcelJS 4.4.0 `cell.value = null`.
+    /// A cell that does not exist is left alone: no row or `c` is created and
+    /// the part is byte-identical, so the row or column default style stays
+    /// (ExcelJS keeps it too). Dependents are invalidated and `calcChain.xml`
+    /// is removed when a formula cell is cleared.
+    ///
+    /// Refusals are those of the other writes, nothing is changed: a merged
+    /// non-anchor cell, a table header cell, an array or data-table anchor or
+    /// result cell, a rich-value cell (`vm`), and a shared-formula master
+    /// whose group is also written in the same batch.
+    pub fn clear_value(self) -> Result<()> {
+        let ws = &mut *self.ws;
+        ws.wb.edit_cell(ws.sheet, self.at, CellOp::ClearValue)
     }
 }
 

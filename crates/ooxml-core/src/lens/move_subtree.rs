@@ -337,10 +337,5 @@ impl<E: ElementSpec> LensMut<'_, E> {
 
 /// Sets `subtree_dirty` on the element at `path` and every ancestor.
 fn mark(root: &mut RawNode, path: &[usize]) {
-    let mut n = root;
-    n.mark_subtree_dirty();
-    for &i in path {
-        n = n.child_mut(i).and_then(RawItem::as_element_mut).expect("path points at an element");
-        n.mark_subtree_dirty();
-    }
+    crate::xml::mark_path_dirty(root, path);
 }

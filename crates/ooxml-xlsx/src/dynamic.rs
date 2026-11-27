@@ -1,14 +1,15 @@
 //! Dynamic-array metadata and the Phase1 cell transaction (ADR-0017 §9).
 
 use ooxml_core::{
-    AttrSpec, ChildOf, Content, ElementSpec, NsDecl, PartNameRequest, QName, RawNode, RegistryPlan,
-    RegistryRefusal, SimpleType, Target, XmlDocument,
+    AttrSpec, ChildOf, Content, ElementSpec, NsDecl, Package, PartNameRequest, QName, RawNode,
+    RegistryPlan, RegistryRefusal, SimpleType, Target, XmlDocument,
 };
 use ooxml_schema::sml;
 
-use crate::edit::{CellOp, Extra};
-use crate::workbook::REL_METADATA;
-use crate::{CellRange, CellMut, CellValue, Error, Result, SML_NS};
+use crate::edit::{CellOp, CellWritePlan, Extra};
+use crate::reference::{CellIndex, CellRange};
+use crate::workbook::{REL_METADATA, Workbook};
+use crate::{CellMut, CellValue, Error, Result, SML_NS};
 
 pub(crate) const XDA: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray";
 const URI: &str = "{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}";
@@ -178,18 +179,6 @@ pub(crate) fn formula_cache(at: crate::CellIndex, result: CellValue) -> Result<c
 }
 
 impl CellMut<'_, '_> {
-    /// Writes an uncached dynamic-array formula in file form, with the
-    /// anchor as its initial array reference. See [`Self::set_formula`]
-    /// for formula syntax and future-function prefixes.
-    ///
-    /// Excel calculates the spill range. A value in the potential range can
-    /// cause `#SPILL!` in Excel. Only an existing recorded result range
-    /// restricts adjacent cell writes.
-    pub fn set_dynamic_formula(self, text: &str) -> Result<()> {
-        let anchor = self.at;
-        self.set_array_formula(text, CellRange { first: anchor, last: anchor }, true)
-    }
-
     /// Writes an array formula over the given inclusive range. The cell
     /// must be its top-left anchor. Dynamic arrays also receive XLDAPR metadata.
     pub fn set_array_formula(self, text: &str, range: CellRange, dynamic: bool) -> Result<()> {
@@ -294,5 +283,249 @@ impl CellMut<'_, '_> {
             )?;
         }
         wb.apply_writes_with(plan, registry)
+    }
+}
+
+/// What a dynamic-formula write does to the metadata part: the cloned doc
+/// plus the create-or-stage choice. Built by the plan, installed by the apply.
+#[derive(Debug)]
+pub(crate) enum MetaAction {
+    /// Stage the doc over an existing part (a no-op when it is unchanged).
+    Stage { part: String, doc: XmlDocument },
+    /// Create the part from the doc.
+    Create { doc: XmlDocument },
+}
+
+impl MetaAction {
+    /// The registry transaction installing the doc: staged over `part`, or a
+    /// new part related from the workbook. Pure: reads the package only.
+    pub(crate) fn into_registry(self, pkg: &Package, workbook_part: &str) -> Result<RegistryPlan> {
+        let mut registry = RegistryPlan::new(pkg);
+        match self {
+            MetaAction::Stage { part, doc } => {
+                if doc.is_dirty() {
+                    registry.stage_part(pkg, &part, doc)?;
+                }
+            }
+            MetaAction::Create { doc } => {
+                let prefix = workbook_part
+                    .rsplit_once('/')
+                    .map_or_else(|| "metadata".into(), |(dir, _)| format!("{dir}/metadata"));
+                let part = match registry.add_part(
+                    pkg,
+                    PartNameRequest::Exact(format!("{prefix}.xml")),
+                    TYPE,
+                    doc.clone(),
+                ) {
+                    Err(ooxml_core::Error::RegistryRefused {
+                        reason: RegistryRefusal::NameInUse { .. },
+                        ..
+                    }) => registry.add_part(
+                        pkg,
+                        PartNameRequest::Numbered(format!("{prefix}{{}}.xml")),
+                        TYPE,
+                        doc,
+                    )?,
+                    result => result?,
+                };
+                registry.add_relationship(
+                    pkg,
+                    Some(workbook_part),
+                    REL_METADATA,
+                    Target::Part(part),
+                )?;
+            }
+        }
+        Ok(registry)
+    }
+}
+
+impl Workbook {
+    /// Plans a dynamic-formula write (C1's plan entry): the metadata work on
+    /// a cloned doc plus the cell plan, validated without applying. The caller
+    /// installs both (`MetaAction::into_registry` + `apply_writes_with`).
+    pub(crate) fn plan_dynamic_formula(
+        &mut self,
+        sheet: usize,
+        at: CellIndex,
+        text: &str,
+    ) -> Result<(MetaAction, CellWritePlan)> {
+        self.check_editable()?;
+        if self.census.implicit_references.contains(&sheet) {
+            return Err(Error::MissingReference {
+                part: self.sheets[sheet].part.clone().expect("worksheet"),
+                what: "row or cell (a dynamic array requires explicit references)".into(),
+            });
+        }
+        let rels = self.pkg.relationships(&self.workbook_part)?;
+        let mut related = rels.by_type(REL_METADATA);
+        let part = match related.next() {
+            None => None,
+            Some(rel) => Some(
+                rels.resolve(rel)
+                    .filter(|_| related.next().is_none())
+                    .ok_or_else(|| Error::PartNotEditable {
+                        part: self.workbook_part.clone(),
+                        reason: "ambiguous or external sheet metadata relationship".into(),
+                    })?
+                    .to_owned(),
+            ),
+        };
+        let mut doc = if let Some(part) = &part {
+            self.pkg
+                .xml_part(part)
+                .map_err(|e| Error::PartNotEditable {
+                    part: part.clone(),
+                    reason: e.to_string(),
+                })?
+                .clone()
+        } else {
+            XmlDocument::parse(format!("<metadata xmlns=\"{SML_NS}\"/>").as_bytes())?
+        };
+        if !doc.root().is(sml::Metadata::QNAME) {
+            return Err(Error::PartNotEditable {
+                part: part.expect("only existing metadata can have an unexpected root"),
+                reason: "expected a SpreadsheetML metadata root".into(),
+            });
+        }
+        let cm = ensure_block(&mut doc)?;
+        let text = text.strip_prefix('=').unwrap_or(text);
+        let plan = self.plan_writes(vec![(
+            sheet,
+            at,
+            CellOp::DynamicFormula(text.into(), cm),
+            Extra::default(),
+        )])?;
+        let action = match part {
+            Some(part) => MetaAction::Stage { part, doc },
+            None => MetaAction::Create { doc },
+            };
+        Ok((action, plan))
+        }
+}
+
+impl CellMut<'_, '_> {
+    /// Writes an uncached dynamic-array formula in file form, with the
+    /// anchor as its initial array reference. See [`Self::set_formula`]
+    /// for formula syntax and future-function prefixes.
+    ///
+    /// Excel calculates the spill range. A value in the potential range can
+    /// cause `#SPILL!` in Excel. Only an existing recorded result range
+    /// restricts adjacent cell writes.
+    pub fn set_dynamic_formula(self, text: &str) -> Result<()> {
+        let wb = &mut *self.ws.wb;
+        let (action, plan) = wb.plan_dynamic_formula(self.ws.sheet, self.at, text)?;
+        let registry = action.into_registry(&wb.pkg, &wb.workbook_part)?;
+        wb.apply_writes_with(plan, registry)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(a1: &str) -> CellIndex {
+        CellIndex::parse(a1).unwrap()
+    }
+
+    fn assert_clean(wb: &Workbook) {
+        for name in wb.pkg.part_names() {
+            if let Some(doc) = wb.pkg.parsed_part(name) {
+                assert!(!doc.is_dirty(), "{name} is dirty");
+                assert!(!doc.root().subtree_dirty(), "{name} has a dirty subtree");
+            }
+        }
+    }
+
+    fn has_metadata(wb: &Workbook) -> bool {
+        wb.pkg.part_names().any(|n| n.contains("metadata"))
+    }
+
+    #[test]
+    fn plan_plus_registry_plus_apply_equals_set_dynamic_formula() {
+        // create path (no metadata part yet), with `=`-stripping
+        let wb = Workbook::new().unwrap();
+        assert!(!has_metadata(&wb));
+        let bytes = wb.to_bytes().unwrap();
+        let mut planned = Workbook::from_bytes(bytes.clone()).unwrap();
+        assert_clean(&planned);
+        let (action, plan) = planned.plan_dynamic_formula(0, at("A1"), "=1+1").unwrap();
+        assert!(matches!(action, MetaAction::Create { .. }));
+        assert_eq!(planned.to_bytes().unwrap(), bytes, "a plan changes nothing");
+        assert_clean(&planned);
+        let registry = action
+            .into_registry(&planned.pkg, &planned.workbook_part)
+            .unwrap();
+        planned.apply_writes_with(plan, registry).unwrap();
+        let mut combined = Workbook::from_bytes(bytes).unwrap();
+        combined
+            .worksheet()
+            .unwrap()
+            .cell_mut(0, 0)
+            .unwrap()
+            .set_dynamic_formula("=1+1")
+            .unwrap();
+        assert_eq!(planned.to_bytes().unwrap(), combined.to_bytes().unwrap());
+        // reuse path: the block is reused, the cloned doc stays clean
+        let bytes = planned.to_bytes().unwrap();
+        let mut planned = Workbook::from_bytes(bytes.clone()).unwrap();
+        let (action, plan) = planned.plan_dynamic_formula(0, at("A3"), "2+2").unwrap();
+        assert!(matches!(action, MetaAction::Stage { .. }));
+        assert_eq!(planned.to_bytes().unwrap(), bytes, "a plan changes nothing");
+        assert_clean(&planned);
+        let registry = action
+            .into_registry(&planned.pkg, &planned.workbook_part)
+            .unwrap();
+        planned.apply_writes_with(plan, registry).unwrap();
+        let mut combined = Workbook::from_bytes(bytes).unwrap();
+        combined
+            .worksheet()
+            .unwrap()
+            .cell_mut(2, 0)
+            .unwrap()
+            .set_dynamic_formula("2+2")
+            .unwrap();
+        assert_eq!(planned.to_bytes().unwrap(), combined.to_bytes().unwrap());
+    }
+
+    #[test]
+    fn metadata_refusals_are_byte_identical() {
+        // an unparsable formula needs no fixture
+        let mut wb = Workbook::new().unwrap();
+        let before = wb.to_bytes().unwrap();
+        std::assert_matches!(
+            wb.plan_dynamic_formula(0, at("A7"), "1+"),
+            Err(Error::InvalidFormula { .. })
+        );
+        assert_eq!(wb.to_bytes().unwrap(), before);
+        assert_clean(&wb);
+        // a metadata part with the wrong root
+        let bytes = Workbook::new().unwrap().to_bytes().unwrap();
+        let mut pkg = ooxml_core::Package::from_bytes(bytes).unwrap();
+        let mut reg = ooxml_core::RegistryPlan::new(&pkg);
+        let part = reg
+            .add_part(
+                &pkg,
+                ooxml_core::PartNameRequest::Exact("xl/metadata.xml".into()),
+                TYPE,
+                b"<foo/>".to_vec(),
+            )
+            .unwrap();
+        reg.add_relationship(
+            &pkg,
+            Some("xl/workbook.xml"),
+            REL_METADATA,
+            ooxml_core::Target::Part(part),
+        )
+        .unwrap();
+        pkg.apply(reg).unwrap();
+        let bytes = pkg.to_bytes().unwrap();
+        let mut wb = Workbook::from_bytes(bytes.clone()).unwrap();
+        std::assert_matches!(
+            wb.plan_dynamic_formula(0, at("A1"), "1+1"),
+            Err(Error::PartNotEditable { .. })
+        );
+        assert_eq!(wb.to_bytes().unwrap(), bytes);
+        assert_clean(&wb);
     }
 }

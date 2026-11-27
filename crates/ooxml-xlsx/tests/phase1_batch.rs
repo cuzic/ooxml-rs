@@ -43,6 +43,7 @@ fn sequential(input: &[u8], sheet: &str, writes: &Batch<'_>) -> Vec<u8> {
                 CellWrite::Formula(t) => cell.set_formula(t),
                 CellWrite::FormulaWithResult(text, result) => cell.set_formula_with_result(text, result.clone()),
                 CellWrite::RemoveFormula => cell.remove_formula(),
+                CellWrite::ClearValue => cell.clear_value(),
             }
             .unwrap();
         }

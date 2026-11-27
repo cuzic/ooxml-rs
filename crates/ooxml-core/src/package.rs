@@ -346,9 +346,12 @@ impl Package {
     /// refusal, never the allocation (fuzz finding F-6: a 10-byte entry can
     /// declare 4 GB); the buffer grows with the data actually read.
     fn read_original(&self, part: &Part) -> Result<Vec<u8>> {
+        self.read_original_with_limit(part, self.parse_options.max_part_bytes)
+    }
+
+    fn read_original_with_limit(&self, part: &Part, limit: u64) -> Result<Vec<u8>> {
         /// First allocation; `read_to_end` grows the buffer from there.
         const INITIAL: u64 = 64 * 1024;
-        let limit = self.parse_options.max_part_bytes;
         let too_large = || Error::PartTooLarge { part: part.name.clone(), limit };
         let mut archive = self.archive.clone();
         let file = archive.by_index(part.index)?;
@@ -376,16 +379,22 @@ impl Package {
         }
     }
 
-    fn ensure_parsed(&mut self, name: &str) -> Result<usize> {
+    fn ensure_parsed(&mut self, name: &str, mut options: ParseOptions) -> Result<usize> {
         let i = self.find(name).ok_or_else(|| Error::PartNotFound(name.into()))?;
         match self.parts[i].state {
             PartState::Parsed(_) => {}
             PartState::Raw => {
-                let mut options = self.parse_options;
+                options.max_depth = options.max_depth.min(self.parse_options.max_depth);
                 if is_opc_metadata(name) {
                     options.max_depth = options.max_depth.max(crate::xml::DEFAULT_MAX_DEPTH);
                 }
-                let doc = XmlDocument::parse_with(&self.read_original(&self.parts[i])?, &options)?;
+                let limit = self.parse_options.max_part_bytes.min(options.max_part_bytes);
+                let bytes = self.read_original_with_limit(&self.parts[i], limit)?;
+                let doc = if options.defer.is_empty() {
+                    XmlDocument::parse_with(&bytes, &options)?
+                } else {
+                    XmlDocument::parse_inflated(bytes, &options)?
+                };
                 self.parts[i].state = PartState::Parsed(doc);
             }
             PartState::Replaced(_) => {
@@ -398,7 +407,15 @@ impl Package {
     /// Parses a part (once) and returns its tree. Parsing alone never changes
     /// the saved output.
     pub fn xml_part(&mut self, name: &str) -> Result<&XmlDocument> {
-        let i = self.ensure_parsed(name)?;
+        let options = self.parse_options;
+        self.xml_part_with(name, &options)
+    }
+
+    /// Parses with the given options on first access. A cached tree keeps the
+    /// options it was parsed with. On first access, the stricter byte and
+    /// depth limits apply, subject to the OPC metadata depth floor.
+    pub fn xml_part_with(&mut self, name: &str, options: &ParseOptions) -> Result<&XmlDocument> {
+        let i = self.ensure_parsed(name, *options)?;
         match &self.parts[i].state {
             PartState::Parsed(d) => Ok(d),
             _ => unreachable!(),
@@ -419,7 +436,7 @@ impl Package {
     /// Parses a part (once) and returns its tree for editing through
     /// [`XmlDocument::lens_mut`].
     pub fn xml_part_mut(&mut self, name: &str) -> Result<&mut XmlDocument> {
-        let i = self.ensure_parsed(name)?;
+        let i = self.ensure_parsed(name, self.parse_options)?;
         // The caller may edit the tree: a registry plan made before is stale.
         self.touch();
         match &mut self.parts[i].state {

@@ -12,7 +12,7 @@ use crate::escape;
 use crate::reference::CellIndex;
 use crate::registry::dates::ExcelDateTime;
 use crate::registry::format::{Border, Fill, Font, Format, NumFormat};
-use crate::registry::styles::StyleRequest;
+use crate::registry::styles::{BaseStyleCounts, StyleRequest, XfContent};
 use crate::workbook::Workbook;
 use crate::worksheet::{CellMut, MAX_STRING_LEN};
 
@@ -99,14 +99,8 @@ pub(crate) fn parse_iso_date(value: &str) -> Option<ExcelDateTime> {
     }
 }
 
+/// Error codes for [`dynamic::formula_cache`](crate::dynamic::formula_cache); keep in sync with [`error_value`].
 pub(crate) const CELL_ERRORS: &[&str] = &["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"];
-
-pub(crate) fn error_cell_op(at: CellIndex, value: &str) -> Result<CellOp> {
-    let Some(code) = CELL_ERRORS.iter().copied().find(|code| *code == value) else {
-        return Err(Error::InvalidValue { cell: at.to_string(), message: format!("{value:?} is not an error value") });
-    };
-    Ok(CellOp::Error(code))
-}
 
 fn number_format_code(id: Option<u32>, custom: Option<String>) -> Option<String> {
     custom.or_else(|| {
@@ -269,9 +263,24 @@ impl Workbook {
     /// A string write: shared when the workbook has a shared-string table,
     /// else inline.
     pub(crate) fn write_string(&mut self, sheet: usize, at: CellIndex, value: &str, style: Option<StyleRequest>) -> Result<()> {
-        let (op, mut extra) = self.plan_string_write(value)?;
-        extra.style = style;
-        self.edit_cell_ext(sheet, at, op, extra)
+        let was_active = self.registries.strings.is_some();
+        let r = (|| {
+            let (op, mut extra) = self.plan_string_write(value)?;
+            extra.style = style;
+            self.edit_cell_ext(sheet, at, op, extra)
+        })();
+        self.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    /// A refused write leaves the registry as it found it: activation is
+    /// otherwise a side effect of the call (the registry keeps the count of
+    /// `t="s"` cells exact only once active), and a workbook rebuilt from
+    /// the ops that were accepted would not have it (ADR-0024 §4.4, R2).
+    pub(crate) fn forget_activation_on_error<T>(&mut self, was_active: bool, r: &Result<T>) {
+        if !was_active && r.is_err() && self.poisoned.is_none() {
+            self.registries.strings = None;
+        }
     }
 
     pub(crate) fn plan_string_write(&mut self, value: &str) -> Result<(CellOp, Extra)> {
@@ -294,7 +303,73 @@ impl Workbook {
 
     /// A rich-string write (ADR-0006 §4.2): shared when the workbook has a
     /// shared-string table, else inline (`is/r`).
-    pub(crate) fn write_rich(&mut self, sheet: usize, at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<()> {
+    pub(crate) fn write_rich(&mut self, sheet: usize, at: CellIndex, runs: &[(&Font, &str)]) -> Result<()> {
+        let was_active = self.registries.strings.is_some();
+        let r = self.write_rich_inner(sheet, at, runs);
+        self.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    /// Plans a rich-string write: validates the runs and reserves the
+    /// item (shared) or builds inline runs, without applying. The caller
+    /// edits the cell with the op ([`edit_cell_ext`](Workbook::edit_cell_ext)).
+    pub(crate) fn plan_rich_write(
+        &mut self,
+        at: CellIndex,
+        runs: &[(&Font, &str)],
+    ) -> Result<(CellOp, Extra)> {
+        use crate::registry::strings::{RichRun, SiContent};
+        let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
+        if runs.is_empty() {
+            return Err(bad("a rich string needs at least one run".into()));
+        }
+        let mut out = Vec::with_capacity(runs.len());
+        let mut decoded = String::new();
+        let mut units = 0;
+        for (i, (font, text)) in runs.iter().enumerate() {
+            // Excel refuses empty runs (rust_xlsxwriter does too)
+            if text.is_empty() {
+                return Err(bad(format!("run {i} is empty")));
+            }
+            Format::with_font((*font).clone()).validate()?;
+            units += text.encode_utf16().count();
+            let escaped = escape::encode(text).into_owned();
+            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&escaped) {
+                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+            }
+            decoded.push_str(text);
+            // rust_xlsxwriter's form: a first run in the default font has no rPr
+            let plain_first = i == 0 && **font == Font::default();
+            out.push(RichRun { font: (!plain_first).then(|| (*font).clone()), escaped });
+        }
+        if units > MAX_STRING_LEN {
+            return Err(Error::StringTooLong(units));
+        }
+        if self.shared_strings_active()? {
+            let plan = self.registries.strings.as_ref().expect("active").plan_content(SiContent::Rich(out), &decoded)?;
+            let index = plan.index;
+            Ok((
+                CellOp::Shared(index),
+                Extra {
+                    string: Some(plan),
+                    style: None,
+                },
+            ))
+        } else {
+            Ok((CellOp::InlineRich(out), Extra::default()))
+        }
+        }
+
+    /// An optional-font rich-string write (browser adapters): like
+    /// [`Self::write_rich`], but a run may omit its font (no `rPr`).
+    pub(crate) fn write_rich_opt(&mut self, sheet: usize, at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<()> {
+        let was_active = self.registries.strings.is_some();
+        let r = self.write_rich_opt_inner(sheet, at, runs);
+        self.forget_activation_on_error(was_active, &r);
+        r
+    }
+
+    fn write_rich_opt_inner(&mut self, sheet: usize, at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<()> {
         use crate::registry::strings::SiContent;
         let (out, decoded) = prepare_rich_text(at, runs)?;
         if self.shared_strings_active()? {
@@ -304,6 +379,16 @@ impl Workbook {
         } else {
             self.edit_cell_ext(sheet, at, CellOp::InlineRich(out), Extra::default())
         }
+    }
+
+    fn write_rich_inner(
+        &mut self,
+        sheet: usize,
+        at: CellIndex,
+        runs: &[(&Font, &str)],
+    ) -> Result<()> {
+        let (op, extra) = self.plan_rich_write(at, runs)?;
+        self.edit_cell_ext(sheet, at, op, extra)
     }
 
     /// Is the workbook in the 1904 date system (`workbookPr/@date1904`)?
@@ -334,10 +419,42 @@ impl Workbook {
         })
     }
 
+    /// Gives the cell the `xf` described by `xf` (see
+    /// [`XfContent`]); the value is kept. `base` bounds the `Base(i)`
+    /// components (the counts the content was captured against). Nothing is
+    /// changed on `Err`.
+    pub(crate) fn set_cell_xf(&mut self, sheet: usize, at: CellIndex, xf: &XfContent, base: &BaseStyleCounts) -> Result<()> {
+        self.edit_cell_ext(sheet, at, CellOp::StyleOnly, Extra { string: None, style: Some(StyleRequest::Xf(Box::new(xf.clone()), *base)) })
+    }
+
     /// Number of entries in `cellXfs` (activates the style registry).
     pub fn cell_format_count(&mut self) -> Result<u32> {
         Ok(self.styles()?.xf_count())
     }
+}
+
+/// The error value `value` names (ECMA-376 §18.17.4.6 plus Excel's
+/// `#GETTING_DATA`), else [`Error::InvalidValue`]. Shared by `set_error`
+/// and the Journal's plan input, so the table cannot diverge.
+pub(crate) fn error_value(at: CellIndex, value: &str) -> Result<&'static str> {
+    const ERRORS: &[&str] = &[
+        "#NULL!",
+        "#DIV/0!",
+        "#VALUE!",
+        "#REF!",
+        "#NAME?",
+        "#NUM!",
+        "#N/A",
+        "#GETTING_DATA",
+    ];
+    ERRORS
+        .iter()
+        .copied()
+        .find(|e| *e == value)
+        .ok_or_else(|| Error::InvalidValue {
+            cell: at.to_string(),
+            message: format!("{value:?} is not an error value"),
+        })
 }
 
 impl CellMut<'_, '_> {
@@ -380,8 +497,8 @@ impl CellMut<'_, '_> {
     /// (ECMA-376 §18.17.4.6 plus Excel's `#GETTING_DATA`), else
     /// [`Error::InvalidValue`]. A value write, as [`Self::set_number`].
     pub fn set_error(self, value: &str) -> Result<()> {
-        let op = error_cell_op(self.at, value)?;
-        self.edit(op, None)
+        let at = self.at;
+        self.edit(CellOp::Error(error_value(at, value)?), None)
     }
 
     /// Writes a rich string: runs of text, each in its own font (ADR-0006
@@ -397,15 +514,12 @@ impl CellMut<'_, '_> {
     /// ([`Error::InvalidFormat`]), and those of [`Self::set_string`].
     pub fn set_rich_string(self, runs: &[(&Font, &str)]) -> Result<()> {
         let ws = &mut *self.ws;
-        let runs: Vec<_> = runs.iter().enumerate().map(|(index, &(font, text))| {
-            ((index != 0 || *font != Font::default()).then_some(font), text)
-        }).collect();
-        ws.wb.write_rich(ws.sheet, self.at, &runs)
+        ws.wb.write_rich(ws.sheet, self.at, runs)
     }
 
     /// Writes rich text with optional formatting on each run.
     pub fn set_rich_text(self, runs: &[(Option<&Font>, &str)]) -> Result<()> {
-        self.ws.wb.write_rich(self.ws.sheet, self.at, runs)
+        self.ws.wb.write_rich_opt(self.ws.sheet, self.at, runs)
     }
 
     /// Writes a boolean (`t="b"`).

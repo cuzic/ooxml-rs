@@ -1395,8 +1395,10 @@ impl Package {
                     {
                         at.value = v.as_str().into();
                         e.mark_own_dirty();
-                        e.mark_subtree_dirty();
                         root.mark_subtree_dirty();
+                        if let Some(e) = root.mark_child_dirty(*i) {
+                            e.mark_own_dirty();
+                        }
                     }
                 }
             }

@@ -284,9 +284,9 @@ This is a general Layer 2 mechanism; row-based `sheetData` is its first user.
   - It applies the same **metadata depth floor** as `ensure_parsed` (#16), so a caller cannot
     lower the depth limit below it.
   - An already-parsed part keeps the options it was parsed with. That is order-dependent: if any
-    path calls `xml_part(sheet)` first, the deferral is silently lost. Only performance suffers,
-    but stage 2x's acceptance includes a test that **after `Workbook::open`, every worksheet's
-    root holds deferred rows**.
+    path calls `xml_part(sheet)` first, later requests for deferral and census do not apply.
+    The census reports this as described in the Stage 2 note below. Stage 2x's acceptance
+    includes a test that **after `Workbook::open`, every worksheet's root holds deferred rows**.
   - Deferring package-wide would also defer `sheetData/row` in external-link parts, which is
     harmless but pointless, so it is not done.
 - **Nested deferral (N6).** When a deferred element is expanded, its descendants whose names are
@@ -492,9 +492,10 @@ Non-expanding read accessors:
 ### 3. Census during the parse (single pass)
 
 `ParseOptions::count: &'static [QName]` (builder `with_count`) makes the parser count elements with those names,
-deferred content included (the skip of §2.2 sees every start tag), in the same pass. The counts are reported by `XmlDocument::census(QName) ->
-usize`. ooxml-xlsx's formula census (`f` elements) for the worksheet it parses then needs no
-second scan. Other worksheets are still scanned once each, without a tree, as today. Measured
+deferred content included (the skip of §2.2 sees every start tag), in the same pass. The counts are reported by
+`XmlDocument::census(QName) -> Option<usize>`. When the count is available, ooxml-xlsx's formula
+census (`f` elements) for the parsed worksheet needs no second scan. Other worksheets are still
+scanned once each, without a tree, as today. Measured
 saving on the 1M-cell sheet: about 0.29 s of open time. This also gives other crates the general
 "does this part contain X" question for free (pptx `p:timing`, docx `w:fldChar`).
 
@@ -673,9 +674,9 @@ All targets are relative to `main` in the same session, and absolute on a quiet 
   - **peak** heap ≤ 80 MiB during open, with the shared strings read **uncached** (below).
     Peak, because the baseline (`PeakAlloc`, calamine's 77 MiB) is a peak (revision 4, review
     R3-5). This **requires** decompressing a part directly into its shared source: an
-    `Arc::new_uninit_slice` of the declared size, filled by the inflater, UTF-8-checked, then
-    used as the `Arc<str>`. The current `parse_with(&[u8])` copies the inflated bytes, so the
-    33 MiB `Vec<u8>` and the 33 MiB `Arc<str>` would be alive at once (peak 85–95 MiB);
+    bounded `Arc::new_uninit_slice`, filled by the inflater, length- and UTF-8-checked,
+    then used as the `Arc<str>` (see the Stage 2 note on F-6). The current `parse_with(&[u8])`
+    copies the inflated bytes, so the 33 MiB `Vec<u8>` and the 33 MiB `Arc<str>` would be alive at once (peak 85–95 MiB);
   - **edit 1,000 cells + save ≤ 0.5 s at level 3, open excluded** (revision 2's "open + edit +
     save ≤ 0.5 s" contradicted the 0.6 s open target).
 
@@ -819,3 +820,62 @@ The parser checks UTF-16 BOM, UTF-8, a repeated UTF-8 BOM and NUL before
 reporting `Error::XmlPartTooLarge`. The default package part limit is 1 GiB.
 Stage 1 asserts a 64 B limit for `RawNode` on 64-bit targets, leaving 8 B for
 Stage 2's deferred pointer within the 72 B budget in §2.4.
+
+## Post-acceptance note (Issue #126, stage 2)
+
+The child list uses the alternative enum in §2.4. Rust 1.99 fits a built
+`Vec<RawItem>` and a boxed deferred payload in the original list's footprint
+on 64-bit targets, so the 64 B `RawNode` assertion still holds. During the
+shared validation pass, a deferred node records the presence of direct
+`mc:AlternateContent` children in the existing high bit of `close_start`
+(ADR-0020 §4.3). Closing, expanding and releasing keep that bit.
+
+In the stage 2 benchmark, 100,000 rows of a 33.1 MiB, one-million-cell
+worksheet were deferred. Each reported range covers three runs on the same
+host, with each run taking the best of five and excluding drop time.
+The skip timing includes copying the shared source and building the
+worksheet root. The row construction estimate subtracts that timing from
+the row-deferred parse within each run.
+
+| Core worksheet operation | Time |
+| --- | ---: |
+| Inflate the worksheet | 42.69–47.59 ms |
+| Validate and count with the worksheet root deferred | 361.13–374.34 ms |
+| Validate, count and build deferred rows | 386.77–396.59 ms |
+| Additional construction for the row-deferred tree (paired difference) | 19.85–25.65 ms |
+| Package open and row-deferred worksheet parse | 432.19–439.19 ms |
+
+The core worksheet path used **100.5 MiB peak** and retained **60.9 MiB**,
+including the compressed package. The main contributor to the measured
+peak is `read_to_end` growing the inflate buffer from 32 to 64 MiB.
+`PeakAlloc` counts both blocks during reallocation. Shrinking the buffer
+can likewise briefly count both the 64 MiB capacity and the 33.1 MiB
+replacement. The inflated buffer is released after copying into the
+shared source and before building the tree.
+
+A separate change before Stage 2x will implement direct inflation into
+`Arc::new_uninit_slice`. F-6 still applies: a ZIP header's declared size
+alone must never drive a large allocation. Any direct-inflate path must
+establish an allocation bound independently of the declaration, for example
+from the configured byte limit and a checked bound derived from compressed
+input. It must bound writes, verify the actual length and UTF-8 before
+publishing the source, and handle size mismatches safely. The full workbook
+path still needs measurements covering shared strings and the row index.
+The core time leaves about 161–168 ms of the 0.6 s budget for that work.
+
+Measured with `cargo bench -p ooxml-bench --bench breakdown -- --stage2`.
+The same-host `--stage1` comparison against `d8741d4`, best of 15 per input,
+showed parse-time changes of −2.5% to +1.0% across the six full-parse inputs.
+
+### PR #151 round 1
+
+`XmlDocument::census(QName)` returns `Option<usize>`. A requested name
+that was absent returns `Some(0)`. A name omitted from the first parse
+returns `None`, including when a later `xml_part_with` call requests that
+name on a cached part. Edits leave the census at its original values.
+
+On the first in-place parse, `xml_part_with` takes the stricter of the
+package and per-part depth limits, then applies the OPC metadata depth
+floor. `content_span` refers to the original source, which can be stale
+after editing children. `release_children` retains an expanded child
+list when any descendant has opted into preserving attribute spelling.

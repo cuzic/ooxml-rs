@@ -95,6 +95,12 @@ impl Graph {
         g
     }
 
+    /// Drops the cached closure of the `Everything` formulas, which a removed
+    /// formula may have been part of.
+    pub(crate) fn forget_everything_closure(&mut self) {
+        self.everything_closure = std::cell::OnceCell::new();
+    }
+
     pub(crate) fn add(&mut self, fid: usize, p: Prec) {
         self.everything_closure = std::cell::OnceCell::new();
         match p {

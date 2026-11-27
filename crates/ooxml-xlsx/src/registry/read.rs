@@ -268,6 +268,7 @@ fn gradient_from_node(node: &RawNode) -> Result<Fill, String> {
     Ok(Fill::Gradient { geometry, stops })
 }
 
+/// A `fill` entry: a pattern or gradient fill.
 pub(crate) fn fill_from_node(n: &RawNode) -> Result<Fill, String> {
     let mut kids = n.elements();
     let (Some(pf), None) = (kids.next(), kids.next()) else { return Err("fill".into()) };
