@@ -1,7 +1,7 @@
 //! Phase3 smoke tests (WIP): each operation on a template workbook, saved,
 //! reopened, and checked against the reopened state.
 
-use ooxml_xlsx::{SheetState, Workbook};
+use ooxml_xlsx::{Error, SheetState, Workbook};
 
 fn reopen(wb: &Workbook) -> Workbook {
     Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap()
@@ -169,4 +169,28 @@ fn empty_template_export_has_no_worksheet_and_preserves_source() {
     assert!(ooxml_xlsx::Workbook::from_bytes_allow_empty(workbook.to_bytes().unwrap()).is_ok());
     workbook.add_sheet("Replacement", 0).unwrap();
     assert_eq!(workbook.sheet_name(), "Replacement");
+}
+
+#[test]
+fn template_workbook_type_rejections_change_nothing() {
+    // A workbook opened from bytes is not a template: changing its type is
+    // a caller error (InvalidArgument, no cell) and changes no bytes.
+    let bytes = Workbook::new().unwrap().to_bytes().unwrap();
+    let mut opened = Workbook::from_bytes(bytes.clone()).unwrap();
+    let e = opened.set_template_workbook_type("xlsm").unwrap_err();
+    assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+    assert_eq!(e.cell(), None);
+    assert_eq!(opened.to_bytes().unwrap(), bytes);
+    // An unknown type name is rejected on a template workbook too.
+    let mut template = Workbook::new().unwrap();
+    let before = template.to_bytes().unwrap();
+    let e = template.set_template_workbook_type("xlst").unwrap_err();
+    assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+    assert_eq!(e.cell(), None);
+    assert_eq!(template.to_bytes().unwrap(), before);
+    // A known type applies: the content type changes and round-trips.
+    template.set_template_workbook_type("xlsm").unwrap();
+    assert_eq!(template.xml_workbook_type(), Some("xlsm"));
+    let again = Workbook::from_bytes(template.to_bytes().unwrap()).unwrap();
+    assert_eq!(again.xml_workbook_type(), Some("xlsm"));
 }

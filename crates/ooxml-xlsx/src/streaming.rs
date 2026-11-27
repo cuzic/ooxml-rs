@@ -221,22 +221,22 @@ fn encode_row_inner(
     {
         let at = CellIndex::new(row, column)?;
         if previous.is_some_and(|previous| previous >= column) {
-            return Err(Error::InvalidValue {
-                cell: at.to_string(),
+            return Err(Error::InvalidArgument {
+                cell: Some(at.to_string()),
                 message: "streaming row columns must be strictly increasing".into(),
             });
         }
         previous = Some(column);
         let text = match &formula {
             Some(RowFormula::Array { range, .. }) if range.first != at => {
-                return Err(Error::InvalidValue {
-                    cell: at.to_string(),
+                return Err(Error::InvalidArgument {
+                    cell: Some(at.to_string()),
                     message: "array formula must start at its anchor cell".into(),
                 });
             }
             Some(RowFormula::SharedMaster { range, .. }) if range.first != at => {
-                return Err(Error::InvalidValue {
-                    cell: at.to_string(),
+                return Err(Error::InvalidArgument {
+                    cell: Some(at.to_string()),
                     message: "shared formula must start at its anchor cell".into(),
                 });
             }
@@ -253,8 +253,8 @@ fn encode_row_inner(
         let rich_inline = rich_text.is_some() && strings.is_none();
         let (kind, content) = if let Some(rich_text) = rich_text {
             if formula.is_some() || value != CellValue::Empty {
-                return Err(Error::InvalidValue {
-                    cell: at.to_string(),
+                return Err(Error::InvalidArgument {
+                    cell: Some(at.to_string()),
                     message: "rich text must be a cell value".into(),
                 });
             }
@@ -525,5 +525,44 @@ mod tests {
         assert!(encode_row(0, [(0, CellValue::Empty), (0, CellValue::Empty)]).is_err());
         assert!(encode_row(0, [(0, CellValue::Number(f64::NAN))]).is_err());
         assert!(encode_row(0, [(0, CellValue::String("😺".repeat(16_384)))]).is_err());
+    }
+
+    #[test]
+    fn caller_checks_reject_with_invalid_argument() {
+        // Columns must be strictly increasing; the cell is the offender.
+        let e = encode_row(0, [(1, CellValue::Number(1.0)), (0, CellValue::Number(2.0))]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.kind(), "InvalidArgument");
+        assert_eq!(e.cell(), Some("A1"));
+        // Array and shared formulas must start at the anchor cell.
+        let array = || RowCell {
+            formula: Some(RowFormula::Array {
+                text: "A3:B4*2".into(),
+                range: crate::CellRange::parse("A1:B2").unwrap(),
+            }),
+            ..CellValue::Number(2.0).into()
+        };
+        let e = encode_cells(0, [(1, array())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("B1"));
+        let shared = || RowCell {
+            formula: Some(RowFormula::SharedMaster {
+                text: "A3*2".into(),
+                range: crate::CellRange::parse("A1:A2").unwrap(),
+                index: 0,
+            }),
+            ..CellValue::Number(2.0).into()
+        };
+        let e = encode_cells(0, [(1, shared())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("B1"));
+        // Rich text must be a cell value, not a formula or cached result.
+        let rich = || RowCell {
+            rich_text: Some(vec![("x".to_string(), None)]),
+            ..CellValue::Number(1.0).into()
+        };
+        let e = encode_cells(0, [(2, rich())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("C1"));
     }
 }
