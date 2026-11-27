@@ -182,3 +182,7 @@ names = [
     "x:CT_CellStyle/x:cellStyle",
     "x:CT_WorkbookPr/x:workbookPr",
 ]
+
+# Shared and inline strings carry the same CT_Rst text and formatting.
+[detach]
+names = ["x:CT_Rst/x:si", "x:CT_Rst/x:is"]
