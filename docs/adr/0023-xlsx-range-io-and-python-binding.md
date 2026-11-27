@@ -1,6 +1,6 @@
 # ADR-0023: xlsx range reads and writes at workbook scope, and the Python binding policy
 
-- Status: **Proposed** (revision 4)
+- Status: **Proposed** (revision 5)
 - Date: 2026-11-27
 - Repository baseline: `213e27a` (main after PR #170)
 - Depends on:
@@ -31,7 +31,7 @@
     round 2 (revision 3).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) (no phase number: this is an API
   layer over Phase0–Phase7, not a new format phase).
-- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4); [round 3](0023-opus-review-round3.md) (not converged: M1, M2, m1–m3).
+- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4); [round 3](0023-opus-review-round3.md) (not converged: M1, M2, m1–m3); [round 4](0023-opus-review-round4.md) (not converged: M1, m1).
 
 ## Revision history
 
@@ -85,6 +85,13 @@
   - **m1:** `clear_range` uses `ClearValue`; U2 adds the missing `CellCall` payloads with
     sequential references into oracle 1.
   - **m2:** cross-reference fixed to ADR-0024 §10.3. **m3:** Sources updated.
+- **Revision 5** (review round 4: M1, m1).
+  - **M1:** identical-`Formula` dropping uses a 0023-specific effective-formula equality
+    (shared member = translated master text, array anchor = own text; kind and storage
+    attributes not compared since writes lack them), explicitly not shared with R1 (which
+    deliberately applies a member's own text). Unverifiable members never drop.
+  - **m1:** in a session the drop predicate reads the normalized View (pending strips read
+    cacheless), so it agrees with the sequential twin; oracle 3 pins the stale-cache case.
 
 ## Context
 
@@ -522,9 +529,19 @@ impl Journal {
   and cache byte-identical, while applying would silently destroy the formula on a no-op
   round-trip. This rule is 0023-specific (R1's report lacks it); the sequential twin applies
   it identically. An explicit change still applies and replaces the formula, as the caller's
-  edit. A formula write drops when its text, kind and attributes equal the cell's effective
-  formula (the shared report covers it); otherwise it is the caller's edit and is never
-  dropped. The comparison reads; it writes nothing and invents nothing.
+  edit.
+- A formula write drops on **effective-formula equality** (revision 5, M1): the write's text
+  against the cell's effective formula — a shared member's translated master text, an
+  array/data-table/dynamic anchor's own text, anything else the stored text. Kind and storage
+  attributes (`t`, `ref`, `si`) are not compared: writes do not carry them. This rule is
+  0023-specific and explicitly **not** shared with R1, which deliberately applies a member's
+  own text (ADR-0024 §7.1); the sequential twin applies it identically, so journal and
+  sequential agree. A member whose text cannot be verified (ambiguous group, missing master)
+  never drops: the write goes to the guards. Otherwise the write is the caller's edit and is
+  never dropped. The comparison reads; it writes nothing and invents nothing.
+- In a session the predicate reads the **normalized View** (revision 5, m1): pending strips
+  read cacheless, exactly as §5 reads them, so the predicate agrees with the sequential twin
+  (which strips eagerly). Writing back a stale cache therefore applies in both paths.
 - The point of `write_changed_cells`: a read → modify → write-back of a region changes only
   the cells the caller changed; unchanged merge members, table headers and array members are
   dropped before any guard sees them, so they do not refuse the batch (M4). A changed value
@@ -928,8 +945,8 @@ first.
   `read_range` → edit → `write_range` changes only the edited cells, including on regions with
   merges, headers and formulas. Concretely: a constant written back against a formula cell
   with an equal cache is dropped (the formula survives); an identical `Formula` write is
-  dropped by the shared report; anything else applies (an explicit change replaces the
-  formula). A `formulas="formula"` read returns `ooxml_rs.Formula` objects (below), so it
+  dropped by effective-formula equality; anything else applies (an explicit change replaces
+  the formula). A `formulas="formula"` read returns `ooxml_rs.Formula` objects (below), so it
   round-trips; a `str` starting with `=` stays text and never resurrects a formula (Q8).
 
 ### 12. Python binding: minimal API (first release)
@@ -1040,7 +1057,10 @@ journal-based, so the units that implement them wait for the J series. Order:
    values: no change at all (M4). A value-mode round-trip over formula cells keeps every
    formula whose cache still equals (M2); a formula-mode round-trip keeps every formula
    (identical `Formula` writes drop); changing one cache value replaces exactly that
-   formula. The pre-drop predicate is the shared §4.4 state-equality — but the pre-drop is
+   formula. A formula-mode round-trip keeps every formula, including over a fill-down shared
+   column (whole and partial coverage: all drop, bytes identical) and an array anchor.
+   A stale cache written back with pending strips applies in both paths (m1), twin-identical.
+   The pre-drop predicate is the shared §4.4 state-equality — but the pre-drop is
    load-bearing, not an optimization: R1 only skips whole calls, so without it one changed
    cell would drag unchanged guarded cells through the guards and refuse the call.
 4. **Dates.** 1900 and 1904 fixtures: serial 0, 1, 59, 60, 61, 2,958,465, a negative serial,
@@ -1317,3 +1337,10 @@ No finding is rebutted.
 | m1 | Fixed: `clear_range` uses `ClearValue`; U2 adds the missing `CellCall` payloads with sequential references into oracle 1 (§6.3, Delivery). |
 | m2 | Fixed: cross-reference is ADR-0024 §10.3 (§11.2). |
 | m3 | Fixed: Sources are current main plus ADR-0024 and the journal files. |
+
+## Review response (round 4)
+
+| Finding | Response |
+|---|---|
+| M1 | Fixed with option (a): identical-`Formula` dropping uses a 0023-specific effective-formula equality (translated master text for shared members, own text for array anchors; kind and storage attributes not compared), explicitly not shared with R1 (which deliberately applies member text); unverifiable members never drop (§6.2). Oracle 3 pins partial/whole shared and array-anchor formula-mode round-trips. |
+| m1 | Fixed: the predicate reads the normalized View in a session (pending strips cacheless); oracle 3 pins the stale-cache twin-agreement case (§6.2). |
