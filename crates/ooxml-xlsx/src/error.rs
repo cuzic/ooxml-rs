@@ -887,7 +887,8 @@ impl Error {
             Error::AutoFilterExists => None,
             Error::FilterActive => None,
             Error::DuplicateBuiltInName { .. } => None,
-            Error::NameInUse { cell, .. } => Some(cell.as_str()),
+            // NameInUse.cell holds `Sheet!A1` or `defined name X`, not an A1 cell.
+            Error::NameInUse { .. } => None,
             Error::InvalidSpinCount(..) => None,
             Error::CrossSheetReference { .. } => None,
             Error::UnknownSheet(..) => None,
@@ -1006,7 +1007,7 @@ mod tests {
             (Error::AutoFilterExists, None),
             (Error::FilterActive, None),
             (Error::DuplicateBuiltInName { name: String::from("x") }, None),
-            (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, Some("B2")),
+            (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, None),
             (Error::InvalidSpinCount(0), None),
             (Error::CrossSheetReference { text: String::from("x") }, None),
             (Error::UnknownSheet(String::from("x")), None),
