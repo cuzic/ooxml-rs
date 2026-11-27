@@ -401,7 +401,9 @@ fn content_style_same(
         // C3: never skipped (metadata-block identity is not compared)
         CellOp::DynamicFormula(..) => false,
         // New writers the Journal never plans (browser adapters): never
-        // skipped, so a future plan input cannot silently drop them.
+        // skipped, so a future plan input cannot silently drop them. These
+        // arms are currently unreachable from journal/op.rs::plan_call, which
+        // maps no call to these ops; they exist as fail-safe defaults.
         CellOp::Date(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => false,
         // C4: a target has a formula; removing `f` and the cache always changes content
         CellOp::RemoveFormula => false,
