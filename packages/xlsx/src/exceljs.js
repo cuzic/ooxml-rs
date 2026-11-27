@@ -4904,7 +4904,7 @@ export class Workbook {
     };
     this.#calcProperties = {
       get fullCalcOnLoad() {
-        return (workbook.#state?.document.full_calc_on_load() ?? workbook.#pendingFullCalcOnLoad) || undefined;
+        return workbook.#state?.document.full_calc_on_load() ?? workbook.#pendingFullCalcOnLoad ?? false;
       },
       set fullCalcOnLoad(value) { workbook.calcProperties = { fullCalcOnLoad: value }; },
     };
