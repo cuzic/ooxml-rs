@@ -66,15 +66,16 @@ pub(super) enum Use<'a> {
     Source,
     Column(&'a str),
     Table,
+    Resize,
 }
 
 pub(super) fn has_reference(text: &str, own: bool, names: &[String], usage: Use<'_>) -> bool {
-    if !text.contains('[') && !matches!(usage, Use::Table) {
+    if !text.contains('[') && !matches!(usage, Use::Table | Use::Resize) {
         return false;
     }
     let Ok(tokens) = lex(text.strip_prefix('=').unwrap_or(text)) else {
         return matches!(usage, Use::Column(_))
-            || (matches!(usage, Use::Table)
+            || (matches!(usage, Use::Table | Use::Resize)
                 && text
                     .split(|c| !crate::formula::lexer::is_name_char(c))
                     .any(|word| names.contains(&fold(word))))
@@ -82,7 +83,7 @@ pub(super) fn has_reference(text: &str, own: bool, names: &[String], usage: Use<
     };
     let text = text.strip_prefix('=').unwrap_or(text);
     tokens.iter().any(|t| {
-        if matches!(usage, Use::Table)
+        if matches!(usage, Use::Table | Use::Resize)
             && let TokKind::Name {
                 prefix: Prefix::None,
                 name,
@@ -102,7 +103,7 @@ pub(super) fn has_reference(text: &str, own: bool, names: &[String], usage: Use<
             names.contains(&fold(table))
         };
         match usage {
-            Use::Table => relevant,
+            Use::Table | Use::Resize => relevant,
             Use::Column(col) => match parse(&raw[i..]) {
                 None => true,
                 Some(items) => relevant && items.columns.iter().any(|c| fold(c) == fold(col)),
@@ -237,7 +238,10 @@ impl Workbook {
                 if matches!(usage, Use::Source) {
                     continue;
                 }
-                if formula_node(node) && has_reference(&node.text(), own, names, usage) {
+                if formula_node(node)
+                    && !(matches!(usage, Use::Resize) && own_part && node.name().local() == "totalsRowFormula")
+                    && has_reference(&node.text(), own, names, usage)
+                {
                     return Ok(true);
                 }
                 if node.name().local() == "cfvo"

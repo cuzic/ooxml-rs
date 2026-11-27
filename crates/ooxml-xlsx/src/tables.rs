@@ -10,11 +10,13 @@ use ooxml_schema::sml;
 use sml::Table as TableElement;
 
 use crate::census::FKind;
-use crate::edit::{CellOp, Extra};
+use crate::edit::{CellOp, CellWritePlan, Extra};
 use crate::escape;
 use crate::formula::precedents::fold;
+use crate::hyperlink::TableLinks;
+use crate::registry::styles::StyleRequest;
 use crate::workbook::{ApplyStepHook, REL_TABLE, TableHeader};
-use crate::{CellIndex, CellRange, CellValue, Error, Result, Workbook, Worksheet};
+use crate::{CellIndex, CellRange, CellValue, CellWrite, Error, Result, Workbook, Worksheet};
 
 const SML: &str = crate::SML_NS;
 const R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -35,13 +37,19 @@ fn range_error(reason: &'static str) -> Error {
 pub struct Table {
     range: CellRange,
     name: Option<String>,
+    display_name: Option<String>,
     columns: Option<Vec<Col>>,
+    differential_formats: [Option<u32>; 3],
+    border_formats: [Option<u32>; 3],
     headers: bool,
     totals: bool,
     overwrite: bool,
+    write_cells: bool,
     style: TableStyle,
     row_stripes: bool,
     column_stripes: bool,
+    first_column: bool,
+    last_column: bool,
 }
 
 impl Table {
@@ -50,19 +58,43 @@ impl Table {
         Self {
             range,
             name: None,
+            display_name: None,
             columns: None,
+            differential_formats: [None; 3],
+            border_formats: [None; 3],
             headers: true,
             totals: false,
             overwrite: false,
+            write_cells: true,
             style: TableStyle::Medium9,
             row_stripes: true,
             column_stripes: false,
+            first_column: false,
+            last_column: false,
         }
+    }
+
+    /// Sets workbook-local differential format IDs for the header, data, and totals.
+    pub fn differential_formats(mut self, ids: [Option<u32>; 3]) -> Self {
+        self.differential_formats = ids;
+        self
+    }
+
+    /// Sets workbook-local differential border IDs for the header, table, and totals.
+    pub fn border_formats(mut self, ids: [Option<u32>; 3]) -> Self {
+        self.border_formats = ids;
+        self
     }
 
     /// Sets the workbook-wide table name.
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// Sets the workbook-wide display name used by structured references.
+    pub fn display_name(mut self, name: impl Into<String>) -> Self {
+        self.display_name = Some(name.into());
         self
     }
 
@@ -90,6 +122,12 @@ impl Table {
         self
     }
 
+    /// Attaches table metadata to a range whose cells are supplied separately.
+    pub fn metadata_only(mut self) -> Self {
+        self.write_cells = false;
+        self
+    }
+
     /// Selects the table style.
     pub fn style(mut self, style: TableStyle) -> Self {
         self.style = style;
@@ -107,6 +145,13 @@ impl Table {
         self.column_stripes = enabled;
         self
     }
+    /// Applies emphasis to the first and last columns independently.
+    pub fn emphasize_columns(mut self, first: bool, last: bool) -> Self {
+        self.first_column = first;
+        self.last_column = last;
+        self
+    }
+
 }
 
 /// A built-in table style from Excel's Light, Medium or Dark family.
@@ -125,6 +170,25 @@ pub enum TableStyle {
 }
 
 impl TableStyle {
+    /// Parses a built-in table style name; an empty name disables the style.
+    pub fn parse(name: &str) -> Result<Self> {
+        if name.is_empty() {
+            return Ok(Self::None);
+        }
+        for (prefix, constructor) in [
+            ("TableStyleLight", Self::Light as fn(u8) -> Self),
+            ("TableStyleMedium", Self::Medium),
+            ("TableStyleDark", Self::Dark),
+        ] {
+            if let Some(index) = name.strip_prefix(prefix).and_then(|value| value.parse().ok()) {
+                let style = constructor(index);
+                style.name()?;
+                return Ok(style);
+            }
+        }
+        Err(Error::InvalidSetting { what: "table style".into(), reason: format!("unknown style {name:?}") })
+    }
+
     fn name(self) -> Result<Option<String>> {
         let (family, index, max) = match self {
             Self::Medium9 => ("Medium", 9, 28),
@@ -179,18 +243,23 @@ impl Total {
     }
 }
 
+/// A label, built-in function, or formula in a table totals cell.
 #[derive(Clone, Debug)]
-enum TotalsCell {
+pub enum ColumnTotal {
     Function(Total),
     Label(String),
+    Formula(String),
 }
 
 /// Definition of one table column.
 #[derive(Clone, Debug)]
 pub struct Col {
     name: String,
-    total: Option<TotalsCell>,
+    total: Option<ColumnTotal>,
+    explicit_no_total_function: bool,
     formula: Option<String>,
+    filter_button: bool,
+    differential_formats: [Option<u32>; 3],
 }
 
 impl Col {
@@ -199,23 +268,55 @@ impl Col {
         Self {
             name: name.into(),
             total: None,
+            explicit_no_total_function: false,
             formula: None,
+            filter_button: true,
+            differential_formats: [None; 3],
         }
+    }
+
+    /// Sets workbook-local differential format IDs for the header, data, and totals.
+    pub fn differential_formats(mut self, ids: [Option<u32>; 3]) -> Self {
+        self.differential_formats = ids;
+        self
+    }
+
+    /// Chooses whether to show this column's filter control.
+    pub fn filter_button(mut self, visible: bool) -> Self {
+        self.filter_button = visible;
+        self
     }
 
     /// Sets a totals-row function for this column.
     pub fn total(mut self, function: Total) -> Self {
-        self.total = Some(TotalsCell::Function(function));
+        self.total = Some(ColumnTotal::Function(function));
+        self.explicit_no_total_function = false;
+        self
+    }
+
+    /// Records an explicit `none` totals function alongside an optional label.
+    pub fn no_total_function(mut self) -> Self {
+        if !matches!(self.total, Some(ColumnTotal::Label(_))) {
+            self.total = None;
+        }
+        self.explicit_no_total_function = true;
         self
     }
 
     /// Sets a text label in the totals row.
     pub fn total_label(mut self, label: impl Into<String>) -> Self {
-        self.total = Some(TotalsCell::Label(label.into()));
+        self.total = Some(ColumnTotal::Label(label.into()));
         self
     }
 
     /// Sets a formula for every data row. Local row references such as
+    /// Writes a custom formula in this column's totals cell and table metadata.
+    pub fn total_formula(mut self, formula: impl Into<String>) -> Self {
+        self.total = Some(ColumnTotal::Formula(formula.into()));
+        self.explicit_no_total_function = false;
+        self
+    }
+
     /// `[@Amount]` are converted to the file form.
     pub fn formula(mut self, formula: impl Into<String>) -> Self {
         self.formula = Some(formula.into());
@@ -223,7 +324,14 @@ impl Col {
     }
 }
 
-type Write = (usize, CellIndex, CellOp, Extra);
+pub(crate) type Write = (usize, CellIndex, CellOp, Extra);
+
+struct ShiftedTableCell {
+    at: CellIndex,
+    value: CellValue,
+    formula: Option<String>,
+    style: Option<u32>,
+}
 
 fn column_name(name: &str) -> Result<String> {
     if name.is_empty()
@@ -423,7 +531,7 @@ impl Workbook {
             }
             let usage = references::Use::Column(&old);
             if writes.iter().any(|(target_sheet, target, op, _)| {
-                matches!(op, CellOp::Formula(formula) if references::has_reference(
+                matches!(op, CellOp::Formula(formula, _) if references::has_reference(
                     formula, target_sheet == sheet && table.range.contains(*target), &names, usage,
                 ))
             }) || self.table_referenced(&table, &names, id, usage, &writes)? {
@@ -488,6 +596,15 @@ fn worksheet_table(root: &ooxml_core::Lens<'_, TableElement>) -> bool {
         .is_none_or(|t| t == "worksheet")
 }
 
+fn table_totals_rows(root: &ooxml_core::Lens<'_, TableElement>) -> Result<u32> {
+    match root.attr(attr("totalsRowCount")) {
+        Some("0") => Ok(0),
+        Some("1") => Ok(1),
+        None if !root.attr(attr("totalsRowShown")).is_some_and(|shown| matches!(shown, "1" | "true")) => Ok(0),
+        _ => Err(range_error("unsupported totals row count")),
+    }
+}
+
 fn check_unique<T: AsRef<str>>(names: impl IntoIterator<Item = T>) -> Result<()> {
     let mut seen = HashSet::new();
     for name in names {
@@ -530,6 +647,15 @@ impl Worksheet<'_> {
                 .find(|n| !in_use(n))
                 .expect("finite names"),
         };
+        let display_name = table.display_name.as_deref().unwrap_or(&name);
+        valid_name(display_name)?;
+        if fold(display_name) != fold(&name) && in_use(display_name) {
+            return Err(Error::NameInUse {
+                name: display_name.into(),
+                cell: "table or defined name".into(),
+            });
+        }
+        let aliases = vec![fold(&name), fold(display_name)];
         let range = table.range;
         let first_data = range.first.row + u32::from(table.headers);
         let last_data = range.last.row - u32::from(table.totals);
@@ -562,6 +688,16 @@ impl Worksheet<'_> {
                 })
                 .collect::<Result<Vec<_>>>()?,
         };
+        let last_style_id = table.differential_formats.into_iter()
+            .chain(table.border_formats)
+            .chain(columns.iter().flat_map(|column| column.differential_formats))
+            .flatten()
+            .max();
+        if let Some(id) = last_style_id
+            && id >= self.wb.dxf_count()?
+        {
+            return Err(range_error("table differential format ID does not exist"));
+        }
         check_unique(columns.iter().map(|c| &c.name))?;
         let column_names = columns.iter().map(|col| fold(&col.name)).collect();
         let style = table.style.name()?;
@@ -569,7 +705,7 @@ impl Worksheet<'_> {
         for (i, col) in columns.iter_mut().enumerate() {
             column_name(&col.name)?;
             let c = range.first.col + i as u32;
-            if table.headers {
+            if table.headers && table.write_cells {
                 self.plan_table_cell(
                     &mut writes,
                     CellIndex {
@@ -582,16 +718,20 @@ impl Worksheet<'_> {
                     true,
                 )?;
             }
-            if let Some(total) = &col.total {
-                if !table.totals {
+            if let Some(total) = &mut col.total {
+                if !table.totals && table.write_cells {
                     return Err(range_error("column total requires a totals row"));
+                }
+                if let ColumnTotal::Formula(formula) = total {
+                    *formula = references::calculated(formula, display_name, &column_names)?;
                 }
                 let at = CellIndex {
                     row: range.last.row,
                     col: c,
                 };
                 match total {
-                    TotalsCell::Label(label) => self.plan_table_cell(
+                    _ if !table.write_cells => {}
+                    ColumnTotal::Label(label) => self.plan_table_cell(
                         &mut writes,
                         at,
                         Some(label),
@@ -599,10 +739,13 @@ impl Worksheet<'_> {
                         table.overwrite,
                         false,
                     )?,
-                    TotalsCell::Function(total) => {
+                    ColumnTotal::Formula(formula) => {
+                        self.plan_table_cell(&mut writes, at, None, Some(formula), table.overwrite, false)?;
+                    }
+                    ColumnTotal::Function(total) => {
                         let (_, code) = total.file_form();
                         let spec = references::specifier(&col.name, false);
-                        let formula = format!("SUBTOTAL({code},{name}{spec})");
+                        let formula = format!("SUBTOTAL({code},{display_name}{spec})");
                         self.plan_table_cell(
                             &mut writes,
                             at,
@@ -615,7 +758,10 @@ impl Worksheet<'_> {
                 }
             }
             if let Some(formula) = &mut col.formula {
-                *formula = references::calculated(formula, &name, &column_names)?;
+                *formula = references::calculated(formula, display_name, &column_names)?;
+                if !table.write_cells {
+                    continue;
+                }
                 for row in first_data..=last_data {
                     self.plan_table_cell(
                         &mut writes,
@@ -641,7 +787,7 @@ impl Worksheet<'_> {
                 sheet.check_insert::<sml::TableParts>()?;
             }
         }
-        let doc = table_document(&table, &name, id, style.as_deref(), &columns)?;
+        let doc = table_document(&table, &name, display_name, id, style.as_deref(), &columns)?;
         let cell_plan = wb.plan_table_writes(writes, &HashSet::new(), true)?;
         let mut registry = RegistryPlan::new(&wb.pkg);
         let part = registry.add_part(
@@ -679,7 +825,7 @@ impl Worksheet<'_> {
             wb.table_names
                 .as_mut()
                 .expect("table names loaded")
-                .insert(part.clone(), vec![fold(&name)]);
+                .insert(part.clone(), aliases);
             wb.contexts
                 .get_mut(&sheet_index)
                 .expect("worksheet context")
@@ -725,7 +871,7 @@ impl Worksheet<'_> {
         let (op, extra) = match text {
             Some(text) => self.wb.plan_string_write(text)?,
             None => (
-                CellOp::Formula(formula.expect("formula supplied").into()),
+                CellOp::Formula(formula.expect("formula supplied").into(), None),
                 Extra::default(),
             ),
         };
@@ -741,9 +887,13 @@ impl Worksheet<'_> {
         {
             return Err(range_error("range outside sheet or reversed"));
         }
-        if r.last.row - r.first.row < u32::from(table.headers) + u32::from(table.totals) {
-            return Err(range_error("table requires at least one data row"));
+        if r.last.row - r.first.row < u32::from(table.totals) {
+            return Err(range_error("table requires a header or data row before the totals row"));
         }
+        self.check_table_footprint(r)
+    }
+
+    fn check_table_footprint(&mut self, r: CellRange) -> Result<()> {
         let part = self.part_name().to_owned();
         let ctx = &self.wb.contexts[&self.sheet];
         if ctx.tables.iter().any(|t| r.intersects(&t.range))
@@ -816,6 +966,893 @@ impl Worksheet<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Appends full-width data rows to a worksheet table, extending its filter range.
+    /// Tables with calculated columns, sort state, or external uses require
+    /// additional reference updates and are refused before the edit.
+    pub fn append_table_rows(&mut self, name: &str, rows: &[&[CellWrite<'_>]]) -> Result<()> {
+        self.insert_table_rows_at(name, None, rows)
+    }
+
+    /// Inserts full-width data rows at a zero-based position within a table.
+    pub fn insert_table_rows(&mut self, name: &str, start: u32, rows: &[&[CellWrite<'_>]]) -> Result<()> {
+        self.insert_table_rows_at(name, Some(start), rows)
+    }
+
+    fn insert_table_rows_at(&mut self, name: &str, start: Option<u32>, rows: &[&[CellWrite<'_>]]) -> Result<()> {
+        let (table_index, existing) = self.table_for_row_edit(name)?;
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let width = (existing.range.last.col - existing.range.first.col + 1) as usize;
+        if rows.iter().any(|row| row.len() != width) {
+            return Err(range_error("row width differs from table width"));
+        }
+        let mut range = existing.range;
+        range.last.row = u32::try_from(rows.len()).ok()
+            .and_then(|count| range.last.row.checked_add(count))
+            .ok_or_else(|| range_error("range outside sheet or reversed"))?;
+        CellIndex::new(range.last.row, range.last.col)?;
+        let added = CellRange {
+            first: CellIndex { row: existing.range.last.row + 1, col: range.first.col },
+            last: range.last,
+        };
+        self.check_table_footprint(added)?;
+        let totals = table_totals_rows(&self.wb.pkg.xml_part(&existing.part)?.lens::<TableElement>()?)?;
+        let tail = added.first.row - totals;
+        let first_data = existing.rows.map_or(range.first.row, |header| header.last.row + 1);
+        if tail < first_data {
+            return Err(range_error("table requires at least one data row"));
+        }
+        let start = start.map_or(Some(tail), |offset| first_data.checked_add(offset))
+            .filter(|&row| row <= tail)
+            .ok_or_else(|| range_error("table insertion is outside the data rows"))?;
+        let mut shifted = Vec::new();
+        let mut links = None;
+        if start < added.first.row {
+            let affected = CellRange { first: CellIndex { row: start, col: range.first.col }, last: range.last };
+            self.check_table_shift(affected)?;
+            let source = CellRange { first: affected.first, last: existing.range.last };
+            shifted = self.table_shift_values(source, rows.len() as i32, 0)?;
+            Self::invalidate_shifted_total(&mut shifted, range.last.row, totals);
+            links = Some(TableLinks::Insert { moved: source, added });
+        }
+        let writes: Vec<_> = rows.iter().enumerate().flat_map(|(row, values)| {
+            values.iter().enumerate().map(move |(column, &value)| (
+                CellIndex { row: start + row as u32, col: added.first.col + column as u32 },
+                value,
+            ))
+        }).collect();
+        let mut writes = self.prepare_cell_writes(&writes)?;
+        writes.extend(self.prepare_table_shift(&shifted)?);
+        self.apply_table_row_edit(table_index, &existing, range, writes, links)
+    }
+
+    /// Removes trailing data rows and clears their values and formulas, keeping
+    /// cell styles. A table without headers must retain one data row.
+    pub fn remove_table_tail_rows(&mut self, name: &str, count: u32) -> Result<()> {
+        let (table_index, existing) = self.table_for_row_edit(name)?;
+        self.remove_table_rows_at(table_index, &existing, None, count)
+    }
+
+    /// Removes data rows from a zero-based position, shifting the remaining
+    /// data cells and their explicit styles within the table.
+    pub fn remove_table_rows(&mut self, name: &str, start: u32, count: u32) -> Result<()> {
+        let (table_index, existing) = self.table_for_row_edit(name)?;
+        self.remove_table_rows_at(table_index, &existing, Some(start), count)
+    }
+
+    fn remove_table_rows_at(&mut self, table_index: usize, existing: &TableHeader, start: Option<u32>, count: u32) -> Result<()> {
+        if count == 0 {
+            return Ok(());
+        }
+        let mut range = existing.range;
+        let totals = table_totals_rows(&self.wb.pkg.xml_part(&existing.part)?.lens::<TableElement>()?)?;
+        let first_data = existing.rows.map_or(range.first.row, |header| header.last.row + 1);
+        let last = range.last.row.checked_sub(count)
+            .filter(|&last| last >= range.first.row + totals)
+            .ok_or_else(|| range_error("table requires a header or data row before the totals row"))?;
+        let removed = CellRange {
+            first: CellIndex { row: last + 1, col: range.first.col },
+            last: range.last,
+        };
+        range.last.row = last;
+        let data_tail = removed.first.row - totals;
+        let start = start.map_or(Some(data_tail), |offset| first_data.checked_add(offset))
+            .filter(|&row| row <= data_tail)
+            .ok_or_else(|| range_error("table removal is outside the data rows"))?;
+        let mut writes = Vec::new();
+        if start < removed.first.row {
+            let affected = CellRange { first: CellIndex { row: start, col: range.first.col }, last: existing.range.last };
+            self.check_table_shift(affected)?;
+            let source = CellRange {
+                first: CellIndex { row: start + count, col: range.first.col },
+                last: existing.range.last,
+            };
+            let mut shifted = self.table_shift_values(source, -(count as i32), 0)?;
+            Self::invalidate_shifted_total(&mut shifted, range.last.row, totals);
+            writes = self.prepare_table_shift(&shifted)?;
+        }
+        let mut clears = Vec::new();
+        for row in removed.first.row..=removed.last.row {
+            for col in removed.first.col..=removed.last.col {
+                if self.cell(row, col)?.is_some() {
+                    clears.push((CellIndex { row, col }, CellWrite::Clear));
+                }
+            }
+        }
+        writes.extend(self.prepare_cell_writes(&clears)?);
+        let deleted = CellRange {
+            first: CellIndex { row: start, col: range.first.col },
+            last: CellIndex { row: start + count - 1, col: range.last.col },
+        };
+        let moved = (deleted.last.row < existing.range.last.row).then(|| CellRange {
+            first: CellIndex { row: deleted.last.row + 1, col: deleted.first.col },
+            last: existing.range.last,
+        });
+        self.apply_table_row_edit(table_index, existing, range, writes, Some(TableLinks::Remove { deleted, moved }))
+    }
+
+    fn prepare_table_shift(&mut self, shifted: &[ShiftedTableCell]) -> Result<Vec<Write>> {
+        let mut writes = Vec::with_capacity(shifted.len());
+        for cell in shifted {
+            let write = match (&cell.formula, &cell.value) {
+                (Some(formula), value) => CellWrite::FormulaWithResult(formula, value),
+                (None, CellValue::Empty) => CellWrite::Clear,
+                (None, CellValue::Number(value)) => CellWrite::Number(*value),
+                (None, CellValue::String(value)) => CellWrite::String(value),
+                (None, CellValue::Bool(value)) => CellWrite::Bool(*value),
+                (None, CellValue::Error(value)) => CellWrite::Error(value),
+                (None, CellValue::Date(value)) => CellWrite::IsoDate(value),
+            };
+            writes.push((cell.at, write));
+        }
+        let mut writes = self.prepare_cell_writes(&writes)?;
+        for ((_, _, _, extra), cell) in writes.iter_mut().zip(shifted) {
+            extra.style = cell.style.map(StyleRequest::Index);
+        }
+        Ok(writes)
+    }
+
+    fn invalidate_shifted_total(shifted: &mut [ShiftedTableCell], last: u32, totals: u32) {
+        if totals != 0 {
+            for cell in shifted.iter_mut().filter(|cell| cell.at.row == last && cell.formula.is_some()) {
+                cell.value = CellValue::Empty;
+            }
+        }
+    }
+
+    fn check_table_shift(&mut self, affected: CellRange) -> Result<()> {
+        if self.validation_overlaps(affected) {
+            return Err(range_error("shifting table cells with validation is unsupported"));
+        }
+        let relationships = self.wb.pkg.relationships(self.part_name())?;
+        if [
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+            "http://schemas.microsoft.com/office/2017/10/relationships/threadedComment",
+        ].into_iter().any(|kind| relationships.by_type(kind).next().is_some()) {
+            return Err(range_error("shifting table cells on a sheet with comments is unsupported"));
+        }
+        for row in affected.first.row..=affected.last.row {
+            for col in affected.first.col..=affected.last.col {
+                let cell = self.cell(row, col)?;
+                if cell.as_ref().is_some_and(|cell| cell.formula().is_some() && cell.ordinary_formula().is_none()) {
+                    return Err(range_error("shifting table cells with nonordinary formulas is unsupported"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn table_shift_values(&mut self, source: CellRange, row_delta: i32, column_delta: i32) -> Result<Vec<ShiftedTableCell>> {
+        let mut values = Vec::new();
+        for row in source.first.row..=source.last.row {
+            let target = row.checked_add_signed(row_delta).expect("table shift bounds checked");
+            for col in source.first.col..=source.last.col {
+                let at = CellIndex { row: target, col: col.checked_add_signed(column_delta).expect("table shift bounds checked") };
+                let cell = self.cell(at.row, at.col)?;
+                let source = self.cell(row, col)?;
+                let style = |cell: Option<&crate::CellRef<'_>>| cell.map_or(Ok(0), crate::CellRef::style_index);
+                let source_style = style(source.as_ref())?;
+                let moved_style = (source_style != style(cell.as_ref())?).then_some(source_style);
+                let (value, formula) = match source {
+                    Some(source) => {
+                        let formula = source.ordinary_formula();
+                        if formula.is_none() && source.has_complex_content_with_dates(true, true)? {
+                            return Err(range_error("shifting table cells with complex cell values is unsupported"));
+                        }
+                        (source.value()?, formula)
+                    }
+                    None if cell.is_some() => (CellValue::Empty, None),
+                    None => continue,
+                };
+                values.push(ShiftedTableCell { at, value, formula, style: moved_style });
+            }
+        }
+        Ok(values)
+    }
+
+    fn table_for_row_edit(&mut self, name: &str) -> Result<(usize, TableHeader)> {
+        self.wb.check_editable()?;
+        self.wb.contexts[&self.sheet].tables.iter().enumerate()
+            .find(|(_, table)| fold(&table.name) == fold(name))
+            .map(|(index, table)| (index, table.clone()))
+            .ok_or_else(|| Error::NoSuchTable(name.into()))
+    }
+
+    fn apply_table_row_edit(
+        &mut self,
+        table_index: usize,
+        existing: &TableHeader,
+        range: CellRange,
+        writes: Vec<Write>,
+        links: Option<TableLinks>,
+    ) -> Result<()> {
+        let mut document = self.wb.pkg.xml_part(&existing.part)?.clone();
+        let root = document.lens::<TableElement>()?;
+        let totals = table_totals_rows(&root)?;
+        if !worksheet_table(&root)
+            || root.child::<sml::SortState>().is_some()
+            || root.child::<sml::TableColumns>().is_none_or(|columns| {
+                columns.children::<sml::TableColumn>().any(|column| {
+                    column.child::<sml::CalculatedColumnFormula>().is_some()
+                })
+            })
+        {
+            return Err(range_error("table has unsupported row metadata"));
+        }
+        let filter_range = |mut range: CellRange| {
+            range.last.row -= totals;
+            range
+        };
+        if let Some(filter) = root.child::<sml::AutoFilter>()
+            && (filter.attr(attr("ref")).and_then(|value| CellRange::parse(value).ok()) != Some(filter_range(existing.range))
+                || filter.child::<sml::SortState>().is_some())
+        {
+            return Err(range_error("table filter range or sort state cannot be resized"));
+        }
+        let total_writes: Vec<_> = writes.iter().filter(|(_, at, _, _)| {
+            totals != 0 && at.row == existing.range.last.row && existing.range.contains(*at)
+        }).map(|(sheet, at, _, _)| (*sheet, *at, CellOp::Clear, Extra::default())).collect();
+        if self.wb.table_referenced(existing, &table_names(&root), table_id(&root)?, references::Use::Resize, &total_writes)? {
+            return Err(Error::TableInUse(existing.name.clone()));
+        }
+        let mut root = document.lens_mut::<TableElement>()?;
+        let reference = range.to_string();
+        root.set_attr(attr("ref"), &reference)?;
+        if let Some(mut filter) = root.child_mut::<sml::AutoFilter>() {
+            filter.set_attr(attr("ref"), &filter_range(range).to_string())?;
+        }
+        let plan = self.wb.plan_table_writes(writes, &HashSet::new(), false)?;
+        self.commit_table_range(table_index, existing, range, plan, document, links)
+    }
+
+    fn commit_table_range(
+        &mut self,
+        table_index: usize,
+        existing: &TableHeader,
+        range: CellRange,
+        plan: CellWritePlan,
+        document: XmlDocument,
+        links: Option<TableLinks>,
+    ) -> Result<()> {
+        let mut registry = RegistryPlan::new(&self.wb.pkg);
+        registry.stage_part(&self.wb.pkg, &existing.part, document)?;
+        if let Some(links) = links {
+            let part = self.part_name().to_owned();
+            let sheet = self.wb.pkg.xml_part(&part)?;
+            if let Some(sheet) = crate::hyperlink::table_edit_hyperlinks(sheet, links)? {
+                registry.stage_part(&self.wb.pkg, &part, sheet)?;
+            }
+        }
+        let sheet = self.sheet;
+        self.wb.apply_writes_with_insertion(plan, registry, None, |wb| {
+            let table = &mut wb.contexts.get_mut(&sheet).expect("worksheet context").tables[table_index];
+            table.range = range;
+            if let Some(header) = &mut table.rows {
+                header.last.col = range.last.col;
+            }
+            Ok(())
+        })
+    }
+
+    /// Appends a column without changing existing column IDs or table identity.
+    pub fn append_table_column(&mut self, name: &str, column: Col, values: &[CellWrite<'_>]) -> Result<()> {
+        self.insert_table_column_at(name, None, column, values)
+    }
+
+    /// Inserts a column at a zero-based position, keeping surviving column IDs.
+    pub fn insert_table_column(&mut self, name: &str, start: u32, column: Col, values: &[CellWrite<'_>]) -> Result<()> {
+        self.insert_table_column_at(name, Some(start), column, values)
+    }
+
+    fn insert_table_column_at(&mut self, name: &str, start: Option<u32>, mut column: Col, values: &[CellWrite<'_>]) -> Result<()> {
+        let (index, existing) = self.table_for_row_edit(name)?;
+        let mut range = existing.range;
+        range.last = CellIndex::new(range.last.row, range.last.col + 1)?;
+        let added = CellRange {
+            first: CellIndex { row: range.first.row, col: range.last.col },
+            last: range.last,
+        };
+        self.check_table_footprint(added)?;
+        if self.validation_overlaps(added) {
+            return Err(range_error("new table column overlaps validation"));
+        }
+        if self.hyperlinks()?.iter().any(|link| {
+            CellRange::parse(&link.range).ok().is_none_or(|link| added.intersects(&link))
+        }) {
+            return Err(range_error("new table column overlaps a hyperlink"));
+        }
+        let mut document = self.wb.pkg.xml_part(&existing.part)?.clone();
+        let root = document.lens::<TableElement>()?;
+        let totals = table_totals_rows(&root)?;
+        if !worksheet_table(&root) || root.child::<sml::SortState>().is_some() {
+            return Err(range_error("table has unsupported column metadata"));
+        }
+        let first_data = existing.rows.map_or(range.first.row, |header| header.last.row + 1);
+        if existing.rows.is_some_and(|header| header.first.row != header.last.row) {
+            return Err(range_error("table column edits require at most one header row"));
+        }
+        let last_data = range.last.row.checked_sub(totals)
+            .filter(|last| *last >= range.first.row && *last + 1 >= first_data)
+            .ok_or_else(|| range_error("table has an invalid data range"))?;
+        let data_count = (last_data + 1 - first_data) as usize;
+        if values.len() > data_count {
+            return Err(range_error("column values exceed table data rows"));
+        }
+        let columns = root.child::<sml::TableColumns>().ok_or_else(|| range_error("missing table columns"))?;
+        let mut names = HashSet::new();
+        let mut ids = HashSet::new();
+        for old in columns.children::<sml::TableColumn>() {
+            let old_name = old.attr(attr("name")).ok_or_else(|| range_error("table column has no name"))?;
+            names.insert(fold(&escape::decode(old_name)));
+            let id = old.attr(attr("id")).and_then(|id| id.parse::<u32>().ok()).filter(|id| *id > 0)
+                .ok_or_else(|| range_error("table column has no valid id"))?;
+            if !ids.insert(id) { return Err(range_error("table column IDs are not unique")); }
+        }
+        let old_width = (existing.range.last.col - existing.range.first.col + 1) as usize;
+        let start = start.map_or(old_width, |value| value as usize);
+        if start > old_width {
+            return Err(range_error("table insertion is outside the columns"));
+        }
+        if ids.len() != old_width || names.len() != old_width {
+            return Err(range_error("table column metadata does not match the range"));
+        }
+        if !names.insert(fold(&column.name)) {
+            return Err(Error::DuplicateColumnName(column.name));
+        }
+        let next_id = ids.into_iter().max().and_then(|id| id.checked_add(1))
+            .ok_or_else(|| range_error("table column IDs are exhausted"))?;
+        let mut filter_range = existing.range;
+        filter_range.last.row = last_data;
+        if let Some(filter) = root.child::<sml::AutoFilter>()
+            && (filter.child::<sml::SortState>().is_some()
+                || filter.attr(attr("ref")).and_then(|value| CellRange::parse(value).ok()) != Some(filter_range))
+        {
+            return Err(range_error("table filter range or sort state cannot be resized"));
+        }
+        if self.wb.table_referenced(&existing, &table_names(&root), table_id(&root)?, references::Use::Table, &[])? {
+            return Err(Error::TableInUse(existing.name));
+        }
+        let display = root.attr(attr("displayName")).unwrap_or(name);
+        let inserted = range.first.col + start as u32;
+        let grid = CellRange {
+            first: CellIndex { row: range.first.row, col: inserted },
+            last: CellIndex { row: range.last.row, col: inserted },
+        };
+        let mut writes = self.plan_table_column_cells(&mut column, values, grid, first_data, totals, (display, &names))?;
+        let mut links = None;
+        if start < old_width {
+            let first = CellIndex { row: range.first.row, col: inserted };
+            self.check_table_shift(CellRange { first, last: range.last })?;
+            let source = CellRange { first, last: existing.range.last };
+            let shifted = self.table_shift_values(source, 0, 1)?;
+            writes.extend(self.prepare_table_shift(&shifted)?);
+            links = Some(TableLinks::InsertColumn { moved: source, added });
+        }
+        let mut root = document.lens_mut::<TableElement>()?;
+        root.set_attr(attr("ref"), &range.to_string())?;
+        if let Some(filter) = root.child_mut::<sml::AutoFilter>() {
+            let mut edits = Vec::new();
+            for (index, node) in filter.node().indexed_elements().filter(|(_, node)| node.is(sml::FilterColumn::QNAME)) {
+                let col = node.attr(attr("colId")).and_then(|id| id.parse::<usize>().ok())
+                    .filter(|col| *col < old_width)
+                    .ok_or_else(|| range_error("table filter has an invalid column position"))?;
+                if col >= start {
+                    edits.push((index, col + 1));
+                }
+            }
+            for (index, col) in edits {
+                let mut node = root.child_mut::<sml::AutoFilter>().expect("planned filter")
+                    .into_child_at::<sml::FilterColumn>(index).expect("planned column");
+                node.set_attr(attr("colId"), &col.to_string())?;
+            }
+            let mut filter = root.child_mut::<sml::AutoFilter>().expect("planned filter");
+            filter_range.last.col = range.last.col;
+            filter.set_attr(attr("ref"), &filter_range.to_string())?;
+            if !column.filter_button {
+                let mut flag = filter.insert::<sml::FilterColumn>()?;
+                flag.set_attr(attr("colId"), &start.to_string())?;
+                flag.set_attr(attr("hiddenButton"), "1")?;
+            }
+        }
+        let mut columns = root.child_mut::<sml::TableColumns>().expect("validated column list");
+        columns.set_attr(attr("count"), &(old_width + 1).to_string())?;
+        let before = columns.node().indexed_elements().filter(|(_, node)| node.is(sml::TableColumn::QNAME))
+            .nth(start).map(|(index, _)| index);
+        let mut new_column = match before {
+            Some(index) => columns.insert_at::<sml::TableColumn>(index)?,
+            None => columns.insert::<sml::TableColumn>()?,
+        };
+        write_table_column(&mut new_column, next_id as usize, &column)?;
+        let headers = writes.iter()
+            .filter(|(_, at, _, _)| existing.rows.is_some_and(|header| header.contains(*at)))
+            .map(|(sheet, at, _, _)| (*sheet, *at)).collect();
+        let plan = self.wb.plan_table_writes(writes, &headers, false)?;
+        self.commit_table_range(index, &existing, range, plan, document, links)
+    }
+
+    fn plan_table_column_cells(
+        &mut self,
+        column: &mut Col,
+        values: &[CellWrite<'_>],
+        grid: CellRange,
+        first_data: u32,
+        totals: u32,
+        (display, names): (&str, &HashSet<String>),
+    ) -> Result<Vec<Write>> {
+        let mut cells = Vec::new();
+        if first_data != grid.first.row {
+            cells.push((grid.first, CellWrite::String(&column.name)));
+        }
+        if let Some(formula) = &mut column.formula {
+            if !values.is_empty() {
+                return Err(range_error("calculated table column cannot take explicit values"));
+            }
+            *formula = references::calculated(formula, display, names)?;
+        }
+        let data_count = (grid.last.row + 1 - totals - first_data) as usize;
+        if values.len() > data_count {
+            return Err(range_error("column values exceed table data rows"));
+        }
+        for offset in 0..data_count {
+            let value = match &column.formula {
+                Some(formula) => CellWrite::Formula(formula),
+                None => values.get(offset).copied().unwrap_or(CellWrite::Clear),
+            };
+            cells.push((CellIndex { row: first_data + offset as u32, col: grid.first.col }, value));
+        }
+        let mut writes = self.prepare_cell_writes(&cells)?;
+        if totals != 0 {
+            writes.push(self.plan_table_total(grid.last, &column.name, &mut column.total, display, names, &CellValue::Empty)?);
+        } else if column.total.is_some() {
+            return Err(range_error("column total requires a totals row"));
+        }
+        Ok(writes)
+    }
+
+    fn plan_table_total(
+        &mut self,
+        at: CellIndex,
+        column: &str,
+        total: &mut Option<ColumnTotal>,
+        display: &str,
+        names: &HashSet<String>,
+        result: &CellValue,
+    ) -> Result<Write> {
+        if !matches!(result, CellValue::Empty) && !matches!(total, Some(ColumnTotal::Formula(_) | ColumnTotal::Function(_))) {
+            return Err(range_error("a totals result requires a formula or function"));
+        }
+        let subtotal;
+        let value = match total {
+            Some(ColumnTotal::Label(label)) => CellWrite::String(label),
+            Some(ColumnTotal::Formula(formula)) => {
+                *formula = references::calculated(formula, display, names)?;
+                CellWrite::FormulaWithResult(formula, result)
+            }
+            Some(ColumnTotal::Function(function)) => {
+                let (_, code) = function.file_form();
+                let spec = references::specifier(column, false);
+                subtotal = format!("SUBTOTAL({code},{display}{spec})");
+                CellWrite::FormulaWithResult(&subtotal, result)
+            }
+            None => CellWrite::Clear,
+        };
+        Ok(self.prepare_cell_writes(&[(at, value)])?.pop().expect("one cell write"))
+    }
+
+    /// Changes a column's totals definition and worksheet cell together.
+    /// Passing `None` clears the total. The table must have a totals row.
+    pub fn set_table_column_total(&mut self, name: &str, position: u32, total: Option<ColumnTotal>) -> Result<()> {
+        self.set_table_column_total_with_result(name, position, total, CellValue::Empty)
+    }
+
+    /// Writes a column total with the caller's cached formula result.
+    pub fn set_table_column_total_with_result(
+        &mut self,
+        name: &str,
+        position: u32,
+        total: Option<ColumnTotal>,
+        result: CellValue,
+    ) -> Result<()> {
+        self.set_table_column_totals(name, vec![(position, total, result)])
+    }
+
+    /// Applies column totals and their cached results as one checked edit.
+    pub fn set_table_column_totals(
+        &mut self,
+        name: &str,
+        mut edits: Vec<(u32, Option<ColumnTotal>, CellValue)>,
+    ) -> Result<()> {
+        let (index, existing) = self.table_for_row_edit(name)?;
+        if edits.is_empty() {
+            return Ok(());
+        }
+        let range = existing.range;
+        let mut document = self.wb.pkg.xml_part(&existing.part)?.clone();
+        let root = document.lens::<TableElement>()?;
+        if !worksheet_table(&root) || table_totals_rows(&root)? != 1 {
+            return Err(range_error("column total requires a worksheet table with a totals row"));
+        }
+        let columns = root.child::<sml::TableColumns>().ok_or_else(|| range_error("missing table columns"))?;
+        let keys = columns.children::<sml::TableColumn>().map(|column| {
+            column.attr(attr("name")).map(|name| escape::decode(name).into_owned())
+                .ok_or_else(|| range_error("table column has no name"))
+        }).collect::<Result<Vec<_>>>()?;
+        let names = keys.iter().map(|name| fold(name)).collect();
+        let display = root.attr(attr("displayName")).unwrap_or(name);
+        let mut writes = Vec::with_capacity(edits.len());
+        let mut targets = HashSet::new();
+        for (position, total, result) in &mut edits {
+            let key = keys.get(*position as usize)
+                .filter(|_| *position <= range.last.col - range.first.col)
+                .ok_or_else(|| range_error("table total column is outside the table"))?;
+            let at = CellIndex { row: range.last.row, col: range.first.col + *position };
+            targets.insert(at);
+            writes.push(self.plan_table_total(at, key, total, display, &names, result)?);
+        }
+        let mut root = document.lens_mut::<TableElement>()?;
+        let mut columns = root.child_mut::<sml::TableColumns>().expect("validated columns");
+        for (position, total, _) in edits {
+            let mut column = columns.nth_child_mut::<sml::TableColumn>(position as usize).expect("validated column");
+            column.remove_attr(attr("totalsRowFunction"))?;
+            column.remove_attr(attr("totalsRowLabel"))?;
+            column.remove::<sml::TotalsRowFormula>();
+            write_table_total(&mut column, total.as_ref())?;
+        }
+        let plan = self.wb.plan_table_writes(writes, &HashSet::new(), false)?;
+        self.commit_table_range(index, &existing, range, plan, document, Some(TableLinks::ReplaceTotals(targets)))
+    }
+
+    /// Replaces every column while retaining the table's identity and style.
+    pub fn replace_table_columns(&mut self, name: &str, mut replacements: Vec<(Col, &[CellWrite<'_>])>) -> Result<()> {
+        let (index, existing) = self.table_for_row_edit(name)?;
+        let width = u32::try_from(replacements.len()).ok().filter(|width| *width > 0)
+            .ok_or_else(|| range_error("table requires at least one column"))?;
+        let mut range = existing.range;
+        let last_col = range.first.col.checked_add(width - 1)
+            .ok_or_else(|| range_error("range outside sheet"))?;
+        range.last = CellIndex::new(range.last.row, last_col)?;
+        if range.last.col > existing.range.last.col {
+            self.check_table_footprint(CellRange {
+                first: CellIndex { row: range.first.row, col: existing.range.last.col + 1 },
+                last: range.last,
+            })?;
+        }
+        let affected = CellRange {
+            first: range.first,
+            last: CellIndex { row: range.last.row, col: range.last.col.max(existing.range.last.col) },
+        };
+        if self.validation_overlaps(affected) {
+            return Err(range_error("replaced table columns overlap validation"));
+        }
+        let mut document = self.wb.pkg.xml_part(&existing.part)?.clone();
+        let root = document.lens::<TableElement>()?;
+        let totals = table_totals_rows(&root)?;
+        let first_data = existing.rows.map_or(range.first.row, |header| header.last.row + 1);
+        if !worksheet_table(&root) || root.child::<sml::SortState>().is_some()
+            || existing.rows.is_some_and(|header| header.first.row != header.last.row)
+            || range.last.row + 1 < (first_data + totals).max(range.first.row + totals + 1)
+        {
+            return Err(range_error("table has unsupported column metadata"));
+        }
+        let columns = root.child::<sml::TableColumns>().ok_or_else(|| range_error("missing table columns"))?;
+        let last_id = columns.children::<sml::TableColumn>().map(|column| {
+            column.attr(attr("id")).and_then(|id| id.parse::<u32>().ok()).filter(|id| *id != 0)
+                .ok_or_else(|| range_error("table column has no valid id"))
+        }).collect::<Result<Vec<_>>>()?.into_iter().max().ok_or_else(|| range_error("missing table columns"))?;
+        last_id.checked_add(width).ok_or_else(|| range_error("table column IDs are exhausted"))?;
+        let mut filter_range = existing.range;
+        filter_range.last.row -= totals;
+        if let Some(filter) = root.child::<sml::AutoFilter>()
+            && (filter.child::<sml::SortState>().is_some()
+                || filter.attr(attr("ref")).and_then(|value| CellRange::parse(value).ok()) != Some(filter_range))
+        {
+            return Err(range_error("table filter range or sort state cannot be resized"));
+        }
+        check_unique(replacements.iter().map(|(column, _)| &column.name))?;
+        let names = replacements.iter().map(|(column, _)| fold(&column.name)).collect();
+        let display = root.attr(attr("displayName")).unwrap_or(name);
+        let mut writes = Vec::new();
+        for (offset, (column, values)) in replacements.iter_mut().enumerate() {
+            let col = range.first.col + offset as u32;
+            let grid = CellRange {
+                first: CellIndex { row: range.first.row, col },
+                last: CellIndex { row: range.last.row, col },
+            };
+            writes.extend(self.plan_table_column_cells(column, values, grid, first_data, totals, (display, &names))?);
+        }
+        let mut clears = Vec::new();
+        for row in affected.first.row..=affected.last.row {
+            for col in (range.last.col + 1)..=affected.last.col {
+                if self.cell(row, col)?.is_some() {
+                    clears.push((CellIndex { row, col }, CellWrite::Clear));
+                }
+            }
+        }
+        writes.extend(self.prepare_cell_writes(&clears)?);
+        if self.wb.table_referenced(&existing, &table_names(&root), table_id(&root)?, references::Use::Resize, &writes)? {
+            return Err(Error::TableInUse(existing.name));
+        }
+        let mut root = document.lens_mut::<TableElement>()?;
+        root.set_attr(attr("ref"), &range.to_string())?;
+        if let Some(mut filter) = root.child_mut::<sml::AutoFilter>() {
+            let positions: Vec<_> = filter.node().indexed_elements()
+                .filter(|(_, node)| node.is(sml::FilterColumn::QNAME))
+                .map(|(index, _)| index).collect();
+            for index in positions.into_iter().rev() {
+                filter.remove_at(index);
+            }
+            filter_range.last.col = range.last.col;
+            filter.set_attr(attr("ref"), &filter_range.to_string())?;
+            for (offset, (column, _)) in replacements.iter().enumerate() {
+                if !column.filter_button {
+                    let mut flag = filter.insert::<sml::FilterColumn>()?;
+                    flag.set_attr(attr("colId"), &offset.to_string())?;
+                    flag.set_attr(attr("hiddenButton"), "1")?;
+                }
+            }
+        }
+        let mut columns = root.child_mut::<sml::TableColumns>().expect("validated column list");
+        let positions: Vec<_> = columns.node().indexed_elements()
+            .filter(|(_, node)| node.is(sml::TableColumn::QNAME))
+            .map(|(index, _)| index).collect();
+        for index in positions.into_iter().rev() {
+            columns.remove_at(index);
+        }
+        columns.set_attr(attr("count"), &width.to_string())?;
+        for (offset, (column, _)) in replacements.iter().enumerate() {
+            let id = last_id as usize + offset + 1;
+            write_table_column(&mut columns.insert::<sml::TableColumn>()?, id, column)?;
+        }
+        let headers = writes.iter()
+            .filter(|(_, at, _, _)| existing.rows.is_some_and(|header| header.contains(*at)))
+            .map(|(sheet, at, _, _)| (*sheet, *at)).collect();
+        let plan = self.wb.plan_table_writes(writes, &headers, false)?;
+        self.commit_table_range(index, &existing, range, plan, document, Some(TableLinks::RemoveColumns {
+            deleted: affected,
+            moved: None,
+        }))
+    }
+
+    /// Removes trailing table columns and clears their cells, retaining the
+    /// IDs and filter settings of the surviving columns.
+    pub fn remove_table_tail_columns(&mut self, name: &str, count: u32) -> Result<()> {
+        self.remove_table_columns_at(name, None, count)
+    }
+
+    /// Removes columns from a zero-based position and shifts surviving cells.
+    pub fn remove_table_columns(&mut self, name: &str, start: u32, count: u32) -> Result<()> {
+        self.remove_table_columns_at(name, Some(start), count)
+    }
+
+    fn remove_table_columns_at(&mut self, name: &str, start: Option<u32>, count: u32) -> Result<()> {
+        let (index, existing) = self.table_for_row_edit(name)?;
+        if count == 0 {
+            return Ok(());
+        }
+        let mut range = existing.range;
+        range.last.col = range.last.col.checked_sub(count)
+            .filter(|&last| last >= range.first.col)
+            .ok_or_else(|| range_error("table requires at least one column"))?;
+        let trailing = CellRange {
+            first: CellIndex { row: range.first.row, col: range.last.col + 1 },
+            last: existing.range.last,
+        };
+        let width = range.last.col - range.first.col + 1;
+        let start = start.unwrap_or(width);
+        if start > width {
+            return Err(range_error("table removal is outside the columns"));
+        }
+        let deleted = CellRange {
+            first: CellIndex { row: range.first.row, col: range.first.col + start },
+            last: CellIndex { row: range.last.row, col: range.first.col + start + count - 1 },
+        };
+        let moved = (start < width).then(|| CellRange {
+            first: CellIndex { row: deleted.first.row, col: deleted.last.col + 1 },
+            last: existing.range.last,
+        });
+        let mut writes = Vec::new();
+        if let Some(source) = moved {
+            let affected = CellRange { first: deleted.first, last: existing.range.last };
+            self.check_table_shift(affected)?;
+            let shifted = self.table_shift_values(source, 0, -(count as i32))?;
+            writes = self.prepare_table_shift(&shifted)?;
+        } else if self.validation_overlaps(deleted) {
+            return Err(range_error("removed table columns overlap validation"));
+        }
+        let mut document = self.wb.pkg.xml_part(&existing.part)?.clone();
+        let root = document.lens::<TableElement>()?;
+        let totals = table_totals_rows(&root)?;
+        if !worksheet_table(&root) || root.child::<sml::SortState>().is_some() {
+            return Err(range_error("table has unsupported column metadata"));
+        }
+        let mut filter_range = existing.range;
+        filter_range.last.row = filter_range.last.row.checked_sub(totals)
+            .filter(|&last| last >= range.first.row)
+            .ok_or_else(|| range_error("table has an invalid filter range"))?;
+        if let Some(filter) = root.child::<sml::AutoFilter>()
+            && (filter.child::<sml::SortState>().is_some()
+                || filter.attr(attr("ref")).and_then(|value| CellRange::parse(value).ok()) != Some(filter_range))
+        {
+            return Err(range_error("table filter range or sort state cannot be resized"));
+        }
+        let mut cells = Vec::new();
+        for row in trailing.first.row..=trailing.last.row {
+            for col in trailing.first.col..=trailing.last.col {
+                if self.cell(row, col)?.is_some() {
+                    cells.push((CellIndex { row, col }, CellWrite::Clear));
+                }
+            }
+        }
+        writes.extend(self.prepare_cell_writes(&cells)?);
+        let headers = writes.iter()
+            .filter(|(_, at, _, _)| existing.rows.is_some_and(|header| header.contains(*at)))
+            .map(|(sheet, at, _, _)| (*sheet, *at)).collect();
+        let names = table_names(&root);
+        if writes.iter().any(|(_, _, op, _)| {
+            matches!(op, CellOp::Formula(text, _) if references::has_reference(text, true, &names, references::Use::Table))
+        }) || self.wb.table_referenced(&existing, &names, table_id(&root)?, references::Use::Table, &writes)? {
+            return Err(Error::TableInUse(existing.name));
+        }
+        let mut root = document.lens_mut::<TableElement>()?;
+        root.set_attr(attr("ref"), &range.to_string())?;
+        if let Some(filter) = root.child_mut::<sml::AutoFilter>() {
+            let mut edits = Vec::new();
+            for (index, node) in filter.node().indexed_elements().filter(|(_, node)| node.is(sml::FilterColumn::QNAME)) {
+                let col = node.attr(attr("colId")).and_then(|id| id.parse::<u32>().ok())
+                    .filter(|&col| col < width + count)
+                    .ok_or_else(|| range_error("table filter has an invalid column position"))?;
+                if col >= start {
+                    edits.push((index, (col >= start + count).then(|| col - count)));
+                }
+            }
+            for (index, col) in edits.into_iter().rev() {
+                if let Some(col) = col {
+                    let mut node = root.child_mut::<sml::AutoFilter>().expect("planned filter")
+                        .into_child_at::<sml::FilterColumn>(index).expect("planned column");
+                    node.set_attr(attr("colId"), &col.to_string())?;
+                } else {
+                    root.child_mut::<sml::AutoFilter>().expect("planned filter").remove_at(index);
+                }
+            }
+            filter_range.last.col = range.last.col;
+            root.child_mut::<sml::AutoFilter>().expect("planned filter").set_attr(attr("ref"), &filter_range.to_string())?;
+        }
+        let mut columns = root.child_mut::<sml::TableColumns>().ok_or_else(|| range_error("missing table columns"))?;
+        let positions: Vec<_> = columns.node().indexed_elements().filter(|(_, node)| node.is(sml::TableColumn::QNAME))
+            .map(|(index, _)| index).collect();
+        if positions.len() != (width + count) as usize {
+            return Err(range_error("table column metadata does not match the range"));
+        }
+        for &index in positions[start as usize..(start + count) as usize].iter().rev() {
+            columns.remove_at(index);
+        }
+        columns.set_attr(attr("count"), &width.to_string())?;
+        let plan = self.wb.plan_table_writes(writes, &headers, false)?;
+        self.commit_table_range(index, &existing, range, plan, document, Some(TableLinks::RemoveColumns { deleted, moved }))
+    }
+
+    /// Applies the supplied style groups to a table column's cells.
+    /// Existing style groups omitted from the patch are preserved.
+    pub fn patch_table_column_style(&mut self, name: &str, position: u32, format: crate::Format) -> Result<()> {
+        self.patch_table_column_styles(name, vec![(position, format)])
+    }
+
+    /// Applies partial styles to several table columns in one edit plan.
+    pub fn patch_table_column_styles(&mut self, name: &str, edits: Vec<(u32, crate::Format)>) -> Result<()> {
+        let (_, table) = self.table_for_row_edit(name)?;
+        let mut writes = Vec::new();
+        for (position, format) in edits {
+            let col = table.range.first.col.checked_add(position).filter(|col| *col <= table.range.last.col)
+                .ok_or_else(|| range_error("table style column is outside the table"))?;
+            let style = StyleRequest::Patch(std::sync::Arc::new(format));
+            writes.extend((table.range.first.row..=table.range.last.row).map(|row| {
+                (self.sheet, CellIndex { row, col }, CellOp::StyleOnly, Extra { style: Some(style.clone()), ..Extra::default() })
+            }));
+        }
+        if writes.is_empty() {
+            return Ok(());
+        }
+        let plan = self.wb.plan_writes(writes)?;
+        self.wb.apply_writes(plan)
+    }
+
+    /// Updates the table style without rewriting cells or the table's identity.
+    pub fn set_table_style(&mut self, name: &str, theme: Option<TableStyle>, flags: [bool; 4]) -> Result<()> {
+        self.wb.check_editable()?;
+        let part = self.wb.contexts[&self.sheet].tables.iter()
+            .find(|table| fold(&table.name) == fold(name))
+            .map(|table| table.part.clone()).ok_or_else(|| Error::NoSuchTable(name.into()))?;
+        let theme = theme.map(TableStyle::name).transpose()?;
+        let mut document = self.wb.pkg.xml_part(&part)?.clone();
+        let mut table = document.lens_mut::<TableElement>()?;
+        let mut info = table.get_or_insert::<sml::TableStyleInfo>()?;
+        match theme {
+            Some(Some(theme)) => info.set_attr(attr("name"), &theme)?,
+            Some(None) => { info.remove_attr(attr("name"))?; }
+            None => {}
+        }
+        for (key, value) in ["showFirstColumn", "showLastColumn", "showRowStripes", "showColumnStripes"].into_iter().zip(flags) {
+            info.set_attr(attr(key), if value { "1" } else { "0" })?;
+        }
+        *self.wb.pkg.xml_part_mut(&part)? = document;
+        Ok(())
+    }
+
+    /// Changes a column filter button while preserving the column's filter criteria.
+    pub fn set_table_filter_button(&mut self, name: &str, column: u32, visible: bool) -> Result<()> {
+        self.set_table_filter_buttons(name, &[(column, visible)])
+    }
+
+    /// Applies filter-button edits to one table part in a single transaction.
+    pub fn set_table_filter_buttons(&mut self, name: &str, edits: &[(u32, bool)]) -> Result<()> {
+        self.wb.check_editable()?;
+        if edits.is_empty() {
+            return Ok(());
+        }
+        let part = self.wb.contexts[&self.sheet].tables.iter()
+            .find(|table| fold(&table.name) == fold(name))
+            .filter(|table| edits.iter().all(|(column, _)| *column <= table.range.last.col - table.range.first.col))
+            .map(|table| table.part.clone()).ok_or_else(|| Error::NoSuchTable(name.into()))?;
+        let mut document = self.wb.pkg.xml_part(&part)?.clone();
+        let mut table = document.lens_mut::<TableElement>()?;
+        let Some(mut filter) = table.child_mut::<sml::AutoFilter>() else {
+            if edits.iter().all(|(_, visible)| !visible) { return Ok(()); }
+            return Err(range_error("filter buttons require a table header"));
+        };
+        let mut changed = false;
+        for &(column, visible) in edits {
+            let index = column.to_string();
+            let existing = filter.child_mut_by::<sml::FilterColumn>(|node| {
+                node.attr(attr("colId")) == Some(index.as_str())
+            });
+            if let Some(mut node) = existing {
+                node.set_attr(attr("hiddenButton"), if visible { "0" } else { "1" })?;
+                node.set_attr(attr("showButton"), if visible { "1" } else { "0" })?;
+                changed = true;
+            } else if !visible {
+                let mut node = filter.insert::<sml::FilterColumn>()?;
+                node.set_attr(attr("colId"), &index)?;
+                node.set_attr(attr("hiddenButton"), "1")?;
+                changed = true;
+            }
+        }
+        if !changed {
+            return Ok(());
+        }
+        *self.wb.pkg.xml_part_mut(&part)? = document;
+        Ok(())
+    }
+
+    /// Reads table definitions in worksheet order without changing their parts.
+    pub fn table_nodes(&mut self) -> Result<Vec<ooxml_core::RawNode>> {
+        let tables = self.wb.contexts[&self.sheet].tables.clone();
+        tables.iter().map(|table| {
+            let document = self.wb.pkg.xml_part(&table.part)?;
+            Ok(document.lens::<TableElement>()?.raw().clone())
+        }).collect()
     }
 
     /// Removes an unreferenced worksheet table and leaves its cells intact.
@@ -893,9 +1930,59 @@ fn update_count(parts: &mut ooxml_core::LensMut<'_, sml::TableParts>) -> Result<
     Ok(())
 }
 
+const TABLE_DXF_KEYS: [&str; 3] = ["headerRowDxfId", "dataDxfId", "totalsRowDxfId"];
+const TABLE_BORDER_DXF_KEYS: [&str; 3] = ["headerRowBorderDxfId", "tableBorderDxfId", "totalsRowBorderDxfId"];
+
+fn write_table_differential_formats<E: ooxml_core::ElementSpec>(
+    node: &mut ooxml_core::LensMut<'_, E>,
+    keys: [&'static str; 3],
+    ids: [Option<u32>; 3],
+) -> Result<()> {
+    for (key, id) in keys.into_iter().zip(ids) {
+        if let Some(id) = id {
+            node.set_attr(attr(key), id.format_into(&mut NumBuffer::new()))?;
+        }
+    }
+    Ok(())
+}
+
+fn write_table_column(child: &mut ooxml_core::LensMut<'_, sml::TableColumn>, id: usize, col: &Col) -> Result<()> {
+    child.set_attr(attr("id"), id.format_into(&mut NumBuffer::new()))?;
+    child.set_attr(attr("name"), &column_name(&col.name)?)?;
+    if col.explicit_no_total_function {
+        child.set_attr(attr("totalsRowFunction"), "none")?;
+    }
+    write_table_differential_formats(child, TABLE_DXF_KEYS, col.differential_formats)?;
+    write_table_total(child, col.total.as_ref())?;
+    if let Some(f) = &col.formula {
+        child
+            .insert::<sml::CalculatedColumnFormula>()?
+            .set_text(f)?;
+    }
+    Ok(())
+}
+
+fn write_table_total(child: &mut ooxml_core::LensMut<'_, sml::TableColumn>, total: Option<&ColumnTotal>) -> Result<()> {
+    match total {
+        Some(ColumnTotal::Function(t)) => {
+            child.set_attr(attr("totalsRowFunction"), t.file_form().0)?
+        }
+        Some(ColumnTotal::Label(t)) => {
+            child.set_attr(attr("totalsRowLabel"), &escape::encode(t))?
+        }
+        Some(ColumnTotal::Formula(formula)) => {
+            child.set_attr(attr("totalsRowFunction"), "custom")?;
+            child.insert::<sml::TotalsRowFormula>()?.set_text(formula)?;
+        }
+        None => {}
+    }
+    Ok(())
+}
+
 fn table_document(
     table: &Table,
     name: &str,
+    display_name: &str,
     id: u32,
     style: Option<&str>,
     columns: &[Col],
@@ -904,18 +1991,30 @@ fn table_document(
     let mut root = doc.lens_mut::<TableElement>()?;
     root.set_attr(attr("id"), id.format_into(&mut NumBuffer::new()))?;
     root.set_attr(attr("name"), name)?;
-    root.set_attr(attr("displayName"), name)?;
+    root.set_attr(attr("displayName"), display_name)?;
     root.set_attr(attr("ref"), &table.range.to_string())?;
+    write_table_differential_formats(&mut root, TABLE_DXF_KEYS, table.differential_formats)?;
+    write_table_differential_formats(&mut root, TABLE_BORDER_DXF_KEYS, table.border_formats)?;
     if table.totals {
         root.set_attr(attr("totalsRowCount"), "1")?;
     } else {
         root.set_attr(attr("totalsRowShown"), "0")?;
     }
     if table.headers {
+        if !table.write_cells {
+            root.set_attr(attr("headerRowCount"), "1")?;
+        }
         let mut filter = table.range;
         filter.last.row -= u32::from(table.totals);
-        root.insert::<sml::AutoFilter>()?
-            .set_attr(attr("ref"), &filter.to_string())?;
+        let mut auto_filter = root.insert::<sml::AutoFilter>()?;
+        auto_filter.set_attr(attr("ref"), &filter.to_string())?;
+        for (index, column) in columns.iter().enumerate() {
+            if !column.filter_button || !table.write_cells {
+                let mut node = auto_filter.insert::<sml::FilterColumn>()?;
+                node.set_attr(attr("colId"), &index.to_string())?;
+                node.set_attr(attr("hiddenButton"), if column.filter_button { "0" } else { "1" })?;
+            }
+        }
     } else {
         root.set_attr(attr("headerRowCount"), "0")?;
     }
@@ -925,27 +2024,17 @@ fn table_document(
         columns.len().format_into(&mut NumBuffer::new()),
     )?;
     for (i, col) in columns.iter().enumerate() {
-        let mut child = list.insert::<sml::TableColumn>()?;
-        child.set_attr(attr("id"), (i + 1).format_into(&mut NumBuffer::new()))?;
-        child.set_attr(attr("name"), &column_name(&col.name)?)?;
-        match &col.total {
-            Some(TotalsCell::Function(t)) => {
-                child.set_attr(attr("totalsRowFunction"), t.file_form().0)?
-            }
-            Some(TotalsCell::Label(t)) => {
-                child.set_attr(attr("totalsRowLabel"), &escape::encode(t))?
-            }
-            None => {}
-        }
-        if let Some(f) = &col.formula {
-            child
-                .insert::<sml::CalculatedColumnFormula>()?
-                .set_text(f)?;
-        }
+        write_table_column(&mut list.insert::<sml::TableColumn>()?, i + 1, col)?;
     }
     let mut info = root.insert::<sml::TableStyleInfo>()?;
     if let Some(style) = style {
         info.set_attr(attr("name"), style)?;
+    }
+    if table.first_column {
+        info.set_attr(attr("showFirstColumn"), "1")?;
+    }
+    if table.last_column {
+        info.set_attr(attr("showLastColumn"), "1")?;
     }
     info.set_attr(
         attr("showRowStripes"),

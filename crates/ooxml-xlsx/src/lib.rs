@@ -94,7 +94,7 @@ pub mod streaming;
 mod streaming_rows;
 mod streaming_manifest;
 mod tables;
-pub use tables::{Col, Table, TableStyle, Total};
+pub use tables::{Col, ColumnTotal, Table, TableStyle, Total};
 
 pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
