@@ -13,7 +13,7 @@ use crate::census::FKind;
 use crate::edit::CellOp;
 use crate::error::{Error, Result};
 use crate::formula::precedents::{NameDef, Scope, fold};
-use crate::protect::{MANAGED, MANAGED_WORKBOOK, SheetProtection, WorkbookProtection};
+use crate::protect::{MANAGED, MANAGED_WORKBOOK, SheetProtection, SheetProtectionModel, WorkbookProtection};
 use crate::reference::{CellIndex, CellRange};
 use crate::sheet_ops::quote_sheet;
 use crate::workbook::Workbook;
@@ -180,6 +180,11 @@ impl Workbook {
         self.poisoning(|wb| wb.apply_merge(sheet, r))
     }
 
+    fn merge_preserving_covered_values(&mut self, sheet: usize, range: &str) -> Result<()> {
+        let (range, _) = self.plan_merge(sheet, range)?;
+        self.poisoning(|wb| wb.apply_merge(sheet, range))
+    }
+
     pub(crate) fn merge_clearing(&mut self, sheet: usize, range: &str) -> Result<()> {
         let (r, hidden) = self.plan_merge(sheet, range)?;
         // Each clearing is a Phase1 removal. Every one is checked before the
@@ -212,36 +217,50 @@ impl Workbook {
     pub(crate) fn unmerge(&mut self, sheet: usize, range: &str) -> Result<()> {
         self.check_editable()?;
         let r = CellRange::parse(range)?;
-        if !self.contexts.get(&sheet).expect("context").merges.contains(&r) {
-            return Err(Error::NoSuchMerge(r.to_string()));
+        self.remove_merges(sheet, r, false)
+    }
+
+    fn remove_merges(&mut self, sheet: usize, range: CellRange, intersecting: bool) -> Result<()> {
+        let matches = |candidate: &CellRange| {
+            if intersecting { candidate.intersects(&range) } else { *candidate == range }
+        };
+        let limit = if intersecting { usize::MAX } else { 1 };
+        let expected = self.contexts.get(&sheet).expect("context").merges.iter()
+            .filter(|candidate| matches(candidate)).take(limit).count();
+        if expected == 0 {
+            return if intersecting { Ok(()) } else { Err(Error::NoSuchMerge(range.to_string())) };
         }
         let part = self.sheet_part(sheet);
+        let missing = || Error::Malformed(format!("{part}: merge {range} not in the tree"));
         let doc = self.pkg.xml_part(&part)?;
         let ws = doc.lens::<sml::Worksheet>()?;
-        let mc = ws.child::<sml::MergeCells>().ok_or_else(|| Error::Malformed(format!("{part}: merge {r} not in the tree")))?;
-        let item = mc
-            .raw()
-            .indexed_elements()
-            .find(|(_, e)| e.is(sml::MergeCell::QNAME) && e.attr(REF).and_then(|v| CellRange::parse(v).ok()) == Some(r))
-            .map(|(i, _)| i)
-            .ok_or_else(|| Error::Malformed(format!("{part}: merge {r} not in the tree")))?;
-        let remaining = mc.raw().elements().filter(|e| e.is(sml::MergeCell::QNAME)).count() - 1;
+        let mc = ws.child::<sml::MergeCells>().ok_or_else(missing)?;
+        let items: Vec<_> = mc.raw().indexed_elements()
+            .filter(|(_, e)| e.is(sml::MergeCell::QNAME) && e.attr(REF).and_then(|v| CellRange::parse(v).ok()).is_some_and(|r| matches(&r)))
+            .map(|(index, _)| index).take(limit).collect();
+        if items.len() != expected {
+            return Err(missing());
+        }
+        let remaining = mc.raw().elements().filter(|e| e.is(sml::MergeCell::QNAME)).count() - items.len();
         self.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
             if remaining == 0 {
-                // an empty mergeCells is repaired by Excel: remove it
                 ws.remove::<sml::MergeCells>();
             } else {
                 let mut mc = ws.child_mut::<sml::MergeCells>().expect("planned");
-                mc.remove_at(item);
+                for index in items.into_iter().rev() {
+                    mc.remove_at(index);
+                }
                 mc.set_attr(COUNT, &remaining.to_string())?;
             }
-            // one element left the tree: one entry leaves the list (a
-            // duplicated ref stays merged, as in the tree)
             let merges = &mut wb.contexts.get_mut(&sheet).expect("context").merges;
-            let at = merges.iter().position(|m| *m == r).expect("checked above");
-            merges.remove(at);
+            if intersecting {
+                merges.retain(|candidate| !matches(candidate));
+            } else {
+                let at = merges.iter().position(matches).expect("checked above");
+                merges.remove(at);
+            }
             Ok(())
         })
     }
@@ -384,7 +403,15 @@ impl Workbook {
 
     pub(crate) fn protect_sheet(&mut self, sheet: usize, p: &SheetProtection) -> Result<()> {
         self.check_editable()?;
-        let attrs = p.attributes()?;
+        self.write_sheet_protection(sheet, &p.attributes()?)
+    }
+
+    fn write_sheet_protection(&mut self, sheet: usize, attrs: &[(&'static str, String)]) -> Result<()> {
+        for (_, value) in attrs {
+            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(value) {
+                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+            }
+        }
         let part = self.sheet_part(sheet);
         {
             let doc = self.pkg.xml_part_mut(&part)?;
@@ -403,7 +430,7 @@ impl Workbook {
             for name in MANAGED {
                 sp.remove_attr(QName::new("", name))?;
             }
-            for (name, value) in &attrs {
+            for (name, value) in attrs {
                 sp.set_attr(QName::new("", name), value)?;
             }
             Ok(())
@@ -510,11 +537,165 @@ impl Worksheet<'_> {
         self.wb.merge_clearing(self.sheet, range)
     }
 
+    /// Adds a merged rectangle while retaining existing covered cell contents.
+    ///
+    /// This supports exporting models that store a merge independently of
+    /// the cell records. Covered cells remain protected from later value edits.
+    pub fn merge_preserving_covered_values(&mut self, range: &str) -> Result<()> {
+        self.wb.merge_preserving_covered_values(self.sheet, range)
+    }
+
+    /// Copies a merge member's effective cell format to its still-linked peers.
+    pub fn copy_merge_style(
+        &mut self,
+        range: CellRange,
+        source: CellIndex,
+        detached: &std::collections::HashSet<CellIndex>,
+    ) -> Result<()> {
+        use crate::edit::Extra;
+        use crate::registry::styles::StyleRequest;
+
+        let effective_style = |row, col| {
+            if let Some(style) = self.effective_cell_style_index(row, col)? {
+                return Ok(style);
+            }
+            match self.row_style_index(row)? {
+                Some(style) => Ok(style),
+                None => self.column_style_index(col),
+            }
+        };
+        let anchor = range.first;
+        let style = effective_style(source.row, source.col)?;
+        let linked = |at| at != source && !detached.contains(&at);
+        let mut writes = Vec::new();
+        let mut add_style = |at| {
+            writes.push((self.sheet, at, CellOp::StyleOnly, Extra {
+                style: Some(StyleRequest::Index(style)),
+                ..Extra::default()
+            }));
+        };
+        let doc = self.wb.pkg.parsed_part(self.part_name()).expect("worksheet is parsed");
+        let has_inherited_style = doc.root().elements().any(|group| {
+            if group.is(sml::SheetData::QNAME) {
+                group.elements().any(|row| row.is(sml::Row::QNAME) && row.attr(sml::Row::ATTR_S).is_some())
+            } else if group.is(sml::Columns::QNAME) {
+                group.elements().any(|col| col.attr(QName::new("", "style")).is_some())
+            } else {
+                false
+            }
+        });
+        if style == 0 && !has_inherited_style {
+            for cell in self.cells_before_row(range.last.row + 1) {
+                let cell = cell?;
+                let at = cell.index();
+                if linked(at) && range.contains(at) && cell.style_index()? != 0 {
+                    add_style(at);
+                }
+            }
+        } else {
+            for row in anchor.row..=range.last.row {
+                for col in anchor.col..=range.last.col {
+                    let at = CellIndex { row, col };
+                    if linked(at) && effective_style(row, col)? != style {
+                        add_style(at);
+                    }
+                }
+            }
+        }
+        if writes.is_empty() {
+            return Ok(());
+        }
+        let plan = self.wb.plan_writes(writes)?;
+        self.wb.apply_writes(plan)
+    }
+
     /// Removes the merged range equal to `range` ([`Error::NoSuchMerge`]
     /// otherwise). Values that the merge hid in non-anchor cells become
     /// visible again.
     pub fn unmerge(&mut self, range: &str) -> Result<()> {
         self.wb.unmerge(self.sheet, range)
+    }
+
+    /// Removes all merged ranges that intersect the selection.
+    pub fn unmerge_intersecting(&mut self, selection: CellRange) -> Result<()> {
+        self.wb.check_editable()?;
+        self.wb.remove_merges(self.sheet, selection, true)
+    }
+
+    /// Restores inherited formats on followers of merges intersecting the selection.
+    pub fn reset_merge_follower_styles(&mut self, selection: CellRange) -> Result<()> {
+        use crate::edit::Extra;
+        use crate::registry::styles::StyleRequest;
+
+        let merges: Vec<_> = self.merged_ranges().into_iter()
+            .filter(|range| range.intersects(&selection))
+            .collect();
+        let Some(last_row) = merges.iter().map(|range| range.last.row).max() else {
+            return Ok(());
+        };
+        // Explicit formats need a reset. Unstored followers need a write only
+        // when an inherited row style must be combined with a column style.
+        let mut requests = std::collections::BTreeMap::new();
+        for cell in self.cells_before_row(last_row + 1) {
+            let cell = cell?;
+            if cell.raw().attr(sml::Cell::ATTR_S).is_none() {
+                continue;
+            }
+            let at = cell.index();
+            if !merges.iter().any(|range| at != range.first && range.contains(at)) {
+                continue;
+            }
+            let row = self.row_style_index(at.row)?;
+            let column = self.column_style_index(at.col)?;
+            let inherited = row.unwrap_or(column);
+            let request = match row {
+                Some(row) if column != 0 && column != row => StyleRequest::RowWithColumnDefaults { row, column },
+                _ if cell.style_index()? != inherited => StyleRequest::Index(inherited),
+                _ => continue,
+            };
+            requests.insert((at.row, at.col), request);
+        }
+
+        let mut column_styles = std::collections::HashMap::new();
+        for row in self.row_numbers()?.map(|row| row - 1).take_while(|&row| row <= last_row) {
+            let mut covering = merges.iter().filter(|range| range.first.row <= row && range.last.row >= row).peekable();
+            if covering.peek().is_none() {
+                continue;
+            }
+            let Some(row_style) = self.row_style_index(row)? else {
+                continue;
+            };
+            for range in covering {
+                for col in range.first.col..=range.last.col {
+                    if range.first == (CellIndex { row, col }) {
+                        continue;
+                    }
+                    let column = match column_styles.entry(col) {
+                        std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+                        std::collections::hash_map::Entry::Vacant(entry) => {
+                            *entry.insert(self.column_style_index(col)?)
+                        }
+                    };
+                    if column != 0 && column != row_style {
+                        requests.entry((row, col)).or_insert(StyleRequest::RowWithColumnDefaults {
+                            row: row_style,
+                            column,
+                        });
+                    }
+                }
+            }
+        }
+        if requests.is_empty() {
+            return Ok(());
+        }
+        let writes = requests.into_iter().map(|((row, col), request)| {
+            (self.sheet, CellIndex { row, col }, CellOp::StyleOnly, Extra {
+                style: Some(request),
+                ..Extra::default()
+            })
+        }).collect();
+        let plan = self.wb.plan_writes(writes)?;
+        self.wb.apply_writes(plan)
     }
 
     /// Sets the sheet's autofilter range (ADR-0014 §7): a new `autoFilter`,
@@ -537,6 +718,17 @@ impl Worksheet<'_> {
         self.wb.remove_autofilter(self.sheet)
     }
 
+    /// Reads stored worksheet protection attributes, if a protection element is present.
+    pub fn sheet_protection_attributes(&self) -> Result<Option<Vec<(String, String)>>> {
+        let doc = self.wb.pkg.parsed_part(self.part_name()).expect("worksheet is parsed");
+        let worksheet = doc.lens::<sml::Worksheet>()?;
+        Ok(worksheet.child::<sml::SheetProtection>().map(|protection| {
+            protection.raw().attrs().iter().filter(|attr| attr.name().ns().is_empty())
+                .map(|attr| (attr.name().local().to_owned(), attr.value().to_owned()))
+                .collect()
+        }))
+    }
+
     /// Protects the sheet (ADR-0014 §11). An existing `sheetProtection` has
     /// every hash and flag attribute replaced (a legacy `password` never
     /// stays next to a SHA-512 hash); unknown attributes are kept. Sheet
@@ -544,6 +736,16 @@ impl Worksheet<'_> {
     /// this crate. Errors: [`Error::InvalidSpinCount`], [`Error::Random`].
     pub fn protect_sheet(&mut self, protection: &SheetProtection) -> Result<()> {
         self.wb.protect_sheet(self.sheet, protection)
+    }
+
+    /// Replaces the worksheet model's stored protection flags and hash.
+    pub fn replace_sheet_protection(&mut self, model: &SheetProtectionModel<'_>) -> Result<()> {
+        self.wb.check_editable()?;
+        let attrs = model.attributes();
+        if attrs.is_empty() {
+            return self.unprotect_sheet().map(drop);
+        }
+        self.wb.write_sheet_protection(self.sheet, &attrs)
     }
 
     /// Removes the sheet's protection; `Ok(false)` if it had none.
