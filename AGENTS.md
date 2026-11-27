@@ -27,6 +27,7 @@ cargo xtask codegen --check
 
 - 3 つとも通ること。
 - `ooxml-pptx` か `ooxml-core` に触れたら、CI の python-pptx オラクル（`.github/workflows/ci.yml`）も通ること。
+- `bindings/python/` かその依存クレートに触れた PR は、CI の `python` ジョブも緑であること（毎 PR 回る。手元では任意）。
   手元で回す場合（pip にネットワークが要る。無ければ CI に任せる）:
 
   ```sh

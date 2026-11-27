@@ -107,3 +107,51 @@ jobs:
         run: cargo run --release -p ooxml-xlsx --example xlsx_manual_check -- "$RUNNER_TEMP/xlsx-oracle"
       - name: openpyxl table read-back (ADR-0017 P5b)
         run: python -I crates/ooxml-xlsx/tests/oracle/tables.py "$RUNNER_TEMP/xlsx-oracle" && python -I crates/ooxml-xlsx/tests/oracle/comments.py "$RUNNER_TEMP/xlsx-oracle"
+
+  python:
+    # ADR-0023 §10: the binding workspace. No path filter: runs on every push
+    # and PR, so a Rust change that breaks the binding fails CI.
+    name: Python binding (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: bindings/python
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99"
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bindings/python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"  # the abi3 floor
+      - run: python -m pip install -r requirements-ci.txt
+      - name: workspace metadata matches the root
+        run: python -I ci/check_manifest.py ../../Cargo.toml Cargo.toml
+      - run: cargo clippy --locked --all-targets --features fault-injection -- -D warnings
+      - name: build wheels (release, and a fault-injection test build)
+        run: |
+          maturin build --locked --release -o dist
+          # --features overrides tool.maturin.features, so repeat the abi3 pair.
+          maturin build --locked --release --features pyo3/extension-module,pyo3/abi3-py310,fault-injection -o dist-fi
+      - name: test the release wheel in a fresh venv
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then bindir=Scripts; else bindir=bin; fi
+          # pytest pin mirrors requirements-ci.txt (kept in sync by hand).
+          python -m venv .venv-rel
+          .venv-rel/$bindir/python -m pip install dist/*.whl "pytest==9.2.0"
+          .venv-rel/$bindir/python -I -m pytest tests -m "not fault_injection"
+      - name: test the fault-injection wheel
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then bindir=Scripts; else bindir=bin; fi
+          python -m venv .venv-fi
+          .venv-fi/$bindir/python -m pip install dist-fi/*.whl "pytest==9.2.0"
+          .venv-fi/$bindir/python -I -m pytest tests -m fault_injection
