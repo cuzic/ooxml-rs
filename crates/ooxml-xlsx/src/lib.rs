@@ -112,7 +112,7 @@ pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
 pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
 pub use formula::future::add_future_prefixes;
 pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
-pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, WorkbookProtection};
+pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, SheetProtectionModel, WorkbookProtection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it
 /// by one row and column either succeed or fail cleanly? Never panics.
