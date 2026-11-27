@@ -107,7 +107,7 @@ pub use registry::dates::ExcelDateTime;
 pub use registry::read::{DECLARED_FONT_CONDENSE, DECLARED_FONT_EXTEND, DECLARED_FONT_NAME, DECLARED_FONT_OUTLINE, DECLARED_FONT_SHADOW, DECLARED_FONT_SIZE, DeclaredFont, FormatRead};
 pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, Gradient, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
-pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
+pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationRuleAttributes, ValidationType};
 pub use condfmt::{CfOperator, CfRemoval, Cfvo, ExtendedDataBar, ExtendedDataBarThreshold, ExtendedIconRule, IconSetValues, Rule, RuleKind};
 pub use hyperlink::{HyperlinkInfo, Link, LinkOptions, hyperlink_address};
 pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions, RowPageBreak};
