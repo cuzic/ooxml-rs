@@ -111,6 +111,9 @@ pub use condfmt::{CfOperator, CfRemoval, Cfvo, ExtendedDataBar, ExtendedDataBarT
 pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
 pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions, RowPageBreak};
 pub use formula::future::add_future_prefixes;
+/// Text and optional font for one rich-text run.
+pub type RichTextRun = (String, Option<Font>);
+
 pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
 pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, SheetProtectionModel, WorkbookProtection};
 
