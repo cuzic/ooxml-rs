@@ -160,7 +160,6 @@ fn names_lens(doc: &mut XmlDocument) -> Result<Option<LensMut<'_, sml::DefinedNa
     Ok(wb.into_child_by::<sml::DefinedNames>(|_| true))
 }
 
-/// `(child index, name, localSheetId, text)` of every `definedName`.
 impl Workbook {
     /// Reads the workbook's defined names, including local and built-in names.
     pub fn defined_name_nodes(&mut self) -> Result<Vec<ooxml_core::RawNode>> {
