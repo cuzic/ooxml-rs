@@ -1,0 +1,23 @@
+[build-system]
+requires = ["maturin==1.16.0"]
+build-backend = "maturin"
+
+[project]
+name = "ooxml-rs"
+version = "0.1.0"
+description = "Lossless round-trip editing of xlsx/docx/pptx (RPA binding)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "Tomoya Kawanishi" }]
+
+[tool.maturin]
+module-name = "ooxml_rs._native"
+python-source = "python"
+features = ["pyo3/extension-module", "pyo3/abi3-py310"]
+
+[tool.pytest.ini_options]
+markers = [
+    "fault_injection: runs against the fault-injection wheel only",
+]
+testpaths = ["tests"]
