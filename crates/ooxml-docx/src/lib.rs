@@ -100,6 +100,8 @@ pub use chrono::NaiveDateTime;
 pub use document::{Document, Paragraph, Run};
 pub use effective::{EffectiveParagraph, EffectiveProperties, EffectiveRun, EffectiveValue, Provenance};
 pub use error::{Error, Result};
+#[doc(hidden)]
+pub use error::__surface_kinds;
 pub use fields::Operation;
 pub use insert_field::FieldSpec;
 pub use notes::NoteId;

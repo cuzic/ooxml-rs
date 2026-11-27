@@ -946,7 +946,6 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
         (Error::StringTooLong(0), None),
         (Error::InvalidValue { cell: String::from("B2"), message: String::from("x") }, Some("B2")),
         (Error::InvalidArgument { cell: None, message: String::from("x") }, None),
-        (Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") }, Some("B2")),
         (Error::SheetAdditionUnsupported, None),
         (Error::ArrayResultCell { cell: String::from("B2"), anchor: String::from("x") }, Some("B2")),
         (Error::ArrayAnchor { cell: String::from("B2") }, Some("B2")),
@@ -1056,6 +1055,13 @@ mod tests {
         for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);
         }
+    }
+
+    #[test]
+    fn cell_invalid_argument_some() {
+        let e = Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") };
+        assert_eq!(e.kind(), "InvalidArgument");
+        assert_eq!(e.cell(), Some("B2"));
     }
 }
 
