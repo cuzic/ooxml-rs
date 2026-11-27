@@ -90,8 +90,10 @@ export async function properties() {
       .Sheets.Sheet1.J1;
     assert(dateCell.z === 'm/d/yy' && dateCell.w === '2020/01/01', 'dateNF built-in format override');
   }
+  assert(projected.D1.v === 'rich' && projected.D1.r.includes('<r>'), 'SheetJS shared rich text');
+  // The pinned reference sets no `r` on inline rich strings.
+  assert(projected.I2.v === 'inline rich' && projected.I2.r === undefined, 'SheetJS inline rich text');
   for (const [coordinate, text] of [['D1', 'rich'], ['I2', 'inline rich']]) {
-    assert(projected[coordinate].v === text && projected[coordinate].r.includes('<r>'), 'SheetJS rich text ' + coordinate);
     assert(sheet.getCell(coordinate).value.richText[0].text === text, 'ExcelJS rich text ' + coordinate);
   }
   assert(projected.E1.f === 'A1+1' && projected.E1.v === 2, 'SheetJS formula and result');
