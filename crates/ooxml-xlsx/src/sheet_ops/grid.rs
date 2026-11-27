@@ -974,8 +974,8 @@ impl Workbook {
         for (i, raw) in raw_defined_names(self.pkg.xml_part(&book)?) {
             let (name, text) = (&raw.name, &raw.text);
             let location = format!("defined name {name}");
-            if let Some(new) = ctx.rewrite(&text, None, Some(&name), &book, &location)? {
-                record(&mut report, &book, location, &text, &new);
+            if let Some(new) = ctx.rewrite(text, None, Some(name), &book, &location)? {
+                record(&mut report, &book, location, text, &new);
                 updated_names.push((i, new));
             }
         }
