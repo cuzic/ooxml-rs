@@ -102,6 +102,112 @@ fn sparse_shared_formula_row_skips_independent_cells() {
 }
 
 #[test]
+fn set_shared_formula_writes_group_with_caches_and_next_si() {
+    use ooxml_xlsx::{CellIndex, CellRange};
+    let input = sheet_with("", r#"<row r="1"><c r="A1"><v>7</v></c></row>"#);
+    let (wb, result) = try_on(&input, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("B1:D1")?, "B2+1", vec![CellValue::Number(2.0), CellValue::Empty, CellValue::Bool(true)])
+    });
+    result.unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let (mut wb, result) = try_on(&bytes, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("F1:G1")?, "F2*2", vec![CellValue::Empty, CellValue::Empty])
+    });
+    result.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains(r#"ref="B1:D1""#));
+    assert!(xml.contains(r#">B2+1</f><v>2</v>"#));
+    assert!(xml.contains(r#"si="1""#));
+    assert_eq!(xml.matches(r#"t="shared""#).count(), 5);
+    let ws = wb.worksheet_by_index(0).unwrap();
+    assert_eq!(ws.shared_formula_at(CellIndex::parse("D1").unwrap()),
+        Some((CellIndex::parse("B1").unwrap(), CellRange::parse("B1:D1").unwrap(), "B2+1")));
+    assert_eq!(ws.shared_formula_at(CellIndex::parse("G1").unwrap()).map(|(m, r, _)| (m, r)),
+        Some((CellIndex::parse("F1").unwrap(), CellRange::parse("F1:G1").unwrap())));
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("B1:D1")?, "B2+1", vec![CellValue::Empty, CellValue::Empty])
+    }).1, Err(Error::Malformed(_)));
+}
+
+#[test]
+fn set_shared_formula_replaces_whole_group_without_handoff() {
+    use ooxml_xlsx::CellRange;
+    let input = sheet_with("", r#"<row r="1"><c r="B1"><f t="shared" ref="B1:D1" si="0">B2+1</f><v>2</v></c><c r="C1"><f t="shared" si="0"/><v>3</v></c><c r="D1"><f t="shared" si="0"/><v>4</v></c></row>"#);
+    let (wb, result) = try_on(&input, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("B1:D1")?, "B2*10", vec![CellValue::Empty, CellValue::Empty, CellValue::Empty])
+    });
+    result.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(!xml.contains(r#"si="0""#));
+    assert!(xml.contains(r#">B2*10</f>"#));
+    assert!(xml.contains(r#"ref="B1:D1""#));
+    assert_eq!(xml.matches(r#"t="shared""#).count(), 3);
+}
+
+#[test]
+fn set_shared_formula_partial_member_write_is_refused() {
+    use ooxml_xlsx::CellRange;
+    let input = sheet_with("", r#"<row r="1"><c r="B1"><f t="shared" ref="B1:D1" si="0">B2+1</f><v>2</v></c><c r="C1"><f t="shared" si="0"/><v>3</v></c><c r="D1"><f t="shared" si="0"/><v>4</v></c></row>"#);
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("C1:D1")?, "C2+1", vec![CellValue::Empty, CellValue::Empty])
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("B1:B2")?, "A1048576", vec![CellValue::Empty, CellValue::Empty])
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+}
+
+#[test]
+fn set_shared_formula_single_cell_write_hands_off_to_next_member() {
+    use ooxml_xlsx::{CellIndex, CellRange};
+    let input = sheet_with("", r#"<row r="1"><c r="B1"><f t="shared" ref="B1:D1" si="0">B2+1</f><v>2</v></c><c r="C1"><f t="shared" si="0"/><v>3</v></c><c r="D1"><f t="shared" si="0"/><v>4</v></c></row>"#);
+    let (mut wb, result) = try_on(&input, 0, |ws| {
+        ws.set_shared_formula(CellRange::parse("B1:B1")?, "Z9+1", vec![CellValue::Empty])
+    });
+    result.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains(r#">Z9+1</f>"#));
+    assert!(xml.contains(r#"ref="C1:D1""#));
+    assert!(xml.contains(r#">C2+1</f>"#));
+    let ws = wb.worksheet_by_index(0).unwrap();
+    assert_eq!(ws.shared_formula_at(CellIndex::parse("D1").unwrap()).map(|(m, _, _)| m),
+        Some(CellIndex::parse("C1").unwrap()));
+}
+
+#[test]
+fn set_shared_formula_master_and_member_lifecycle() {
+    use ooxml_xlsx::{CellIndex, CellRange};
+    let input = sheet_with("", r#"<row r="1"><c r="A1"><v>7</v></c></row>"#);
+    let (wb, result) = try_on(&input, 0, |ws| {
+        ws.set_shared_formula_master(CellRange::parse("B1:D1")?, "B2+1", CellValue::Number(2.0))
+    });
+    result.unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let (mut wb, result) = try_on(&bytes, 0, |ws| {
+        ws.set_shared_formula_member(CellIndex::parse("C1")?, CellIndex::parse("B1")?, CellValue::Empty)
+    });
+    result.unwrap();
+    let ws = wb.worksheet_by_index(0).unwrap();
+    assert_eq!(ws.shared_formula_at(CellIndex::parse("C1").unwrap()),
+        Some((CellIndex::parse("B1").unwrap(), CellRange::parse("B1:D1").unwrap(), "B2+1")));
+    assert_matches!(try_on(&bytes, 0, |ws| {
+        ws.set_shared_formula_member(CellIndex::parse("E1")?, CellIndex::parse("B1")?, CellValue::Empty)
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+    assert_matches!(try_on(&bytes, 0, |ws| {
+        ws.set_shared_formula_member(CellIndex::parse("B1")?, CellIndex::parse("B1")?, CellValue::Empty)
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+    assert_matches!(try_on(&bytes, 0, |ws| {
+        ws.set_shared_formula_member(CellIndex::parse("C1")?, CellIndex::parse("A1")?, CellValue::Empty)
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+    assert_matches!(try_on(&bytes, 0, |ws| {
+        ws.set_shared_formula_master(CellRange::parse("B1:D1")?, "B2+1", CellValue::Empty)
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+    let ambiguous = sheet_with("", r#"<row r="1"><c r="B1"><f t="shared" ref="B1:C1" si="0">B2+1</f></c><c r="F1"><f t="shared" ref="F1:G1" si="0">F2+1</f></c></row>"#);
+    assert_matches!(try_on(&ambiguous, 0, |ws| {
+        ws.set_shared_formula_member(CellIndex::parse("C1")?, CellIndex::parse("B1")?, CellValue::Empty)
+    }).1, Err(Error::SharedFormulaMaster { .. }));
+}
+
+#[test]
 fn styled_cell_batch_refuses_invalid_style_before_writing() {
     use ooxml_xlsx::{CellIndex, CellWrite};
     let mut seed = Workbook::new().unwrap();
