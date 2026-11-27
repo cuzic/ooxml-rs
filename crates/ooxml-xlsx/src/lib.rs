@@ -56,6 +56,10 @@
 //! See `README.md` for the full contract.
 
 mod census;
+mod biff_properties;
+mod biff_strings;
+pub use biff_strings::{biff_shared_strings, encode_biff_shared_strings};
+pub use biff_properties::{biff_document_properties, encode_biff_document_properties};
 mod core_props;
 mod edit;
 mod dynamic;
