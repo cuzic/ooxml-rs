@@ -46,3 +46,127 @@ fn refusals_change_nothing() {
     assert!(wb.rename_sheet("Sheet1", "History").is_err());
     assert_eq!(wb.to_bytes().unwrap(), before);
 }
+
+#[test]
+fn invalid_defined_name_comment_leaves_workbook_unchanged() {
+    let mut workbook = Workbook::new().unwrap();
+    workbook.set_defined_name("Input", "$A$1", Some(0), Some("original")).unwrap();
+    let before = workbook.to_bytes().unwrap();
+    assert!(workbook.set_defined_name("Input", "$B$1", Some(0), Some("bad\u{0}comment")).is_err());
+    assert_eq!(workbook.to_bytes().unwrap(), before);
+    workbook.set_defined_name("Input", "$B$1", Some(0), Some("corrected")).unwrap();
+    let names = workbook.defined_name_nodes().unwrap();
+    assert_eq!(names[0].text(), "$B$1");
+}
+
+#[test]
+fn defined_name_batch_is_ordered_and_atomic() {
+    let mut workbook = Workbook::new().unwrap();
+    workbook.set_global_defined_name("Input", "$A$1").unwrap();
+    let before = workbook.to_bytes().unwrap();
+    assert!(workbook.set_global_defined_names([
+        ("Input", "$B$1"), ("bad\u{0}name", "$A$1"),
+    ]).is_err());
+    assert_eq!(workbook.to_bytes().unwrap(), before);
+
+    assert!(workbook.set_defined_names([
+        ("Input", "$B$1", None, None), ("Outside", "$A$1", Some(1), None),
+    ]).is_err());
+    assert_eq!(workbook.to_bytes().unwrap(), before);
+
+    workbook.set_global_defined_names([
+        ("Input", "$B$1"), ("input", ""), ("Next", "$C$1"), ("next", "$D$1"),
+    ]).unwrap();
+    assert_eq!(workbook.global_defined_names().unwrap(), [("Next".into(), "$D$1".into())]);
+    assert_eq!(workbook.global_defined_name_formulas("Next").unwrap(), ["$D$1"]);
+    assert!(workbook.global_defined_name_formulas("next").unwrap().is_empty());
+    assert!(workbook.global_defined_name_formulas("Old").unwrap().is_empty());
+
+    // The local definition precedes the global one in the XML.
+    workbook.set_defined_names([
+        ("Same", "$A$2", Some(0), None), ("Same", "$B$2", None, None),
+        ("same", "$C$2", None, None),
+    ]).unwrap();
+    let names = workbook.defined_name_nodes().unwrap();
+    assert_eq!(names[1].text(), "$A$2");
+    assert_eq!(names[2].text(), "$C$2");
+}
+
+#[test]
+fn exact_global_defined_name_lookup_ignores_local_and_builtin_names() {
+    let mut workbook = Workbook::new().unwrap();
+    workbook.set_defined_names([
+        ("Same", "Sheet1!$A$1", Some(0), None),
+        ("Same", "Sheet1!$B$1", None, None),
+        ("LocalOnly", "Sheet1!$C$1", Some(0), None),
+        ("_xlnm.Print_Area", "Sheet1!$A$1:$B$1", None, None),
+    ]).unwrap();
+
+    let bytes = workbook.to_bytes().unwrap();
+    let mut reopened = Workbook::from_bytes(bytes.clone()).unwrap();
+    assert_eq!(reopened.global_defined_names().unwrap(), [("Same".into(), "Sheet1!$B$1".into())]);
+    assert_eq!(reopened.global_defined_name_formulas("Same").unwrap(), ["Sheet1!$B$1"]);
+    for name in ["same", "LocalOnly", "_xlnm.Print_Area"] {
+        assert!(reopened.global_defined_name_formulas(name).unwrap().is_empty(), "{name}");
+    }
+    assert_eq!(reopened.to_bytes().unwrap(), bytes);
+}
+
+#[test]
+fn empty_template_export_has_no_worksheet_and_preserves_source() {
+    let mut workbook = ooxml_xlsx::Workbook::new().unwrap();
+    let empty = ooxml_xlsx::Workbook::new_empty_at(std::time::UNIX_EPOCH).unwrap();
+    let bytes = empty.to_bytes().unwrap();
+    let mut package = ooxml_core::Package::from_bytes(bytes.clone()).unwrap();
+    assert!(!package.part_names().any(|part| part.starts_with("xl/worksheets/")));
+    let part = package.main_document_part().unwrap();
+    let document = package.xml_part(&part).unwrap();
+    let sheets = document.root().elements().find(|node| node.name().local() == "sheets").unwrap();
+    assert_eq!(sheets.elements().count(), 0);
+    assert!(matches!(ooxml_xlsx::Workbook::from_bytes(bytes.clone()), Err(ooxml_xlsx::Error::NoVisibleWorksheet)));
+    let mut reopened = ooxml_xlsx::Workbook::from_bytes_allow_empty(bytes).unwrap();
+    assert_eq!(reopened.sheet_names().count(), 0);
+    assert!(matches!(reopened.worksheet(), Err(ooxml_xlsx::Error::NoVisibleWorksheet)));
+    reopened.add_sheet("First", 0).unwrap();
+    assert_eq!(reopened.sheet_name(), "First");
+    let remove_sheet_list = |package: &mut ooxml_core::Package| {
+        let part = package.main_document_part().unwrap();
+        let document = package.xml_part_mut(&part).unwrap();
+        let index = document.root().indexed_elements()
+            .find(|(_, node)| node.name().local() == "sheets").unwrap().0;
+        document.lens_mut::<ooxml_schema::sml::Workbook>().unwrap().remove_at(index);
+    };
+    remove_sheet_list(&mut package);
+    let mut without_sheets_node =
+        ooxml_xlsx::Workbook::from_bytes_allow_empty(package.to_bytes().unwrap()).unwrap();
+    without_sheets_node.add_sheet("First", 0).unwrap();
+    assert_eq!(without_sheets_node.sheet_name(), "First");
+
+    let mut orphaned = ooxml_core::Package::from_bytes(workbook.to_bytes().unwrap()).unwrap();
+    remove_sheet_list(&mut orphaned);
+    assert!(matches!(
+        ooxml_xlsx::Workbook::from_bytes_allow_empty(orphaned.to_bytes().unwrap()),
+        Err(ooxml_xlsx::Error::Malformed(_)),
+    ));
+    assert!(matches!(
+        ooxml_xlsx::streaming::read_workbook_manifest(|name| Ok(orphaned.read_part(name)?)),
+        Err(ooxml_xlsx::Error::Malformed(_)),
+    ));
+    let document = orphaned.xml_part_mut(&part).unwrap();
+    document.lens_mut::<ooxml_schema::sml::Workbook>().unwrap()
+        .insert::<ooxml_schema::sml::Sheets>().unwrap();
+    assert!(matches!(
+        ooxml_xlsx::Workbook::from_bytes_allow_empty(orphaned.to_bytes().unwrap()),
+        Err(ooxml_xlsx::Error::Malformed(_)),
+    ));
+    assert!(matches!(
+        ooxml_xlsx::streaming::read_workbook_manifest(|name| Ok(orphaned.read_part(name)?)),
+        Err(ooxml_xlsx::Error::Malformed(_)),
+    ));
+    assert!(matches!(workbook.delete_sheet("Sheet1"), Err(ooxml_xlsx::Error::LastVisibleSheet)));
+    workbook.delete_sheet_allow_empty("Sheet1").unwrap();
+    assert_eq!(workbook.sheet_names().count(), 0);
+    assert!(ooxml_xlsx::Workbook::from_bytes_allow_empty(workbook.to_bytes().unwrap()).is_ok());
+    workbook.add_sheet("Replacement", 0).unwrap();
+    assert_eq!(workbook.sheet_name(), "Replacement");
+}

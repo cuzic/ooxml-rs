@@ -36,7 +36,12 @@ fn sequential(input: &[u8], sheet: &str, writes: &Batch<'_>) -> Vec<u8> {
             match *w {
                 CellWrite::Number(v) => cell.set_number(v),
                 CellWrite::String(s) => cell.set_string(s),
+                CellWrite::IsoDate(value) => cell.set_iso_date(value),
+                CellWrite::Error(value) => cell.set_error(value),
+                CellWrite::Bool(value) => cell.set_bool(value),
+                CellWrite::Clear => cell.clear_value(),
                 CellWrite::Formula(t) => cell.set_formula(t),
+                CellWrite::FormulaWithResult(text, result) => cell.set_formula_with_result(text, result.clone()),
                 CellWrite::RemoveFormula => cell.remove_formula(),
             }
             .unwrap();
@@ -50,10 +55,10 @@ fn sequential(input: &[u8], sheet: &str, writes: &Batch<'_>) -> Vec<u8> {
 #[test]
 fn a_batch_equals_the_same_writes_in_sequence() {
     let cases: Vec<(&str, &str, Batch<'_>)> = vec![
-        ("o1_precise.xlsx", "Sheet1", vec![("A1", CellWrite::Number(5.0)), ("A2", CellWrite::Number(6.0)), ("B10", CellWrite::Formula("A1+A2")), ("C10", CellWrite::String("label")), ("D11", CellWrite::Number(1.0))]),
+        ("o1_precise.xlsx", "Sheet1", vec![("A1", CellWrite::Number(5.0)), ("A2", CellWrite::Clear), ("B10", CellWrite::Formula("A1+A2")), ("C10", CellWrite::String("label")), ("D11", CellWrite::Bool(true)), ("E12", CellWrite::IsoDate("2025-06-01T05:04:03.012Z")), ("F13", CellWrite::Error("#N/A"))]),
         ("o1_precise.xlsx", "Sheet2", vec![("A1", CellWrite::Number(9.0)), ("B1", CellWrite::RemoveFormula), ("Z1", CellWrite::Formula("=B1*2"))]),
         ("o1_shared.xlsx", "Sheet2", vec![("D2", CellWrite::Number(99.0)), ("A2", CellWrite::Number(7.0))]),
-        ("o1_no_calcpr.xlsx", "Sheet1", vec![("A1", CellWrite::Number(3.0)), ("C1", CellWrite::Formula("A1*4"))]),
+        ("o1_no_calcpr.xlsx", "Sheet1", vec![("A1", CellWrite::Number(3.0)), ("C1", CellWrite::FormulaWithResult("A1*4", &ooxml_xlsx::CellValue::Number(12.0)))]),
     ];
     for (name, sheet, writes) in cases {
         let input = synthetic(name);
