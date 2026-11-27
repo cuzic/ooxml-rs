@@ -7,9 +7,9 @@ use ooxml_core::{
 use ooxml_schema::sml;
 
 use crate::edit::{CellOp, CellWritePlan, Extra};
-use crate::reference::CellIndex;
+use crate::reference::{CellIndex, CellRange};
 use crate::workbook::{REL_METADATA, Workbook};
-use crate::{CellMut, Error, Result, SML_NS};
+use crate::{CellMut, CellValue, Error, Result, SML_NS};
 
 pub(crate) const XDA: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray";
 const URI: &str = "{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}";
@@ -145,6 +145,145 @@ fn ensure_block(doc: &mut XmlDocument) -> Result<u32> {
     record.set_attr(QName::new("", "v"), &v.to_string())?;
     cells.set_attr(COUNT, &count.to_string())?;
     u32::try_from(count).map_err(|_| Error::Malformed("too many cell metadata blocks".into()))
+}
+
+pub(crate) fn formula_cache(at: crate::CellIndex, result: CellValue) -> Result<crate::edit::FormulaCache> {
+    use sml::CellValues;
+
+    Ok(match result {
+        CellValue::Empty => None,
+        CellValue::Number(value) if value.is_finite() => Some((CellValues::Number, crate::worksheet::format_number(value))),
+        CellValue::Number(value) => return Err(Error::InvalidNumber(value)),
+        CellValue::String(value) => {
+            let units = value.encode_utf16().count();
+            if units > crate::worksheet::MAX_STRING_LEN {
+                return Err(Error::StringTooLong(units));
+            }
+            let escaped = crate::escape::encode(&value).into_owned();
+            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&escaped) {
+                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+            }
+            Some((CellValues::String, escaped))
+        }
+        CellValue::Date(value) if crate::setters::parse_iso_date(&value).is_some() =>
+            Some((CellValues::Date, value)),
+        CellValue::Bool(value) => Some((CellValues::Boolean, u8::from(value).to_string())),
+        CellValue::Error(value) if crate::setters::CELL_ERRORS.contains(&value.as_str()) => {
+            Some((CellValues::Error, value))
+        }
+        _ => return Err(Error::InvalidValue {
+            cell: at.to_string(),
+            message: "unsupported formula result".into(),
+        }),
+    })
+}
+
+impl CellMut<'_, '_> {
+    /// Writes an array formula over the given inclusive range. The cell
+    /// must be its top-left anchor. Dynamic arrays also receive XLDAPR metadata.
+    pub fn set_array_formula(self, text: &str, range: CellRange, dynamic: bool) -> Result<()> {
+        self.set_array_formula_with_result(text, range, dynamic, CellValue::Empty)
+    }
+
+    /// Writes an array formula and a caller-supplied cached result on its anchor.
+    /// Supported results are numbers, strings, booleans, UTC ISO dates and standard Excel errors.
+    pub fn set_array_formula_with_result(
+        self, text: &str, range: CellRange, dynamic: bool, result: CellValue,
+    ) -> Result<()> {
+        let cache = formula_cache(self.at, result)?;
+        let wb = &mut *self.ws.wb;
+        wb.check_editable()?;
+        if wb.census.implicit_references.contains(&self.ws.sheet) {
+            return Err(Error::MissingReference {
+                part: wb.sheets[self.ws.sheet].part.clone().expect("worksheet"),
+                what: "row or cell (an array requires explicit references)".into(),
+            });
+        }
+        crate::CellIndex::new(range.last.row, range.last.col)?;
+        if range.first != self.at || !range.contains(self.at) {
+            return Err(Error::Malformed("array formula must start at its anchor".into()));
+        }
+        let text = text.strip_prefix('=').unwrap_or(text);
+        if !dynamic {
+            let plan = wb.plan_writes(vec![(
+                self.ws.sheet, self.at, CellOp::ArrayFormula(text.into(), range, None, cache), Extra::default(),
+            )])?;
+            return wb.apply_writes(plan);
+        }
+        let rels = wb.pkg.relationships(&wb.workbook_part)?;
+        let mut related = rels.by_type(REL_METADATA);
+        let part = match related.next() {
+            None => None,
+            Some(rel) => Some(
+                rels.resolve(rel)
+                    .filter(|_| related.next().is_none())
+                    .ok_or_else(|| Error::PartNotEditable {
+                        part: wb.workbook_part.clone(),
+                        reason: "ambiguous or external sheet metadata relationship".into(),
+                    })?
+                    .to_owned(),
+            ),
+        };
+        let mut doc = if let Some(part) = &part {
+            wb.pkg
+                .xml_part(part)
+                .map_err(|e| Error::PartNotEditable {
+                    part: part.clone(),
+                    reason: e.to_string(),
+                })?
+                .clone()
+        } else {
+            XmlDocument::parse(format!("<metadata xmlns=\"{SML_NS}\"/>").as_bytes())?
+        };
+        if !doc.root().is(sml::Metadata::QNAME) {
+            return Err(Error::PartNotEditable {
+                part: part.expect("only existing metadata can have an unexpected root"),
+                reason: "expected a SpreadsheetML metadata root".into(),
+            });
+        }
+        let cm = ensure_block(&mut doc)?;
+        let plan = wb.plan_writes(vec![(
+            self.ws.sheet,
+            self.at,
+            CellOp::ArrayFormula(text.into(), range, Some(cm), cache),
+            Extra::default(),
+        )])?;
+        let mut registry = RegistryPlan::new(&wb.pkg);
+        if let Some(part) = part {
+            if doc.is_dirty() {
+                registry.stage_part(&wb.pkg, &part, doc)?;
+            }
+        } else {
+            let prefix = wb
+                .workbook_part
+                .rsplit_once('/')
+                .map_or_else(|| "metadata".into(), |(dir, _)| format!("{dir}/metadata"));
+            let part = match registry.add_part(
+                &wb.pkg,
+                PartNameRequest::Exact(format!("{prefix}.xml")),
+                TYPE,
+                doc.clone(),
+            ) {
+                Err(ooxml_core::Error::RegistryRefused {
+                    reason: RegistryRefusal::NameInUse { .. },
+                    ..
+                }) => registry.add_part(
+                    &wb.pkg,
+                    PartNameRequest::Numbered(format!("{prefix}{{}}.xml")),
+                    TYPE,
+                    doc,
+                )?,
+                result => result?,
+            };
+            registry.add_relationship(
+                &wb.pkg,
+                Some(&wb.workbook_part),
+                REL_METADATA,
+                Target::Part(part),
+            )?;
+        }
+        wb.apply_writes_with(plan, registry)
+    }
 }
 
 /// What a dynamic-formula write does to the metadata part: the cloned doc

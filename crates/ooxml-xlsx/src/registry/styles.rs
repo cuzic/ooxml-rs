@@ -24,7 +24,7 @@ use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{ChildOf, ElementSpec, LensMut, QName, RawNode, XmlDocument};
 use ooxml_schema::sml;
 
-use super::format::{BUILTIN, Border, Color, DxfFormat, Fill, Font, Format, NumFormat, Protection, Side, Underline, is_date_format};
+use super::format::{Alignment, BUILTIN, Border, Color, DxfFormat, Fill, Font, Format, NumFormat, Protection, Side, Underline, is_date_format};
 use super::{Table, limit, render};
 use crate::error::{Error, Result};
 use crate::workbook::Workbook;
@@ -150,8 +150,12 @@ pub(crate) struct StylePlan {
 pub(crate) enum StyleRequest {
     /// A value format (unset groups inherit from the default style).
     Format(Box<Format>),
+    /// Replaces only the format groups supplied by the caller.
+    Patch(std::sync::Arc<Format>),
     /// An existing `cellXfs` index.
     Index(u32),
+    /// The row format with fields it omits supplied by the column.
+    RowWithColumnDefaults { row: u32, column: u32 },
     /// A named style (`cellStyles/cellStyle/@name`).
     Named(String),
     /// The cell's current `xf` with another number format (ADR-0006 §5.6,
@@ -163,6 +167,8 @@ pub(crate) enum StyleRequest {
     FillOnly(Fill),
     /// The cell's current `xf` with other borders (§5.6).
     BorderOnly(Box<Border>),
+    ProtectionOnly(Protection),
+    AlignmentOnly(Alignment),
     /// The cell's current `xf` if its number format is a date or time
     /// format, else that `xf` with built-in 14 (ADR-0006 §6).
     EnsureDate,
@@ -568,13 +574,65 @@ impl Styles {
                 }
                 *n
             }
+            StyleRequest::RowWithColumnDefaults { row, column } => {
+                let mut spec = p.current(wb, *row)?;
+                let fallback = p.current(wb, *column)?;
+                if spec.opaque || fallback.opaque {
+                    return Err(Error::NotExpressible("Cannot combine opaque row and column formats".into()));
+                }
+                let (row_num_fmt, row_code) = p.next.num_format_of(*row);
+                for (key, apply, use_column) in [
+                    ("numFmtId", "applyNumberFormat", row_num_fmt.is_none_or(|id| id == 0) || row_code.is_none()),
+                    ("fontId", "applyFont", spec.get("fontId").is_none_or(|id| id == "0") && spec.get("applyFont") != Some("1")),
+                    ("fillId", "applyFill", spec.get("fillId").is_none_or(|id| id == "0") && spec.get("applyFill") != Some("1")),
+                    ("borderId", "applyBorder", spec.get("borderId").is_none_or(|id| id == "0") && spec.get("applyBorder") != Some("1")),
+                ] {
+                    if use_column && let Some(value) = fallback.get(key) {
+                        spec.set(key, value);
+                        spec.set(apply, fallback.get(apply).unwrap_or("1"));
+                    }
+                }
+                if spec.alignment.is_none() && fallback.alignment.is_some() {
+                    spec.alignment = fallback.alignment;
+                    spec.set("applyAlignment", "1");
+                }
+                if spec.protection.is_none() && fallback.protection.is_some() {
+                    spec.protection = fallback.protection;
+                    spec.set("applyProtection", "1");
+                }
+                p.xf(wb, spec)?
+            }
             StyleRequest::Format(f) => p.format(wb, f)?,
+            StyleRequest::Patch(f) => p.patch(wb, f, current)?,
             StyleRequest::Xf(c, base) => p.content(wb, c, base)?,
             StyleRequest::Named(name) => p.named(wb, name, current)?,
             StyleRequest::NumFormatOnly(nf) => p.derive(wb, &Group::NumFormat(nf), current)?,
             StyleRequest::FontOnly(f) => p.derive(wb, &Group::Font(f), current)?,
             StyleRequest::FillOnly(f) => p.derive(wb, &Group::Fill(f), current)?,
             StyleRequest::BorderOnly(b) => p.derive(wb, &Group::Border(b), current)?,
+            StyleRequest::AlignmentOnly(alignment) => {
+                Format { alignment: Some(alignment.clone()), ..Format::default() }.validate()?;
+                let mut spec = p.current(wb, current)?;
+                if spec.opaque {
+                    return Err(Error::NotExpressible(format!("cellXfs[{current}] has content the registry does not model")));
+                }
+                let attrs = alignment.attrs();
+                spec.alignment = (!attrs.is_empty()).then(|| attrs.into_iter().map(|(key, value)| (key.into(), value)).collect());
+                spec.set("applyAlignment", if spec.alignment.is_some() { "1" } else { "0" });
+                p.xf(wb, spec)?
+            }
+            StyleRequest::ProtectionOnly(protection) => {
+                let mut spec = p.current(wb, current)?;
+                if spec.opaque {
+                    return Err(Error::NotExpressible(format!("cellXfs[{current}] has content the registry does not model")));
+                }
+                spec.protection = Some(vec![
+                    ("locked".into(), u8::from(protection.locked).to_string()),
+                    ("hidden".into(), u8::from(protection.hidden).to_string()),
+                ]);
+                spec.set("applyProtection", "1");
+                p.xf(wb, spec)?
+            }
             StyleRequest::EnsureDate => {
                 let (id, code) = p.next.num_format_of(current);
                 let custom = id.filter(|i| p.next.codes.contains_key(i)).and(code);
@@ -1030,6 +1088,43 @@ impl Planner {
             ..Format::default()
         };
         probe.validate()?;
+        self.apply_group(wb, group, &mut spec)?;
+        self.xf(wb, spec)
+    }
+
+    fn patch(&mut self, wb: &mut Workbook, format: &Format, current: u32) -> Result<u32> {
+        format.validate()?;
+        let mut spec = self.current(wb, current)?;
+        if spec.opaque {
+            return Err(Error::NotExpressible(format!("cellXfs[{current}] has content the registry does not model")));
+        }
+        for group in [
+            format.num_format.as_ref().map(Group::NumFormat),
+            format.font.as_ref().map(Group::Font),
+            format.fill.as_ref().map(Group::Fill),
+            format.border.as_ref().map(Group::Border),
+        ].into_iter().flatten() {
+            self.apply_group(wb, &group, &mut spec)?;
+        }
+        if let Some(alignment) = &format.alignment {
+            let attrs = alignment.attrs();
+            spec.alignment = (!attrs.is_empty()).then(|| attrs.into_iter().map(|(key, value)| (key.into(), value)).collect());
+            spec.set("applyAlignment", if spec.alignment.is_some() { "1" } else { "0" });
+        }
+        if let Some(protection) = format.protection {
+            spec.protection = Some(vec![
+                ("locked".into(), u8::from(protection.locked).to_string()),
+                ("hidden".into(), u8::from(protection.hidden).to_string()),
+            ]);
+            spec.set("applyProtection", "1");
+        }
+        if format.quote_prefix {
+            spec.set("quotePrefix", "1");
+        }
+        self.xf(wb, spec)
+    }
+
+    fn apply_group(&mut self, wb: &mut Workbook, group: &Group<'_>, spec: &mut XfInfo) -> Result<()> {
         let (id_attr, apply, id) = match group {
             Group::NumFormat(nf) => ("numFmtId", "applyNumberFormat", self.num_fmt_id(wb, nf)?),
             Group::Font(f) => ("fontId", "applyFont", self.entry::<sml::Fonts>(wb, Which::Fonts, &|p| build_font(p, f))?),
@@ -1041,7 +1136,7 @@ impl Planner {
         };
         spec.set(id_attr, &id.to_string());
         spec.set(apply, "1");
-        self.xf(wb, spec)
+        Ok(())
     }
 
     /// The index of a file-own entry of table `w`: `index` must be below the
@@ -1284,10 +1379,59 @@ pub(crate) fn build_font(p: &mut LensMut<'_, sml::Fonts>, f: &Font) -> Result<()
     Ok(())
 }
 
+enum GradientFill {}
+enum GradientStop {}
+enum GradientColor {}
+
+macro_rules! gradient_element {
+    ($tag:ident, $name:literal, $parent:ty, $content:expr) => {
+        impl ElementSpec for $tag {
+            const QNAME: QName = QName::new(crate::SML_NS, $name);
+            const SDK_NAME: &'static str = $name;
+            const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+            const CONTENT: ooxml_core::Content = $content;
+        }
+        impl ooxml_core::ChildOf<$parent> for $tag {}
+    };
+}
+
+gradient_element!(GradientFill, "gradientFill", sml::Fill, ooxml_core::Content::Slots(&[
+    ooxml_core::Slot { names: &[GradientStop::QNAME], wildcard: None, max_each: None, max_total: None },
+]));
+gradient_element!(GradientStop, "stop", GradientFill, ooxml_core::Content::Slots(&[
+    ooxml_core::Slot { names: &[GradientColor::QNAME], wildcard: None, max_each: Some(1), max_total: Some(1) },
+]));
+gradient_element!(GradientColor, "color", GradientStop, ooxml_core::Content::Empty);
+
+fn build_gradient(n: &mut LensMut<'_, sml::Fill>, geometry: &crate::Gradient, stops: &[(crate::Tint, Color)]) -> Result<()> {
+    let mut gradient = n.insert::<GradientFill>()?;
+    match geometry {
+        crate::Gradient::Angle(degree) => gradient.set_attr(QName::new("", "degree"), &degree.to_string())?,
+        crate::Gradient::Path { left, top, right, bottom } => {
+            gradient.set_attr(QName::new("", "type"), "path")?;
+            for (name, offset) in [("left", left), ("top", top), ("right", right), ("bottom", bottom)] {
+                if offset.get() != 0.0 {
+                    gradient.set_attr(QName::new("", name), &offset.get().to_string())?;
+                }
+            }
+        }
+    }
+    for (position, stop_color) in stops {
+        let mut stop = gradient.insert::<GradientStop>()?;
+        stop.set_attr(QName::new("", "position"), &position.get().to_string())?;
+        color(&mut stop.insert::<GradientColor>()?, stop_color)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn build_fill(p: &mut LensMut<'_, sml::Fills>, f: &Fill) -> Result<()> {
     let mut n = p.insert::<sml::Fill>()?;
+    if let Fill::Gradient { geometry, stops } = f {
+        return build_gradient(&mut n, geometry, stops);
+    }
     let mut pf = n.insert::<sml::PatternFill>()?;
     match f {
+        Fill::Gradient { .. } => unreachable!("gradient handled before pattern insertion"),
         Fill::NoFill => pf.set_attr(QName::new("", "patternType"), "none")?,
         Fill::Pattern { pattern, fg, bg } => {
             // rust_xlsxwriter's forms: a bare pattern without colours; a
@@ -1373,6 +1517,18 @@ pub(crate) fn build_dxf(p: &mut LensMut<'_, sml::DifferentialFormats>, d: &DxfFo
         if let Some(name) = &f.name {
             n.insert::<sml::FontName>()?.set_attr(val, name)?;
         }
+        if let Some(align) = f.vert_align {
+            n.insert::<sml::VerticalTextAlignment>()?.set_attr(val, align.as_str())?;
+        }
+        if let Some(scheme) = &f.scheme {
+            n.insert::<sml::FontScheme>()?.set_attr(val, scheme)?;
+        }
+        if let Some(family) = f.family {
+            n.insert::<sml::FontFamilyNumbering>()?.set_attr(val, &family.to_string())?;
+        }
+        if let Some(charset) = f.charset {
+            n.insert::<sml::FontCharSet>()?.set_attr(val, &charset.to_string())?;
+        }
     }
     if let Some((id, code)) = nf {
         let mut n = x.insert::<sml::NumberingFormat>()?;
@@ -1381,19 +1537,24 @@ pub(crate) fn build_dxf(p: &mut LensMut<'_, sml::DifferentialFormats>, d: &DxfFo
     }
     if let Some(fill) = &d.fill {
         let mut n = x.insert::<sml::Fill>()?;
-        let mut pf = n.insert::<sml::PatternFill>()?;
-        match fill {
-            Fill::NoFill => pf.set_attr(QName::new("", "patternType"), "none")?,
-            Fill::Pattern { pattern, fg, bg } => {
-                // in a dxf an omitted patternType means solid (Excel's form)
-                if pattern != "solid" {
-                    pf.set_attr(QName::new("", "patternType"), pattern)?;
-                }
-                if let Some(c) = fg {
-                    color(&mut pf.insert::<sml::ForegroundColor>()?, c)?;
-                }
-                if let Some(c) = bg {
-                    color(&mut pf.insert::<sml::BackgroundColor>()?, c)?;
+        if let Fill::Gradient { geometry, stops } = fill {
+            build_gradient(&mut n, geometry, stops)?;
+        } else {
+            let mut pf = n.insert::<sml::PatternFill>()?;
+            match fill {
+                Fill::Gradient { .. } => unreachable!("gradient handled before pattern insertion"),
+                Fill::NoFill => pf.set_attr(QName::new("", "patternType"), "none")?,
+                Fill::Pattern { pattern, fg, bg } => {
+                    // in a dxf an omitted patternType means solid (Excel's form)
+                    if pattern != "solid" {
+                        pf.set_attr(QName::new("", "patternType"), pattern)?;
+                    }
+                    if let Some(c) = fg {
+                        color(&mut pf.insert::<sml::ForegroundColor>()?, c)?;
+                    }
+                    if let Some(c) = bg {
+                        color(&mut pf.insert::<sml::BackgroundColor>()?, c)?;
+                    }
                 }
             }
         }
@@ -1479,6 +1640,167 @@ const PROTECTION_ATTRS: &[&str] = &["locked", "hidden"];
 
 fn known(set: &'static [&'static str], k: &str) -> Option<&'static str> {
     set.iter().copied().find(|n| *n == k)
+}
+
+/// Exports worksheets using neutral cell formats, retaining the independent
+/// named, differential and table style registries for other package parts.
+pub(crate) fn without_cell_styles(wb: &Workbook) -> Result<Option<ooxml_core::Package>> {
+    let Some(part) = styles_part(wb)? else { return Ok(None) };
+    wb.check_editable()?;
+    let mut styles = XmlDocument::parse(&wb.pkg.read_part(&part)?)?;
+    styles.lens::<sml::Stylesheet>()?;
+    let style_table = styles.root().elements().find(|node| node.is(sml::CellFormats::QNAME));
+    let formats = Table::read(&styles, style_table, sml::CellFormat::QNAME);
+    if !formats.stable || formats.has_ac {
+        return Err(Error::UnsupportedStylesPart(part));
+    }
+    let custom: HashMap<_, _> = styles.root().elements()
+        .find(|node| node.is(sml::NumberingFormats::QNAME))
+        .into_iter().flat_map(RawNode::elements)
+        .filter(|node| node.is(sml::NumberingFormat::QNAME))
+        .filter_map(|node| {
+            let id = export_style_id(node, QName::new("", "numFmtId"))?;
+            Some((id, node.attr(QName::new("", "formatCode"))?.to_owned()))
+        })
+        .collect();
+    let dates: Vec<_> = style_table.into_iter().flat_map(RawNode::elements)
+        .map(|node| {
+            let id = export_style_id(node, sml::CellFormat::ATTR_NUM_FMT_ID);
+            is_date_format(id, id.and_then(|id| custom.get(&id)).map(String::as_str))
+        })
+        .collect();
+    let font = export_style_entry::<sml::Fonts>(&mut styles, sml::Font::QNAME, |table| build_font(table, &Font::default()))?;
+    let fill = export_style_entry::<sml::Fills>(&mut styles, sml::Fill::QNAME, |table| build_fill(table, &Fill::NoFill))?;
+    let border = export_style_entry::<sml::Borders>(&mut styles, sml::Border::QNAME, |table| build_border(table, &Border::default()))?;
+    let xf = |format: u32| XfInfo {
+        attrs: [("numFmtId", format), ("fontId", font), ("fillId", fill), ("borderId", border), ("xfId", 0)]
+            .into_iter().map(|(key, value)| (key.to_owned(), value.to_string())).collect(),
+        ..XfInfo::default()
+    };
+    let normal = export_style_entry::<sml::CellFormats>(&mut styles, sml::CellFormat::QNAME, |table| build_xf(table, &xf(0)))?;
+    let date = if dates.iter().any(|date| *date) {
+        let format = if custom.contains_key(&14) {
+            let id = scan_ids(wb, &part)?.numfmt.max(163).checked_add(1)
+                .ok_or_else(|| Error::Malformed("no available date format ID".into()))?;
+            export_style_entry::<sml::NumberingFormats>(&mut styles, sml::NumberingFormat::QNAME, |table| {
+                let mut format = table.insert::<sml::NumberingFormat>()?;
+                format.set_attr(QName::new("", "numFmtId"), &id.to_string())?;
+                format.set_attr(QName::new("", "formatCode"), "mm-dd-yy")?;
+                Ok(())
+            })?;
+            id
+        } else {
+            14
+        };
+        Some(export_style_entry::<sml::CellFormats>(&mut styles, sml::CellFormat::QNAME, |table| build_xf(table, &xf(format)))?)
+    } else {
+        None
+    };
+
+    let mut output = wb.pkg.fork();
+    for sheet in super::census_sheet_parts(wb) {
+        let mut doc = XmlDocument::parse(&wb.pkg.read_part(&sheet)?)?;
+        export_sheet_styles(&mut doc, &dates, normal, date)?;
+        if doc.is_dirty() {
+            *output.xml_part_mut(&sheet)? = doc;
+        }
+    }
+    if styles.is_dirty() {
+        *output.xml_part_mut(&part)? = styles;
+    }
+    Ok(Some(output))
+}
+
+fn export_style_id(node: &RawNode, attr: QName) -> Option<u32> {
+    node.attr(attr).and_then(ooxml_core::value::parse_u32)
+}
+
+fn export_style_entry<T>(
+    doc: &mut XmlDocument, child: QName, build: impl Fn(&mut LensMut<'_, T>) -> Result<()>,
+) -> Result<u32>
+where
+    T: ElementSpec + ChildOf<sml::Stylesheet>,
+{
+    let container = doc.root().elements().find(|node| node.is(T::QNAME));
+    let table = Table::read(doc, container, child);
+    if !table.stable || table.has_ac {
+        return Err(Error::UnsupportedStylesPart(T::QNAME.local.into()));
+    }
+    let prefix = container.unwrap_or_else(|| doc.root()).name().prefix();
+    let key = render::<T>(prefix, &build)?;
+    if let Some(&index) = table.reuse.get(&key) {
+        return Ok(index);
+    }
+    append_to(doc, Some(table.count + 1), build)?;
+    Ok(table.count)
+}
+
+fn export_sheet_styles(doc: &mut XmlDocument, dates: &[bool], normal: u32, date: Option<u32>) -> Result<()> {
+    let mut column_styles = vec![0; 16_384];
+    let mut columns = Vec::new();
+    let mut rows = Vec::new();
+    for (index, node) in doc.root().indexed_elements() {
+        if node.is(sml::Columns::QNAME) {
+            for (column_index, col) in node.indexed_elements().filter(|(_, col)| col.is(sml::Column::QNAME)) {
+                let start = export_style_id(col, sml::Column::ATTR_MIN);
+                let end = export_style_id(col, sml::Column::ATTR_MAX);
+                let old = export_style_id(col, sml::Column::ATTR_STYLE).unwrap_or(0);
+                if let (Some(start), Some(end)) = (start, end)
+                    && (1..=16_384).contains(&start) && (start..=16_384).contains(&end)
+                {
+                    column_styles[(start - 1) as usize..end as usize].fill(old);
+                }
+                if col.attr(sml::Column::ATTR_STYLE).is_some() {
+                    columns.push([index, column_index]);
+                }
+            }
+        }
+        if node.is(sml::SheetData::QNAME) {
+            rows.extend(node.indexed_elements().filter(|(_, row)| row.is(sml::Row::QNAME))
+                .map(|(row_index, _)| [index, row_index]));
+        }
+    }
+    for path in columns {
+        let mut column = sml::ColumnViewMut(doc.lens_mut_at::<sml::Column>(&path)?);
+        column.remove_style()?;
+    }
+    for [data, row] in rows {
+        let current = doc.lens_at::<sml::Row>(&[data, row])?;
+        let row_style = export_style_id(current.raw(), sml::Row::ATTR_S);
+        let reset_row = row_style.is_some() || current.raw().attr(sml::Row::ATTR_CUSTOM_FORMAT).is_some();
+        let cells: Vec<_> = current.raw().indexed_elements().filter(|(_, cell)| cell.is(sml::Cell::QNAME))
+            .filter_map(|(position, cell)| {
+                let explicit = export_style_id(cell, sml::Cell::ATTR_S);
+                let old = explicit.or(row_style).or_else(|| {
+                    cell.attr(sml::Cell::ATTR_R)
+                        .and_then(|address| crate::reference::CellIndex::parse(address).ok())
+                        .map(|index| column_styles[index.col as usize])
+                }).unwrap_or(0);
+                let numeric = matches!(cell.attr(sml::Cell::ATTR_T), None | Some("n"));
+                let has_value = cell.elements().any(|child| child.is(sml::CellValue::QNAME));
+                let desired = if numeric && has_value && dates.get(old as usize) == Some(&true) {
+                    date.unwrap_or(normal)
+                } else {
+                    normal
+                };
+                (explicit != (desired != 0).then_some(desired)).then_some((position, desired))
+            })
+            .collect();
+        if reset_row {
+            let mut row = sml::RowViewMut(doc.lens_mut_at::<sml::Row>(&[data, row])?);
+            row.remove_style_index()?;
+            row.remove_custom_format()?;
+        }
+        for (position, desired) in cells {
+            let mut cell = sml::CellViewMut(doc.lens_mut_at::<sml::Cell>(&[data, row, position])?);
+            if desired == 0 {
+                cell.remove_style_index()?;
+            } else {
+                cell.set_style_index(desired)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

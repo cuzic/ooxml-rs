@@ -100,6 +100,7 @@ struct Change {
     bytes: BTreeMap<String, Vec<u8>>,
     rewritten: Vec<RewrittenLocation>,
     removed_shared_refs: i64,
+    allow_empty: bool,
 }
 
 impl Change {
@@ -159,15 +160,188 @@ fn names_lens(doc: &mut XmlDocument) -> Result<Option<LensMut<'_, sml::DefinedNa
 }
 
 /// `(child index, name, localSheetId, text)` of every `definedName`.
+fn defined_name_elements(doc: &XmlDocument) -> impl Iterator<Item = (usize, &ooxml_core::RawNode)> {
+    doc.root().elements().find(|node| node.is(sml::DefinedNames::QNAME))
+        .into_iter().flat_map(|names| names.indexed_elements())
+        .filter(|(_, node)| node.is(sml::DefinedName::QNAME))
+}
+
+fn defined_name_scope(node: &ooxml_core::RawNode) -> Option<u32> {
+    node.attr(ooxml_core::QName::new("", "localSheetId")).and_then(|value| value.trim().parse().ok())
+}
+
 fn defined_names(doc: &XmlDocument) -> Vec<(usize, String, Option<u32>, String)> {
-    let Some(dn) = doc.root().elements().find(|e| e.is(sml::DefinedNames::QNAME)) else { return Vec::new() };
-    dn.indexed_elements()
-        .filter(|(_, e)| e.is(sml::DefinedName::QNAME))
-        .map(|(i, e)| {
-            let local = e.attr(ooxml_core::QName::new("", "localSheetId")).and_then(|v| v.trim().parse().ok());
-            (i, e.attr(ooxml_core::QName::new("", "name")).unwrap_or_default().to_owned(), local, e.text().into_owned())
-        })
-        .collect()
+    defined_name_elements(doc).map(|(index, node)| (
+        index,
+        node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default().to_owned(),
+        defined_name_scope(node),
+        node.text().into_owned(),
+    )).collect()
+}
+
+fn global_user_defined_names(doc: &XmlDocument) -> impl Iterator<Item = (&str, &ooxml_core::RawNode)> {
+    defined_name_elements(doc).filter_map(|(_, node)| {
+        if defined_name_scope(node).is_some() {
+            return None;
+        }
+        let name = node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default();
+        let built_in = name.get(..6).is_some_and(|prefix| prefix.eq_ignore_ascii_case("_xlnm."));
+        (!built_in).then_some((name, node))
+    })
+}
+
+impl Workbook {
+    /// Reads the workbook's defined names, including local and built-in names.
+    pub fn defined_name_nodes(&mut self) -> Result<Vec<ooxml_core::RawNode>> {
+        let document = self.pkg.xml_part(&self.workbook_part)?;
+        let workbook = document.lens::<sml::Workbook>()?;
+        Ok(workbook.child::<sml::DefinedNames>().map(|names| {
+            names.raw().elements().filter(|node| node.is(sml::DefinedName::QNAME)).cloned().collect()
+        }).unwrap_or_default())
+    }
+
+    /// Returns workbook-wide user-defined names and their formula text in document order.
+    pub fn global_defined_names(&mut self) -> Result<Vec<(String, String)>> {
+        let document = self.pkg.xml_part(&self.workbook_part)?;
+        Ok(global_user_defined_names(document)
+            .map(|(name, node)| (name.to_owned(), node.text().into_owned()))
+            .collect())
+    }
+
+    /// Returns formula text for an exact workbook-wide user-defined name.
+    pub fn global_defined_name_formulas(&mut self, name: &str) -> Result<Vec<String>> {
+        let document = self.pkg.xml_part(&self.workbook_part)?;
+        Ok(global_user_defined_names(document)
+            .filter(|(candidate, _)| *candidate == name)
+            .map(|(_, node)| node.text().into_owned())
+            .collect())
+    }
+
+    /// Updates a workbook-wide name, or removes it when the formula is empty.
+    pub fn set_global_defined_name(&mut self, name: &str, formula: &str) -> Result<()> {
+        self.set_defined_name(name, formula, None, None)
+    }
+
+    /// Updates a defined name with an optional zero-based worksheet scope.
+    pub fn set_defined_name(&mut self, name: &str, formula: &str, sheet: Option<u32>, comment: Option<&str>) -> Result<()> {
+        self.set_defined_names([(name, formula, sheet, comment)])
+    }
+
+    /// Applies workbook-wide name additions, updates, and removals in order.
+    pub fn set_global_defined_names<'a>(&mut self, edits: impl IntoIterator<Item = (&'a str, &'a str)>) -> Result<()> {
+        self.set_defined_names(edits.into_iter().map(|(name, formula)| (name, formula, None, None)))
+    }
+
+    /// Applies defined name edits with their optional scopes and comments in order.
+    pub fn set_defined_names<'a>(&mut self, edits: impl IntoIterator<Item = (&'a str, &'a str, Option<u32>, Option<&'a str>)>) -> Result<()> {
+        self.check_editable()?;
+        let part = self.workbook_part.clone();
+        let doc = self.pkg.xml_part(&part)?;
+        let root = doc.lens::<sml::Workbook>()?;
+        crate::worksheet::refuse_alternate_content(root.raw(), sml::DefinedNames::QNAME)?;
+        if let Some(names) = root.child::<sml::DefinedNames>() {
+            crate::worksheet::refuse_alternate_content(names.raw(), sml::DefinedName::QNAME)?;
+        }
+        let mut staged = None;
+        for (name, formula, sheet, comment) in edits {
+            if sheet.is_some_and(|index| index as usize >= self.sheets.len()) {
+                return Err(Error::Malformed("defined name sheet is outside the workbook".into()));
+            }
+            let old = defined_name_elements(staged.as_ref().unwrap_or(doc))
+                .find(|(_, node)| node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default()
+                    .eq_ignore_ascii_case(name) && defined_name_scope(node) == sheet);
+            if (old.is_none() && formula.is_empty()) ||
+                old.is_some_and(|(_, node)| !formula.is_empty() && comment.is_none() && node.text() == formula) {
+                continue;
+            }
+            let old_index = old.map(|(index, _)| index);
+            let staged = staged.get_or_insert_with(|| doc.clone());
+            let mut root = staged.lens_mut::<sml::Workbook>()?;
+            let mut names = root.get_or_insert::<sml::DefinedNames>()?;
+            if formula.is_empty() {
+                if let Some(index) = old_index {
+                    names.remove_at(index);
+                }
+                if names.node().elements().next().is_none() {
+                    let index = root.node().indexed_elements()
+                        .find(|(_, node)| node.is(sml::DefinedNames::QNAME)).map(|(index, _)| index);
+                    if let Some(index) = index {
+                        root.remove_at(index);
+                    }
+                }
+            } else if let Some(index) = old_index {
+                let mut node = sml::DefinedNameViewMut(names.into_child_at::<sml::DefinedName>(index).expect("planned"));
+                node.set_text(formula)?;
+                if let Some(comment) = comment {
+                    node.set_comment(comment)?;
+                }
+            } else {
+                let mut node = sml::DefinedNameViewMut(names.insert::<sml::DefinedName>()?);
+                node.set_name(name)?;
+                if let Some(sheet) = sheet {
+                    node.set_local_sheet_id(sheet)?;
+                }
+                node.set_text(formula)?;
+                if let Some(comment) = comment {
+                    node.set_comment(comment)?;
+                }
+            }
+        }
+        let Some(staged) = staged else { return Ok(()) };
+        let mut plan = RegistryPlan::new(&self.pkg);
+        plan.stage_part(&self.pkg, &part, staged)?;
+        self.finish(plan, Change::default()).map(drop)
+    }
+
+}
+
+impl crate::Worksheet<'_> {
+    /// Returns the sheet-local built-in print references.
+    pub fn print_references(&self, titles: bool) -> Vec<String> {
+        let name = if titles { "_xlnm.Print_Titles" } else { "_xlnm.Print_Area" };
+        self.wb.pkg.parsed_part(&self.wb.workbook_part).map(defined_names)
+            .unwrap_or_default().into_iter()
+            .filter(|(_, key, local, _)| key == name && *local == Some(self.sheet as u32))
+            .map(|(_, _, _, text)| text).collect()
+    }
+
+    /// Replaces a sheet-local print reference list.
+    pub fn set_print_references(&mut self, titles: bool, formulas: &[String]) -> Result<()> {
+        let name = if titles { "_xlnm.Print_Titles" } else { "_xlnm.Print_Area" };
+        let sheet = self.sheet as u32;
+        let part = self.wb.workbook_part.clone();
+        let old = self.wb.pkg.parsed_part(&part).map(defined_names).unwrap_or_default();
+        let matches: Vec<_> = old.into_iter().filter(|(_, key, local, _)| {
+            key == name && *local == Some(sheet)
+        }).collect();
+        if matches.iter().map(|(_, _, _, text)| text).eq(formulas.iter()) {
+            return Ok(());
+        }
+        self.wb.poisoning(|wb| {
+            let doc = wb.pkg.xml_part_mut(&part)?;
+            let mut root = doc.lens_mut::<sml::Workbook>()?;
+            let mut names = root.get_or_insert::<sml::DefinedNames>()?;
+            for (index, _, _, _) in matches.into_iter().rev() {
+                names.remove_at(index);
+            }
+            for formula in formulas {
+                let mut node = sml::DefinedNameViewMut(names.insert::<sml::DefinedName>()?);
+                node.set_name(name)?;
+                node.set_local_sheet_id(sheet)?;
+                node.set_text(formula)?;
+            }
+            if names.node().elements().next().is_none() {
+                let index = root.node().indexed_elements()
+                    .find(|(_, node)| node.is(sml::DefinedNames::QNAME))
+                    .map(|(index, _)| index);
+                if let Some(index) = index {
+                    root.remove_at(index);
+                }
+            }
+            Ok(())
+        })?;
+        self.wb.rebuild()
+    }
 }
 
 /// Remaps `definedName/@localSheetId` (positions); `None` removes the name.
@@ -354,7 +528,7 @@ impl Workbook {
         let mut plan = RegistryPlan::new(&self.pkg);
         // staged content first: the removals' reference scans read it
         self.stage_shared_string_count(&mut change)?;
-        let Change { docs, bytes, rewritten, .. } = change;
+        let Change { docs, bytes, rewritten, allow_empty, .. } = change;
         for (part, doc) in docs {
             plan.stage_part(&self.pkg, &part, doc)?;
         }
@@ -362,7 +536,7 @@ impl Workbook {
             plan.stage_part(&self.pkg, &part, b)?;
         }
         steps(&mut plan, &self.pkg)?;
-        self.finish(plan, Change { rewritten, ..Change::default() })
+        self.finish(plan, Change { rewritten, allow_empty, ..Change::default() })
     }
 
     /// Stages the change's clones into `plan`, then applies and rebuilds
@@ -382,7 +556,7 @@ impl Workbook {
             self.fault_point(crate::workbook::ApplyStep::StructuralApply)?;
             self.pkg.apply(plan)?;
             self.fault_point(crate::workbook::ApplyStep::StructuralRebuild)?;
-            self.rebuild()
+            if change.allow_empty { self.rebuild_with_empty(true) } else { self.rebuild() }
         })();
         match r {
             Ok(()) => {
@@ -487,6 +661,9 @@ impl Workbook {
 
     /// The sheets as `docProps/app.xml` lists them (kind, `veryHidden`).
     fn listed(&mut self) -> Result<Vec<Listed>> {
+        if self.sheets.is_empty() {
+            return Ok(Vec::new());
+        }
         let doc = self.pkg.xml_part(&self.workbook_part)?;
         let kids = sheet_children(doc)?;
         let sheets = doc.root().elements().find(|e| e.is(sml::Sheets::QNAME)).expect("checked");
@@ -528,6 +705,12 @@ impl Workbook {
     /// `docProps/app.xml` is kept consistent when its shape is recognized
     /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn add_sheet(&mut self, name: &str, position: usize) -> Result<()> {
+        self.add_sheet_with_id(name, position, None)
+    }
+
+    /// Adds a worksheet with a requested nonzero OOXML ID, if unreserved.
+    /// With no requested ID, uses the usual allocator.
+    pub fn add_sheet_with_id(&mut self, name: &str, position: usize, id: Option<u32>) -> Result<()> {
         self.sheet_structure_guard("add_sheet")?;
         self.check_new_name(name, None)?;
         if position > self.sheets.len() {
@@ -538,7 +721,13 @@ impl Workbook {
         let seeds = self.three_d_and_sheet_callers();
         self.invalidate(&mut change, &seeds, Vec::new(), &[])?;
         // ids
-        let sheet_id = self.next_sheet_id()?;
+        let reserved = self.reserved_sheet_ids()?;
+        let sheet_id = match id {
+            Some(id) if id != 0 && !reserved.contains(&id) => id,
+            Some(id) => return Err(Error::Malformed(format!("sheetId {id} is reserved"))),
+            None => reserved.iter().copied().max().unwrap_or(0).checked_add(1)
+                .ok_or(Error::Malformed("sheetId exhausted".into()))?,
+        };
         let dir = self.worksheet_dir();
         let row_height = self.default_row_height()?;
         let content = NEW_SHEET.replace("{h}", &row_height);
@@ -556,6 +745,9 @@ impl Workbook {
         let rid = plan.add_relationship(&self.pkg, Some(&wb_part), REL_WORKSHEET, Target::Part(part.clone()))?;
         {
             let doc = change.doc(&mut self.pkg, &wb_part)?;
+            if self.sheets.is_empty() && !doc.root().elements().any(|node| node.is(sml::Sheets::QNAME)) {
+                doc.lens_mut::<sml::Workbook>()?.insert::<sml::Sheets>()?;
+            }
             let mut sheets = sheets_lens(doc)?;
             let mut seen = 0usize;
             // `r:id` needs the relationships namespace in scope: declared on
@@ -582,21 +774,21 @@ impl Workbook {
         self.finish(plan, change).map(drop)
     }
 
-    fn next_sheet_id(&mut self) -> Result<u32> {
+    fn reserved_sheet_ids(&mut self) -> Result<HashSet<u32>> {
         let doc = self.pkg.xml_part(&self.workbook_part)?;
-        let mut max = 0u32;
+        let mut ids = HashSet::new();
         let wb = doc.root();
         if let Some(sheets) = wb.elements().find(|e| e.is(sml::Sheets::QNAME)) {
             for s in sheets.elements() {
                 if let Some(v) = s.attr(ooxml_core::QName::new("", "sheetId")).and_then(|v| v.trim().parse::<u32>().ok()) {
-                    max = max.max(v);
+                    ids.insert(v);
                 }
             }
         }
         if let Some(cv) = wb.elements().find(|e| e.is(sml::CustomWorkbookViews::QNAME)) {
             for v in cv.elements() {
                 if let Some(id) = v.attr(ooxml_core::QName::new("", "activeSheetId")).and_then(|v| v.trim().parse::<u32>().ok()) {
-                    max = max.max(id);
+                    ids.insert(id);
                 }
             }
         }
@@ -605,13 +797,13 @@ impl Workbook {
             if let Ok(d) = XmlDocument::parse(&bytes) {
                 for c in d.root().elements() {
                     if let Some(i) = c.attr(ooxml_core::QName::new("", "i")).and_then(|v| v.trim().parse::<u32>().ok()) {
-                        max = max.max(i);
+                        ids.insert(i);
                     }
                 }
             }
         }
-        max = self.removed_sheet_ids.iter().copied().fold(max, u32::max);
-        max.checked_add(1).ok_or(Error::Malformed("sheetId exhausted".into()))
+        ids.extend(self.removed_sheet_ids.iter().copied());
+        Ok(ids)
     }
 
     /// The folder of the existing worksheets if they share one.
@@ -630,7 +822,10 @@ impl Workbook {
     }
 
     fn default_row_height(&mut self) -> Result<String> {
-        let part = self.sheets[self.first_visible_index()].part.clone().expect("worksheet");
+        let part = self.worksheet_part().to_owned();
+        if part.is_empty() {
+            return Ok("15".into());
+        }
         let doc = self.pkg.xml_part(&part)?;
         let h = doc
             .root()
@@ -643,9 +838,6 @@ impl Workbook {
         Ok(format!("{h}"))
     }
 
-    fn first_visible_index(&self) -> usize {
-        self.sheets.iter().position(|s| s.visible && s.kind == SheetKind::Worksheet).unwrap_or(0)
-    }
 
     // ------------------------------------------------------------ move
 
@@ -736,6 +928,36 @@ impl Workbook {
 
     // ------------------------------------------------------------ hide, tab colour
 
+    /// Returns sheet visibility flags in workbook order (0 visible, 1 hidden, 2 very hidden).
+    pub fn sheet_visibility(&mut self) -> Result<Vec<u8>> {
+        let doc = self.pkg.xml_part(&self.workbook_part)?;
+        let root = doc.lens::<sml::Workbook>()?;
+        let Some(sheets) = root.child::<sml::Sheets>() else { return Ok(Vec::new()) };
+        sheets.children::<sml::Sheet>().map(|sheet| {
+            Ok(match sheet.attr(ooxml_core::QName::new("", "state")) {
+                None | Some("visible") => 0,
+                Some("hidden") => 1,
+                Some("veryHidden") => 2,
+                Some(state) => return Err(malformed(&format!("invalid sheet state {state}"))),
+            })
+        }).collect()
+    }
+
+    /// Reads the declared visibility of a sheet.
+    pub fn sheet_state(&mut self, sheet: &str) -> Result<SheetState> {
+        let index = self.sheet_pos(sheet)?;
+        let doc = self.pkg.xml_part(&self.workbook_part)?;
+        let kids = sheet_children(doc)?;
+        let sheets = doc.root().elements().find(|node| node.is(sml::Sheets::QNAME)).expect("checked");
+        let node = sheets.children()[kids[index]].as_element().expect("element");
+        Ok(match node.attr(ooxml_core::QName::new("", "state")) {
+            None | Some("visible") => SheetState::Visible,
+            Some("hidden") => SheetState::Hidden,
+            Some("veryHidden") => SheetState::VeryHidden,
+            Some(state) => return Err(malformed(&format!("invalid sheet state {state}"))),
+        })
+    }
+
     /// Sets a sheet's visibility (ADR-0009 §8). Hiding the last visible
     /// sheet is [`Error::LastVisibleSheet`]; hiding the active sheet moves
     /// the active tab to the next visible sheet; a hidden sheet is never
@@ -782,6 +1004,18 @@ impl Workbook {
     /// Sets (`Some(0xRRGGBB)`) or removes (`None`) a worksheet's tab colour
     /// (`sheetPr/tabColor/@rgb`).
     pub fn set_tab_color(&mut self, sheet: &str, rgb: Option<u32>) -> Result<()> {
+        let color = rgb.map(|value| ("rgb", format!("FF{:06X}", value & 0xFF_FFFF)));
+        self.set_tab_color_attributes(sheet, &color.into_iter().collect::<Vec<_>>())
+    }
+
+    /// Writes the color attributes of a worksheet tab, or clears the color
+    /// if the attribute list is empty.
+    pub fn set_tab_color_attributes(&mut self, sheet: &str, attributes: &[(&str, String)]) -> Result<()> {
+        const KEYS: [&str; 5] = ["rgb", "theme", "tint", "indexed", "auto"];
+        let colors: Vec<_> = attributes.iter().map(|(key, value)| {
+            KEYS.iter().copied().find(|candidate| candidate == key).map(|key| (key, value))
+                .ok_or_else(|| malformed("invalid tab color attribute"))
+        }).collect::<Result<_>>()?;
         self.structural_guard()?;
         let i = self.sheet_pos(sheet)?;
         if self.sheets[i].kind != SheetKind::Worksheet {
@@ -792,15 +1026,23 @@ impl Workbook {
         {
             let doc = change.doc(&mut self.pkg, &part)?;
             let mut ws = doc.lens_mut::<sml::Worksheet>()?;
-            match rgb {
-                Some(c) => {
-                    let pr = ws.get_or_insert::<sml::SheetProperties>()?;
-                    let mut pr = sml::SheetPropertiesViewMut(pr);
-                    pr.get_or_insert_tab_color()?.set_rgb(&format!("FF{:06X}", c & 0xFF_FFFF))?;
-                }
-                None => {
+            match colors.as_slice() {
+                [] => {
                     if let Some(pr) = ws.child_mut::<sml::SheetProperties>() {
                         sml::SheetPropertiesViewMut(pr).remove_tab_color();
+                    }
+                }
+                _ => {
+                    let pr = ws.get_or_insert::<sml::SheetProperties>()?;
+                    let mut pr = sml::SheetPropertiesViewMut(pr);
+                    let mut color = pr.get_or_insert_tab_color()?;
+                    for key in KEYS {
+                        let attribute = ooxml_core::QName::new("", key);
+                        if let Some((_, value)) = colors.iter().find(|(candidate, _)| *candidate == key) {
+                            color.0.set_attr(attribute, value)?;
+                        } else {
+                            color.0.remove_attr(attribute)?;
+                        }
                     }
                 }
             }
@@ -1237,6 +1479,33 @@ impl Workbook {
 
     // ------------------------------------------------------------ delete
 
+    pub(crate) fn package_without_initial_sheet(&mut self) -> Result<Package> {
+        self.check_editable()?;
+        let [sheet] = self.sheets.as_slice() else {
+            return Err(malformed("empty output requires the initial workbook template"));
+        };
+        if sheet.name != "Sheet1" || sheet.kind != SheetKind::Worksheet {
+            return Err(malformed("empty output requires the initial workbook template"));
+        }
+        let part = sheet.part.clone().expect("worksheet");
+        let mut change = Change::default();
+        let workbook = change.doc(&mut self.pkg, &self.workbook_part)?;
+        let children = sheet_children(workbook)?;
+        sheets_lens(workbook)?.remove_at(children[0]);
+        Self::remap_views(workbook, &|_| 0, &[])?;
+        let before = self.listed()?;
+        self.stage_app_xml(&mut change, &before, &[], None, Some("Sheet1"))?;
+
+        let mut package = self.pkg.fork();
+        let mut plan = RegistryPlan::new(&package);
+        for (name, doc) in change.docs {
+            plan.stage_part(&package, &name, doc)?;
+        }
+        plan.remove_parts(&package, &[part.as_str()], &[REL_WORKSHEET])?;
+        package.apply(plan)?;
+        Ok(package)
+    }
+
     /// Deletes a worksheet with the parts it owns (ADR-0009 §5): drawings,
     /// charts, comments, VML, tables, printer settings, images, unless
     /// another part also uses them. References to it become a bare `#REF!`;
@@ -1249,7 +1518,7 @@ impl Workbook {
     /// `docProps/app.xml` is kept consistent when its shape is recognized
     /// (ADR-0009 §11); otherwise it is left byte-identical.
     pub fn delete_sheet(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
-        self.delete(sheet, false)
+        self.delete(sheet, false, false)
     }
 
     /// [`Self::delete_sheet`], but refused ([`Error::SheetInUse`]) when
@@ -1258,10 +1527,16 @@ impl Workbook {
     /// `hyperlink/@location` or a `#Sheet!` target. Its own local names
     /// (e.g. a print area) do not count.
     pub fn delete_sheet_strict(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
-        self.delete(sheet, true)
+        self.delete(sheet, true, false)
     }
 
-    fn delete(&mut self, sheet: &str, strict: bool) -> Result<Vec<RewrittenLocation>> {
+    /// Deletes a worksheet, allowing the workbook to have zero sheets afterward.
+    /// A nonempty workbook still needs a visible worksheet.
+    pub fn delete_sheet_allow_empty(&mut self, sheet: &str) -> Result<Vec<RewrittenLocation>> {
+        self.delete(sheet, false, true)
+    }
+
+    fn delete(&mut self, sheet: &str, strict: bool, allow_empty: bool) -> Result<Vec<RewrittenLocation>> {
         self.sheet_structure_guard("delete_sheet")?;
         let d = self.sheet_pos(sheet)?;
         let entry = self.sheets[d].clone();
@@ -1275,7 +1550,7 @@ impl Workbook {
         let mut visible: Vec<bool> = self.sheets.iter().map(|s| s.visible).collect();
         visible.remove(d);
         let kinds: Vec<SheetKind> = self.sheets.iter().enumerate().filter(|(i, _)| *i != d).map(|(_, s)| s.kind).collect();
-        if !visible.iter().zip(&kinds).any(|(v, k)| *v && *k == SheetKind::Worksheet) {
+        if !(allow_empty && visible.is_empty()) && !visible.iter().zip(&kinds).any(|(v, k)| *v && *k == SheetKind::Worksheet) {
             return Err(Error::LastVisibleSheet);
         }
         let sheet_id = self.sheet_id_of(d)?;
@@ -1298,7 +1573,7 @@ impl Workbook {
         let worksheet: Vec<bool> = self.sheets.iter().map(|s| s.kind == SheetKind::Worksheet).collect();
         let edit = PrefixEdit::Delete { deleted: d, order, names, worksheet };
         self.closed_world_scan(&entry.name, &skip, &edit)?;
-        let mut change = Change::default();
+        let mut change = Change { allow_empty: allow_empty && visible.is_empty(), ..Change::default() };
         if set.iter().any(|p| same_name(p, &part)) {
             change.removed_shared_refs = crate::registry::scan_sheet(&self.pkg.read_part(&part)?)?.shared as i64;
         }

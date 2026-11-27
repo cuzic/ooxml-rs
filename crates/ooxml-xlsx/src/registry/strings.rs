@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 
-use ooxml_core::{ChildOf, ElementSpec, LensMut, QName};
+use ooxml_core::{ChildOf, ElementSpec, LensMut, Package, PartNameRequest, QName, RawNode, RegistryPlan, Target, XmlDocument};
 use ooxml_schema::sml;
 
 use super::format::{Font, Underline};
@@ -21,7 +21,7 @@ use crate::error::{Error, Result};
 use crate::workbook::Workbook;
 
 /// The registry state.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct SharedStrings {
     pub(crate) part: String,
     prefix: Option<String>,
@@ -82,6 +82,20 @@ fn build_si(parent: &mut LensMut<'_, sml::SharedStringTable>, content: &SiConten
         }
     }
     Ok(())
+}
+
+pub(crate) fn render_rich_item(runs: Vec<RichRun>) -> Result<String> {
+    render::<sml::SharedStringTable>(None, |parent| build_si(parent, &SiContent::Rich(runs)))
+}
+
+pub(crate) fn render_inline_rich(runs: &[RichRun]) -> Result<String> {
+    render::<sml::Cell>(None, |parent| {
+        let mut inline = parent.insert::<sml::InlineString>()?;
+        for run in runs {
+            build_run(&mut inline, run)?;
+        }
+        Ok(())
+    })
 }
 
 /// Appends one `r` (with `rPr` when the run has a font, then `t`) under
@@ -153,6 +167,10 @@ fn build_rpr(r: &mut LensMut<'_, sml::Run>, f: &Font) -> Result<()> {
 }
 
 impl SharedStrings {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.entries == 0 && self.refs == 0
+    }
+
     /// Activates the registry if the workbook has a shared-string part.
     pub(crate) fn activate(wb: &mut Workbook) -> Result<Option<SharedStrings>> {
         let rels = wb.pkg.relationships(&wb.workbook_part)?;
@@ -249,4 +267,196 @@ impl SharedStrings {
         wb.registries.strings = Some(reg);
         result
     }
+}
+
+fn sheet_cell_paths(doc: &XmlDocument, predicate: impl Fn(&RawNode) -> bool) -> Vec<[usize; 3]> {
+    let mut paths = Vec::new();
+    for (data_index, data) in doc.root().indexed_elements().filter(|(_, data)| data.is(sml::SheetData::QNAME)) {
+        for (row_index, row) in data.indexed_elements().filter(|(_, row)| row.is(sml::Row::QNAME)) {
+            paths.extend(row.indexed_elements()
+                .filter(|(_, cell)| cell.is(sml::Cell::QNAME) && predicate(cell))
+                .map(|(cell_index, _)| [data_index, row_index, cell_index]));
+        }
+    }
+    paths
+}
+
+fn shared_string_part(package: &Package, workbook_part: &str) -> Result<Option<String>> {
+    let rels = package.relationships(workbook_part)?;
+    let mut matches = rels.by_type(crate::workbook::REL_SHARED_STRINGS);
+    let Some(relationship) = matches.next() else {
+        return Ok(None);
+    };
+    if matches.next().is_some() {
+        return Err(Error::Malformed("multiple shared string relationships".into()));
+    }
+    rels.resolve(relationship).map(Some)
+        .ok_or_else(|| Error::Malformed("invalid shared string relationship".into()))
+}
+
+/// Exports shared strings as cell-local values in a separate package.
+pub(crate) fn unshare(
+    wb: &Workbook,
+    package: &Package,
+    plain_as_value: bool,
+) -> Result<Option<Package>> {
+    let Some(part) = shared_string_part(package, &wb.workbook_part)? else {
+        return Ok(None);
+    };
+    wb.check_editable()?;
+    let strings = XmlDocument::parse(&package.read_part(&part)?)?;
+    strings.lens::<sml::SharedStringTable>()?;
+    let table = Table::read(&strings, Some(strings.root()), sml::SharedStringItem::QNAME);
+    if table.has_ac {
+        return Err(ooxml_core::Error::UnresolvedSibling(sml::SharedStringTable::QNAME).into());
+    }
+    let items: Vec<_> = strings.root().indexed_elements()
+        .filter(|(_, item)| item.is(sml::SharedStringItem::QNAME))
+        .map(|(index, _)| strings.lens_at::<sml::SharedStringItem>(&[index]))
+        .collect::<std::result::Result<_, _>>()?;
+    let mut output = package.fork();
+    for sheet in census_sheet_parts(wb) {
+        let bytes = package.read_part(&sheet)?;
+        let expected = scan_sheet(&bytes)?.shared;
+        if expected == 0 {
+            continue;
+        }
+        let mut doc = XmlDocument::parse(&bytes)?;
+        let paths = sheet_cell_paths(&doc, |cell| cell.attr(sml::Cell::ATTR_T) == Some("s"));
+        if paths.len() as u64 != expected {
+            return Err(Error::Malformed(format!("{sheet}: shared string cell outside sheetData/row")));
+        }
+        for path in paths {
+            let cell = doc.lens_at::<sml::Cell>(&path)?;
+            let index = cell.child::<sml::CellValue>()
+                .and_then(|value| value.text().trim().parse::<usize>().ok())
+                .filter(|index| *index < items.len())
+                .ok_or_else(|| Error::Malformed(format!("{sheet}: invalid shared string index")))?;
+            let item = &items[index];
+            let mut cell = sml::CellViewMut(doc.lens_mut_at::<sml::Cell>(&path)?);
+            if plain_as_value && item.raw().attrs().is_empty()
+                && let [child] = item.raw().elements().collect::<Vec<_>>().as_slice()
+                && child.is(sml::Text::QNAME)
+            {
+                cell.set_data_type(sml::CellValues::String)?;
+                cell.get_or_insert_cell_value()?.0.set_text(&child.text())?;
+            } else {
+                let inline = item.detach_as::<sml::InlineString>(&[])?;
+                cell.remove_cell_value();
+                cell.set_data_type(sml::CellValues::InlineString)?;
+                cell.0.insert_detached(&inline)?;
+            }
+        }
+        output.set_part(&sheet, doc.serialize().into_bytes())?;
+    }
+    let mut plan = RegistryPlan::new(&output);
+    plan.remove_parts(&output, &[&part], &[crate::workbook::REL_SHARED_STRINGS])?;
+    output.apply(plan)?;
+    Ok(Some(output))
+}
+
+const CT_SHARED_STRINGS: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
+
+/// Exports cell-local strings as workbook-wide shared strings.
+pub(crate) fn share(wb: &Workbook, package: &Package) -> Result<Option<Package>> {
+    wb.check_editable()?;
+    let part = shared_string_part(package, &wb.workbook_part)?;
+    let mut strings = match &part {
+        Some(part) => XmlDocument::parse(&package.read_part(part)?)?,
+        None => XmlDocument::parse(format!("<sst xmlns=\"{}\"/>", crate::SML_NS).as_bytes())?,
+    };
+    strings.lens::<sml::SharedStringTable>()?;
+    let table = Table::read(&strings, Some(strings.root()), sml::SharedStringItem::QNAME);
+    if !table.stable || table.has_ac {
+        return Err(ooxml_core::Error::UnresolvedSibling(sml::SharedStringTable::QNAME).into());
+    }
+    let mut entries = table.count;
+    let mut reuse = std::sync::Arc::unwrap_or_clone(table.reuse);
+    let prefix = strings.root().name().prefix().map(str::to_owned);
+    let mut changed = Vec::new();
+    let mut references = 0_u64;
+    for sheet in census_sheet_parts(wb) {
+        let bytes = package.read_part(&sheet)?;
+        references += scan_sheet(&bytes)?.shared;
+        let mut doc = XmlDocument::parse(&bytes)?;
+        let paths = sheet_cell_paths(&doc, |cell| {
+            matches!(cell.attr(sml::Cell::ATTR_T), Some("str" | "inlineStr"))
+                && !cell.elements().any(|child| child.is(sml::CellFormula::QNAME))
+        });
+        if paths.is_empty() {
+            continue;
+        }
+        let mut edited = false;
+        for path in paths {
+            let cell = doc.lens_at::<sml::Cell>(&path)?;
+            crate::worksheet::refuse_alternate_content(cell.raw(), sml::Cell::QNAME)?;
+            let inline = cell.child::<sml::InlineString>()
+                .map(|value| value.detach_as::<sml::SharedStringItem>(&[])).transpose()?;
+            let plain = cell.child::<sml::CellValue>().map(|value| SiContent::Plain(value.text().into_owned()));
+            if inline.is_none() && plain.is_none() {
+                continue;
+            }
+            let insert = |table: &mut LensMut<'_, sml::SharedStringTable>| {
+                if let Some(value) = &inline {
+                    table.insert_detached(value)?;
+                } else if let Some(value) = &plain {
+                    build_si(table, value)?;
+                }
+                Ok(())
+            };
+            let key = render::<sml::SharedStringTable>(prefix.as_deref(), insert)?;
+            let index = if let Some(index) = reuse.get(&key) {
+                *index
+            } else {
+                let index = entries;
+                entries = entries.checked_add(1)
+                    .ok_or_else(|| Error::Malformed("too many shared string entries".into()))?;
+                insert(&mut strings.lens_mut::<sml::SharedStringTable>()?)?;
+                reuse.insert(key, index);
+                index
+            };
+            let mut cell = sml::CellViewMut(doc.lens_mut_at::<sml::Cell>(&path)?);
+            cell.remove_inline_string();
+            cell.remove_cell_value();
+            cell.set_data_type(sml::CellValues::SharedString)?;
+            cell.get_or_insert_cell_value()?.0.set_text(&index.to_string())?;
+            references += 1;
+            edited = true;
+        }
+        if edited {
+            changed.push((sheet, doc.serialize().into_bytes()));
+        }
+    }
+    if changed.is_empty() {
+        return Ok(None);
+    }
+    {
+        let mut table = sml::SharedStringTableViewMut(strings.lens_mut::<sml::SharedStringTable>()?);
+        table.set_count(u32::try_from(references)
+            .map_err(|_| Error::Malformed("too many shared string references".into()))?)?;
+        table.set_unique_count(entries)?;
+    }
+
+    let mut output = package.fork();
+    let table = strings.serialize().into_bytes();
+    if let Some(part) = part {
+        output.set_part(&part, table)?;
+    } else {
+        let directory = wb.workbook_part.rsplit_once('/').map_or("", |(dir, _)| dir);
+        let prefix = if directory.is_empty() { String::new() } else { format!("{directory}/") };
+        let canonical = format!("{prefix}sharedStrings.xml");
+        let request = if output.part_name_in_use(&canonical).is_some() {
+            PartNameRequest::Numbered(format!("{prefix}sharedStrings{{}}.xml"))
+        } else {
+            PartNameRequest::Exact(canonical)
+        };
+        let mut plan = RegistryPlan::new(&output);
+        let part = plan.add_part(&output, request, CT_SHARED_STRINGS, table)?;
+        plan.add_relationship(&output, Some(&wb.workbook_part), crate::workbook::REL_SHARED_STRINGS, Target::Part(part))?;
+        output.apply(plan)?;
+    }
+    for (part, bytes) in changed {
+        output.set_part(&part, bytes)?;
+    }
+    Ok(Some(output))
 }

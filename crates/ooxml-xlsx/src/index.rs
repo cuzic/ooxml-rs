@@ -40,7 +40,7 @@ pub(crate) enum RowErr {
     CellsOutOfOrder,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct RowEntry {
     /// 1-based row number.
     pub(crate) row: u32,
@@ -59,7 +59,7 @@ pub(crate) struct RowEntry {
     pub(crate) cells: std::result::Result<Vec<(u32, usize)>, RowErr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct SheetIndex {
     /// `sheetData` exists.
     pub(crate) sheet_data: bool,

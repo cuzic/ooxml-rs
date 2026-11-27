@@ -34,6 +34,7 @@ use crate::workbook::Workbook;
 pub struct Worksheet<'wb> {
     pub(crate) wb: &'wb mut Workbook,
     pub(crate) sheet: usize,
+    pub(crate) workbook_view_id: u32,
 }
 
 /// A decoded cell value.
@@ -58,6 +59,7 @@ pub enum CellValue {
 /// A read-only view of one existing cell.
 #[derive(Clone, Debug)]
 pub struct CellRef<'a> {
+    at: CellIndex,
     view: sml::CellView<'a>,
     sst: Option<&'a [String]>,
     workbook: &'a Workbook,
@@ -85,6 +87,11 @@ impl<'a> CellRef<'a> {
         crate::images::cell_image(&self.workbook.pkg, &self.workbook.workbook_part, self.raw())
     }
 
+    /// The cell's zero-based position from the worksheet index.
+    pub fn index(&self) -> CellIndex {
+        self.at
+    }
+
     /// The `r` attribute (e.g. `B2`).
     pub fn reference(&self) -> &'a str {
         self.view.cell_reference().unwrap_or_default()
@@ -100,9 +107,30 @@ impl<'a> CellRef<'a> {
         self.view.data_type()
     }
 
+    /// The shared-string index of a `t="s"` cell (its `v`), if it parses.
+    pub fn shared_string_index(&self) -> Option<u32> {
+        if !matches!(self.data_type(), EnumValue::Known(CellValues::SharedString)) {
+            return None;
+        }
+        ooxml_core::value::parse_u32(&self.view.cell_value()?.text())
+    }
+
     /// The formula text, if the cell has an `f` element.
     pub fn formula(&self) -> Option<String> {
         self.view.cell_formula().map(|f| f.text().into_owned())
+    }
+
+    /// The expression of an ordinary formula without cell metadata.
+    pub fn ordinary_formula(&self) -> Option<String> {
+        if self.raw().attr(QName::new("", "vm")).is_some() ||
+            self.raw().attr(QName::new("", "cm")).is_some() {
+            return None;
+        }
+        let formula = self.view.cell_formula()?;
+        match formula.raw().attr(QName::new("", "t")) {
+            None | Some("normal") => Some(formula.text().into_owned()),
+            _ => None,
+        }
     }
 
     /// The raw element.
@@ -219,6 +247,33 @@ pub(crate) fn check_insertable<'n, E: ElementSpec>(children: impl Iterator<Item 
     Ok(())
 }
 
+/// [`Worksheet::declared_bound`] for a `dimension/@ref` value.
+fn dimension_bound(reference: &str) -> Option<CellRange> {
+    let (first, last) = reference.split_once(':')?;
+    let (first, last) = (CellIndex::parse(first).ok()?, CellIndex::parse(last).ok()?);
+    let plain = reference.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b':');
+    (plain && first.row <= last.row && first.col <= last.col).then_some(CellRange { first, last })
+}
+
+/// [`Worksheet::stored_extent`] from the sheet index.
+fn stored_extent(index: &SheetIndex, part: &str) -> Result<Option<CellRange>> {
+    let rows = index.target_rows(part)?;
+    let mut columns: Option<(u32, u32)> = None;
+    for row in rows {
+        for &(column, _) in index.target_cells(row, part)? {
+            columns = Some(columns.map_or((column, column), |(low, high)| (low.min(column), high.max(column))));
+        }
+    }
+    // Rows are indexed in ascending order.
+    let (Some((low, high)), Some(top), Some(bottom)) = (columns, rows.first(), rows.last()) else {
+        return Ok(None);
+    };
+    Ok(Some(CellRange {
+        first: CellIndex { row: top.row - 1, col: low },
+        last: CellIndex { row: bottom.row - 1, col: high },
+    }))
+}
+
 /// The target-cell half of an edit's plan (ADR-0003 §3.1; Phase0 review
 /// round 2, N1: plan → validate → apply).
 #[derive(Clone, Debug)]
@@ -241,7 +296,7 @@ pub(crate) struct TargetPlan {
 /// ooxml-core's non-mutating `check_insert_at` (O(1), no scan of the rows).
 pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str, at: CellIndex, op: &CellOp) -> Result<TargetPlan> {
     let text = match op {
-        CellOp::Number(t) | CellOp::Text(t) | CellOp::Formula(t) | CellOp::DynamicFormula(t, _) => Some(t.as_str()),
+        CellOp::Number(t) | CellOp::Date(t) | CellOp::Text(t) | CellOp::Formula(t, _) | CellOp::DynamicFormula(t, _) | CellOp::ArrayFormula(t, ..) | CellOp::SharedFormula(t, ..) => Some(t.as_str()),
         CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) | CellOp::StyleOnly | CellOp::InlineRich(_) => None,
     };
     if let Some(t) = text
@@ -273,9 +328,9 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
     }
     let ws = sml::WorksheetView(doc.lens::<sml::Worksheet>()?);
     let new_child = match op {
-        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
+        CellOp::Number(_) | CellOp::Date(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => Some(sml::CellValue::QNAME),
         CellOp::Text(_) | CellOp::InlineRich(_) => Some(sml::InlineString::QNAME),
-        CellOp::Formula(_) | CellOp::DynamicFormula(..) => Some(sml::CellFormula::QNAME),
+        CellOp::Formula(..) | CellOp::DynamicFormula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => Some(sml::CellFormula::QNAME),
         CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue | CellOp::StyleOnly => None,
     };
     match ws.sheet_data() {
@@ -295,8 +350,11 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
                         // (duplicates included), then inserts the new one
                         let gone = [sml::CellFormula::QNAME, sml::CellValue::QNAME, sml::InlineString::QNAME];
                         if let Some(q) = new_child {
-                            let kept = c.elements().filter(|n| !gone.iter().any(|g| n.is(*g)));
-                            check_insertable::<sml::Cell>(kept, q)?;
+                            let kept = || c.elements().filter(|n| !gone.iter().any(|g| n.is(*g)));
+                            check_insertable::<sml::Cell>(kept(), q)?;
+                            if matches!(op, CellOp::Formula(_, Some(_)) | CellOp::ArrayFormula(_, _, _, Some(_)) | CellOp::SharedFormula(_, _, _, Some(_))) {
+                                check_insertable::<sml::Cell>(kept(), sml::CellValue::QNAME)?;
+                            }
                         }
                     }
                 }
@@ -313,7 +371,21 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
                     r.unwrap_or_default()
                 )));
             };
-            (!range.contains(at)).then(|| range.union(at).to_string())
+            let mut expanded = range.union(at);
+            if let CellOp::ArrayFormula(_, array, ..) = op {
+                expanded = expanded.union(array.last);
+            }
+            // A `ref` that is not a read bound (a single cell such as `A1`
+            // from writers that do not track the extent) grows over the
+            // stored data too: from the written cell alone it would become
+            // a bound that hides the other cells from readers.
+            if expanded != range
+                && r.and_then(dimension_bound).is_none()
+                && let Some(stored) = stored_extent(index, part)?
+            {
+                expanded = expanded.union(stored.first).union(stored.last);
+            }
+            (expanded != range).then(|| expanded.to_string())
         }
     };
     Ok(TargetPlan { loc, dimension, style: None })
@@ -326,8 +398,8 @@ pub(crate) fn plan_target(doc: &mut XmlDocument, index: &SheetIndex, part: &str,
 fn reusable(c: &RawNode, op: &CellOp) -> Option<usize> {
     let first = |q: QName| c.indexed_elements().find(|(_, n)| n.is(q)).map(|(i, _)| i);
     match op {
-        CellOp::Number(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => first(sml::CellValue::QNAME),
-        CellOp::Formula(_) | CellOp::DynamicFormula(..) => first(sml::CellFormula::QNAME),
+        CellOp::Number(_) | CellOp::Date(_) | CellOp::Shared(_) | CellOp::Bool(_) | CellOp::Error(_) => first(sml::CellValue::QNAME),
+        CellOp::Formula(..) | CellOp::DynamicFormula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => first(sml::CellFormula::QNAME),
         CellOp::Text(_) => first(sml::InlineString::QNAME).filter(|&i| {
             let is = c.children()[i].as_element().expect("element");
             let mut kids = is.elements();
@@ -398,8 +470,12 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
         }
         let reused = reuse.is_some();
         match op {
-            CellOp::Number(text) => {
-                c.remove_data_type()?;
+            CellOp::Number(text) | CellOp::Date(text) => {
+                if matches!(op, CellOp::Date(_)) {
+                    c.set_data_type(CellValues::Date)?;
+                } else {
+                    c.remove_data_type()?;
+                }
                 match c.cell_value_mut() {
                     Some(mut v) if reused => v.set_text(text)?,
                     _ => c.get_or_insert_cell_value()?.set_text(text)?,
@@ -417,8 +493,8 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     crate::registry::strings::build_run(&mut is.0, r)?;
                 }
             }
-            CellOp::Formula(text) | CellOp::DynamicFormula(text, _) => {
-                if let CellOp::DynamicFormula(_, cm) = op {
+            CellOp::Formula(text, _) | CellOp::DynamicFormula(text, _) | CellOp::ArrayFormula(text, ..) | CellOp::SharedFormula(text, ..) => {
+                if let CellOp::ArrayFormula(_, _, Some(cm), _) | CellOp::DynamicFormula(_, cm) = op {
                     c.set_cell_meta_index(*cm)?;
                 }
                 c.remove_data_type()?;
@@ -438,11 +514,26 @@ pub(crate) fn write_cell(doc: &mut XmlDocument, plan: &TargetPlan, at: CellIndex
                     f.remove_calculate_cell()?;
                     f.remove_bx()?;
                 }
+                if let CellOp::ArrayFormula(_, range, ..) = op {
+                    f.set_formula_type(sml::CellFormulaValues::Array)?;
+                    f.set_reference(&range.to_string())?;
+                }
                 if matches!(op, CellOp::DynamicFormula(..)) {
                     f.set_formula_type(sml::CellFormulaValues::Array)?;
                     f.set_reference(&at.to_string())?;
                 }
+                if let CellOp::SharedFormula(_, si, range, _) = op {
+                    f.set_formula_type(sml::CellFormulaValues::Shared)?;
+                    f.set_shared_index(*si)?;
+                    if let Some(range) = range {
+                        f.set_reference(&range.to_string())?;
+                    }
+                }
                 f.set_text(text)?;
+                if let CellOp::Formula(_, Some((kind, value))) | CellOp::ArrayFormula(_, _, _, Some((kind, value))) | CellOp::SharedFormula(_, _, _, Some((kind, value))) = op {
+                    c.set_data_type(*kind)?;
+                    c.get_or_insert_cell_value()?.set_text(value)?;
+                }
             }
             CellOp::RemoveFormula | CellOp::Clear | CellOp::ClearValue => {
                 c.remove_data_type()?;
@@ -496,7 +587,51 @@ impl WriteEffect {
 
 impl<'wb> Worksheet<'wb> {
     pub(crate) fn new(wb: &'wb mut Workbook, sheet: usize) -> Self {
-        Self { wb, sheet }
+        Self { wb, sheet, workbook_view_id: 0 }
+    }
+
+    /// Removes physically empty, unstyled cell elements at the given coordinates.
+    ///
+    /// Cells with children or additional attributes are retained.
+    pub fn prune_empty_cells(&mut self, positions: &[CellIndex]) -> Result<()> {
+        if positions.is_empty() {
+            return Ok(());
+        }
+        self.wb.check_editable()?;
+        let sheet = self.sheet;
+        let part = self.part_name().to_owned();
+        self.wb.ensure_index(sheet)?;
+        let doc = self.wb.pkg.xml_part(&part)?;
+        let index = self.wb.indexes.get(&sheet).expect("built");
+        let mut remove = Vec::new();
+        for &at in positions {
+            let loc = locate(doc, index, &part, at)?;
+            let Some(cell) = located_cell(doc, &loc) else { continue };
+            if cell.children().is_empty() && cell.attrs().iter().all(|attr| {
+                let name = attr.name();
+                name.ns().is_empty() && (name.local() == "r" ||
+                    (name.local() == "s" && ooxml_core::value::parse_u32(attr.value()) == Some(0)))
+            }) {
+                remove.push((loc.row.expect("located cell row"), loc.cell.expect("located cell"), at.row + 1, at.col));
+            }
+        }
+        if remove.is_empty() {
+            return Ok(());
+        }
+        remove.sort_unstable();
+        remove.dedup();
+        self.wb.poisoning(|workbook| {
+            let doc = workbook.pkg.xml_part_mut(&part)?;
+            let mut worksheet = doc.lens_mut::<sml::Worksheet>()?;
+            let index = workbook.indexes.get_mut(&sheet).expect("built");
+            for (row, cell, row_no, col) in remove.into_iter().rev() {
+                let mut row = worksheet.child_mut::<sml::SheetData>().expect("located")
+                    .into_child_at::<sml::Row>(row).expect("located");
+                row.remove_at(cell);
+                index.cell_removed(row_no, col, cell);
+            }
+            Ok(())
+        })
     }
 
     /// The sheet's name.
@@ -519,8 +654,57 @@ impl<'wb> Worksheet<'wb> {
 
     /// A read view of a `c` node (its lens is rooted at the cell: reads
     /// never look at ancestors).
-    fn cell_ref<'s>(&'s self, c: &'s RawNode) -> Result<CellRef<'s>> {
-        Ok(CellRef { view: sml::CellView(ooxml_core::Lens::root(c)?), sst: self.wb.shared_strings.as_deref(), workbook: self.wb })
+    fn cell_ref<'s>(&'s self, c: &'s RawNode, at: CellIndex) -> Result<CellRef<'s>> {
+        Ok(CellRef {
+            at,
+            view: sml::CellView(ooxml_core::Lens::root(c)?),
+            sst: self.wb.shared_strings.as_deref(),
+            workbook: self.wb,
+        })
+    }
+
+    /// The declared worksheet autofilter range, if present.
+    pub fn autofilter_range(&self) -> Option<&str> {
+        self.doc().root().elements()
+            .find(|node| node.is(sml::AutoFilter::QNAME))
+            .and_then(|node| node.attr(QName::new("", "ref")))
+    }
+
+    /// Returns the height in points, hidden flag, and outline level of a zero-based row.
+    pub fn row_layout(&self, row: u32) -> Result<(Option<f64>, bool, u32)> {
+        let Some(node) = self.row_node(row)? else { return Ok((None, false, 0)) };
+        let height = node.attr(ooxml_core::QName::new("", "ht"))
+            .and_then(ooxml_core::value::parse_f64);
+        let hidden = node.attr(ooxml_core::QName::new("", "hidden"))
+            .and_then(ooxml_core::value::parse_bool).unwrap_or(false);
+        let outline = node.attr(QName::new("", "outlineLevel"))
+            .and_then(ooxml_core::value::parse_u32).unwrap_or(0);
+        Ok((height, hidden, outline))
+    }
+
+    fn row_node(&self, row: u32) -> Result<Option<&RawNode>> {
+        CellIndex::new(row, 0)?;
+        let rows = self.index().target_rows(self.part_name())?;
+        let Ok(entry) = rows.binary_search_by_key(&(row + 1), |entry| entry.row) else {
+            return Ok(None);
+        };
+        let node = sheet_data(self.doc())
+            .and_then(|data| data.children()[rows[entry].item].as_element())
+            .expect("indexed row");
+        Ok(Some(node))
+    }
+
+    /// Reads the explicit default format of a row.
+    pub fn row_style_index(&self, row: u32) -> Result<Option<u32>> {
+        Ok(self.row_node(row)?.and_then(|node| {
+            let custom = node.attr(QName::new("", "customFormat")).and_then(ooxml_core::value::parse_bool);
+            (custom == Some(true)).then(|| node.attr(QName::new("", "s")).and_then(ooxml_core::value::parse_u32).unwrap_or(0))
+        }))
+    }
+
+    /// The one-based row numbers stored in the worksheet, in document order.
+    pub fn row_numbers(&self) -> Result<impl Iterator<Item = u32> + '_> {
+        Ok(self.index().target_rows(self.part_name())?.iter().map(|row| row.row))
     }
 
     /// Every existing cell, in document order (row by row, left to right):
@@ -529,11 +713,17 @@ impl<'wb> Worksheet<'wb> {
     /// iteration continues; a sheet-level problem (a `row` without `r`, rows
     /// out of order, `mc:AlternateContent` around rows) yields one error.
     pub fn cells(&self) -> impl Iterator<Item = Result<CellRef<'_>>> + '_ {
+        self.cells_before_row(u32::MAX)
+    }
+
+    /// Reads stored cells with zero-based row indices below `end`.
+    /// Sheet-level errors still apply. Individual cells in later rows are not opened.
+    pub fn cells_before_row(&self, end: u32) -> impl Iterator<Item = Result<CellRef<'_>>> + '_ {
         let part = self.part_name();
         let index = self.index();
         let sd = sheet_data(self.doc());
         let rows: Vec<Result<&crate::index::RowEntry>> = match index.target_rows(part) {
-            Ok(rows) => rows.iter().map(Ok).collect(),
+            Ok(rows) => rows[..rows.partition_point(|row| row.row <= end)].iter().map(Ok).collect(),
             Err(e) => vec![Err(e)],
         };
         rows.into_iter().flat_map(move |r| -> Box<dyn Iterator<Item = Result<CellRef<'_>>> + '_> {
@@ -546,13 +736,13 @@ impl<'wb> Worksheet<'wb> {
                 Err(err) => return Box::new(std::iter::once(Err(err))),
             };
             let row = sd.and_then(|sd| sd.children()[e.item].as_element()).expect("indexed row");
-            Box::new(cells.iter().map(move |&(_, ci)| {
+            Box::new(cells.iter().map(move |&(col, ci)| {
                 let c = row.children()[ci].as_element().expect("indexed cell");
                 refuse_alternate_content(c, sml::Cell::QNAME)?;
                 for is in c.elements().filter(|n| n.is(sml::InlineString::QNAME)) {
                     refuse_alternate_content(is, sml::InlineString::QNAME)?;
                 }
-                self.cell_ref(c)
+                self.cell_ref(c, CellIndex { row: e.row - 1, col })
             }))
         })
     }
@@ -567,7 +757,7 @@ impl<'wb> Worksheet<'wb> {
         let doc = self.doc();
         let loc = locate(doc, self.index(), self.part_name(), at)?;
         let Some(c) = located_cell(doc, &loc) else { return Ok(None) };
-        Ok(Some(self.cell_ref(c)?))
+        Ok(Some(self.cell_ref(c, at)?))
     }
 
     /// Reads a cell by A1 reference.
@@ -646,8 +836,19 @@ pub enum CellWrite<'a> {
     Number(f64),
     /// As [`CellMut::set_string`].
     String(&'a str),
+    /// As [`CellMut::set_iso_date`].
+    IsoDate(&'a str),
+    /// As [`CellMut::set_error`].
+    Error(&'a str),
+    /// As [`CellMut::set_bool`].
+    Bool(bool),
+    /// Clears the value and formula while keeping the cell style.
+    /// An absent target becomes a blank cell.
+    Clear,
     /// As [`CellMut::set_formula`] (file form; one leading `=` is dropped).
     Formula(&'a str),
+    /// As [`CellMut::set_formula_with_result`].
+    FormulaWithResult(&'a str, &'a CellValue),
     /// As [`CellMut::remove_formula`].
     RemoveFormula,
     /// As [`CellMut::clear_value`].
@@ -655,6 +856,23 @@ pub enum CellWrite<'a> {
 }
 
 impl<'wb> Worksheet<'wb> {
+    /// Reads the original XML fragment inside a rich-text cell or shared-string item.
+    pub fn rich_text_xml(&self, row: u32, column: u32) -> Result<Option<String>> {
+        let Some(cell) = self.cell(row, column)? else { return Ok(None) };
+        let source = match cell.data_type() {
+            EnumValue::Known(CellValues::InlineString) => cell.raw().elements()
+                .find(|node| node.is(sml::InlineString::QNAME)).map(|node| (self.doc(), node)),
+            EnumValue::Known(CellValues::SharedString) => cell.shared_string_source()?,
+            _ => None,
+        };
+        let Some((document, node)) = source else { return Ok(None) };
+        if document.is_dirty() || !node.elements().any(|child| child.is(QName::new(crate::SML_NS, "r"))) {
+            return Ok(None);
+        }
+        let Some(span) = node.span() else { return Ok(None) };
+        Ok(span.close.and_then(|(end, _)| document.source().get(span.open_end..end)).map(str::to_owned))
+    }
+
     /// Writes several cells as **one** edit (ADR-0003 addendum P5-pre): every
     /// guard is checked for every cell before anything changes, so either
     /// all cells are written or none (`Err`, nothing changed). Dependents of
@@ -675,12 +893,32 @@ impl<'wb> Worksheet<'wb> {
 
     fn write_cells_inner(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()> {
         self.wb.check_editable()?;
+        let ops = self.prepare_cell_writes(writes)?;
+        self.wb.write_with_headers(ops)
+    }
+
+    /// Writes cell contents together with optional explicit style indexes.
+    pub fn write_cells_with_styles(
+        &mut self, writes: &[(CellIndex, CellWrite<'_>)], styles: &[Option<u32>],
+    ) -> Result<()> {
+        if writes.len() != styles.len() {
+            return Err(Error::Malformed("expected one style slot per cell write".into()));
+        }
+        self.wb.check_editable()?;
+        let mut ops = self.prepare_cell_writes(writes)?;
+        for ((_, _, _, extra), style) in ops.iter_mut().zip(styles) {
+            extra.style = style.map(crate::registry::styles::StyleRequest::Index);
+        }
+        self.wb.write_with_headers(ops)
+    }
+
+    pub(crate) fn prepare_cell_writes(&mut self, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<Vec<crate::tables::Write>> {
         let mut ops = Vec::with_capacity(writes.len());
         for &(at, w) in writes {
             let (op, extra) = self.wb.plan_write_value(at, w)?;
             ops.push((self.sheet, at, op, extra));
         }
-        self.wb.write_with_headers(ops)
+        Ok(ops)
     }
 }
 
@@ -703,9 +941,20 @@ impl Workbook {
             }
             CellWrite::String(s) => self.plan_string_write(s)?,
             CellWrite::Formula(t) => (
-                CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+                CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned(), None),
                 Default::default(),
             ),
+            CellWrite::FormulaWithResult(text, result) => (
+                CellOp::Formula(
+                    text.strip_prefix('=').unwrap_or(text).to_owned(),
+                    crate::dynamic::formula_cache(at, result.clone())?,
+                ),
+                Default::default(),
+            ),
+            CellWrite::IsoDate(value) => (crate::setters::iso_date_op(at, value)?, Default::default()),
+            CellWrite::Error(value) => (CellOp::Error(crate::setters::error_value(at, value)?), Default::default()),
+            CellWrite::Bool(value) => (CellOp::Bool(value), Default::default()),
+            CellWrite::Clear => (CellOp::Clear, Default::default()),
             CellWrite::RemoveFormula => (CellOp::RemoveFormula, Default::default()),
             CellWrite::ClearValue => (CellOp::ClearValue, Default::default()),
         })
@@ -785,9 +1034,15 @@ impl CellMut<'_, '_> {
     /// [`Error::MissingFunctionPrefix`], [`Error::DynamicArrayOperator`];
     /// the refusals of [`Self::set_number`].
     pub fn set_formula(self, text: &str) -> Result<()> {
+        self.set_formula_with_result(text, CellValue::Empty)
+    }
+
+    /// Writes a formula with a caller-supplied cached result.
+    pub fn set_formula_with_result(self, text: &str, result: CellValue) -> Result<()> {
+        let cache = crate::dynamic::formula_cache(self.at, result)?;
         let text = text.strip_prefix('=').unwrap_or(text);
         let ws = &mut *self.ws;
-        ws.wb.edit_cell(ws.sheet, self.at, CellOp::Formula(text.to_owned()))
+        ws.wb.edit_cell(ws.sheet, self.at, CellOp::Formula(text.to_owned(), cache))
     }
 
     /// Removes the cell's formula and its cached value (`f`, `v`, `t`, `is`);
@@ -812,6 +1067,360 @@ impl CellMut<'_, '_> {
     pub fn clear_value(self) -> Result<()> {
         let ws = &mut *self.ws;
         ws.wb.edit_cell(ws.sheet, self.at, CellOp::ClearValue)
+    }
+}
+
+impl Worksheet<'_> {
+    /// Clears an exact one-row static array formula and its stored results.
+    /// Styles remain, and normal dependent-cache invalidation applies.
+    pub fn clear_static_array_row(&mut self, range: CellRange) -> Result<()> {
+        self.wb.clear_static_array_row(self.sheet, range)
+    }
+
+    /// Clears the exact master and member columns of a one-row shared formula.
+    pub fn clear_shared_formula_row(&mut self, master: CellIndex, columns: &[u32]) -> Result<()> {
+        self.wb.clear_shared_formula_row(self.sheet, master, columns)
+    }
+
+    /// The declared worksheet extent, if present and valid.
+    pub fn declared_range(&self) -> Option<CellRange> {
+        self.doc()
+            .root()
+            .elements()
+            .find(|node| node.name().ns() == crate::SML_NS && node.name().local() == "dimension")
+            .and_then(|node| node.attr(QName::new("", "ref")))
+            .and_then(|reference| CellRange::parse(reference).ok())
+    }
+
+    /// The declared extent when it can bound reads: `dimension/@ref` written
+    /// as `first:last` in upper case without `$`, with `first` above and left of `last`.
+    /// A single-cell `ref` (`A1`, which writers that do not track the extent
+    /// emit whatever the data), a reversed, absolute or invalid one, or no
+    /// `dimension` at all is not a bound; readers then derive the extent from
+    /// the stored rows and cells ([`Worksheet::stored_extent`]).
+    pub fn declared_bound(&self) -> Option<CellRange> {
+        self.doc()
+            .root()
+            .elements()
+            .find(|node| node.name().ns() == crate::SML_NS && node.name().local() == "dimension")
+            .and_then(|node| node.attr(QName::new("", "ref")))
+            .and_then(dimension_bound)
+    }
+
+    /// The extent of the stored worksheet data: every `row` element (with or
+    /// without cells) and every stored cell, empty ones included. `None` when
+    /// the sheet stores no cell. One pass over the row and cell index.
+    pub fn stored_extent(&self) -> Result<Option<CellRange>> {
+        stored_extent(self.index(), self.part_name())
+    }
+
+    /// Lists array formula anchors with their result ranges, text and spill metadata.
+    pub fn array_formulas(&self) -> Vec<(CellIndex, CellRange, String, bool)> {
+        self.wb.census.alive()
+            .filter(|(_, formula)| formula.sheet == self.sheet && formula.kind == crate::census::FKind::Array)
+            .filter_map(|(_, formula)| Some((formula.at, formula.range?, formula.text.clone(), formula.dynamic)))
+            .collect()
+    }
+
+    /// Returns the formula text and result range for an array anchor.
+    pub fn array_formula_at(&self, at: CellIndex) -> Option<(&str, CellRange)> {
+        let census = &self.wb.census;
+        let formula = census.get(census.at(self.sheet, at)?)?;
+        if formula.kind != crate::census::FKind::Array {
+            return None;
+        }
+        Some((&formula.text, formula.range?))
+    }
+
+    /// Writes an entire shared formula group in row-major order, with its optional cached results.
+    pub fn set_shared_formula(&mut self, range: CellRange, text: &str, results: Vec<CellValue>) -> Result<()> {
+        self.wb.check_editable()?;
+        let first = range.first;
+        let last = range.last;
+        CellIndex::new(last.row, last.col)?;
+        if !range.contains(first) {
+            return Err(Error::Malformed("invalid shared formula range".into()));
+        }
+        let rows = (last.row - first.row + 1) as usize;
+        let cols = (last.col - first.col + 1) as usize;
+        if rows.checked_mul(cols) != Some(results.len()) {
+            return Err(Error::Malformed("shared formula results must cover the range".into()));
+        }
+        let cells = results.into_iter().enumerate().map(|(index, value)| {
+            (CellIndex { row: first.row + (index / cols) as u32, col: first.col + (index % cols) as u32 }, value)
+        });
+        self.write_shared_formula_cells(range, text, cells)
+    }
+
+    /// Writes a one-row shared group, keeping columns without members sparse.
+    pub fn set_sparse_shared_formula_row(
+        &mut self, range: CellRange, text: &str, master: CellValue, members: Vec<(u32, CellValue)>,
+    ) -> Result<()> {
+        self.wb.check_editable()?;
+        CellIndex::new(range.last.row, range.last.col)?;
+        if range.first.row != range.last.row || !range.contains(range.first) ||
+            members.iter().any(|(col, _)| *col <= range.first.col || *col > range.last.col)
+        {
+            return Err(Error::Malformed("invalid sparse shared formula range".into()));
+        }
+        let cells = std::iter::once((range.first, master)).chain(members.into_iter().map(|(col, value)| {
+            (CellIndex { row: range.first.row, col }, value)
+        }));
+        self.write_shared_formula_cells(range, text, cells)
+    }
+
+    fn write_shared_formula_cells(
+        &mut self, range: CellRange, text: &str, cells: impl Iterator<Item = (CellIndex, CellValue)>,
+    ) -> Result<()> {
+        let si = self.next_shared_formula_index()?;
+        let text = text.strip_prefix('=').unwrap_or(text);
+        let mut writes = Vec::with_capacity(cells.size_hint().0);
+        for (at, value) in cells {
+            let master = at == range.first;
+            if !master && self.translate_shared_formula(text, range.first, at).is_none() {
+                return Err(Error::SharedFormulaMaster { cell: at.to_string(), reason: "formula cannot be translated".into() });
+            }
+            let (expression, reference) = if master { (text.to_owned(), Some(range)) } else { (String::new(), None) };
+            let cache = crate::dynamic::formula_cache(at, value)?;
+            writes.push((self.sheet, at, CellOp::SharedFormula(expression, si, reference, cache), crate::edit::Extra::default()));
+        }
+        let plan = self.wb.plan_writes(writes)?;
+        self.wb.apply_writes(plan)
+    }
+
+    fn next_shared_formula_index(&self) -> Result<u32> {
+        use crate::census::FKind;
+        self.wb.census.alive()
+            .filter(|(_, formula)| formula.sheet == self.sheet)
+            .filter_map(|(_, formula)| match formula.kind { FKind::Shared { si, .. } => Some(si), _ => None })
+            .max()
+            .map_or(Some(0), |si| si.checked_add(1))
+            .ok_or_else(|| Error::Malformed("shared formula indexes exhausted".into()))
+    }
+
+    /// Creates a shared formula master without changing other cells in its range.
+    pub fn set_shared_formula_master(&mut self, range: CellRange, text: &str, result: CellValue) -> Result<()> {
+        use crate::census::FKind;
+        let at = range.first;
+        CellIndex::new(range.last.row, range.last.col)?;
+        if !range.contains(at) {
+            return Err(Error::Malformed("invalid shared formula range".into()));
+        }
+        let census = &self.wb.census;
+        if census.at(self.sheet, at).and_then(|id| census.get(id))
+            .is_some_and(|formula| matches!(formula.kind, FKind::Shared { master: true, .. }))
+        {
+            return Err(Error::SharedFormulaMaster {
+                cell: at.to_string(),
+                reason: "replace the shared group together with its members".into(),
+            });
+        }
+        let si = self.next_shared_formula_index()?;
+        let text = text.strip_prefix('=').unwrap_or(text).to_owned();
+        let cache = crate::dynamic::formula_cache(at, result)?;
+        let op = CellOp::SharedFormula(text, si, Some(range), cache);
+        let plan = self.wb.plan_writes(vec![(self.sheet, at, op, crate::edit::Extra::default())])?;
+        self.wb.apply_writes(plan)
+    }
+
+    /// Assigns a shared formula follower within an existing master's declared range.
+    pub fn set_shared_formula_member(&mut self, at: CellIndex, master: CellIndex, result: CellValue) -> Result<()> {
+        use crate::census::FKind;
+        let census = &self.wb.census;
+        let source = census.at(self.sheet, master).and_then(|id| census.get(id));
+        let invalid = || Error::SharedFormulaMaster {
+            cell: at.to_string(),
+            reason: format!("expected an unambiguous shared master at {master} whose range contains the cell"),
+        };
+        let Some(source) = source else { return Err(invalid()) };
+        let FKind::Shared { si, master: true } = source.kind else { return Err(invalid()) };
+        if at == master || source.ambiguous_group || !source.range.is_some_and(|range| range.contains(at)) {
+            return Err(invalid());
+        }
+        if self.translate_shared_formula(&source.text, master, at).is_none() {
+            return Err(Error::SharedFormulaMaster { cell: at.to_string(), reason: "formula cannot be translated".into() });
+        }
+        let cache = crate::dynamic::formula_cache(at, result)?;
+        let op = CellOp::SharedFormula(String::new(), si, None, cache);
+        let plan = self.wb.plan_writes(vec![(self.sheet, at, op, crate::edit::Extra::default())])?;
+        self.wb.apply_writes(plan)
+    }
+
+    /// Returns the master address, range and expression for a shared formula cell.
+    pub fn shared_formula_at(&self, at: CellIndex) -> Option<(CellIndex, CellRange, &str)> {
+        let census = &self.wb.census;
+        let formula = census.get(census.at(self.sheet, at)?)?;
+        let crate::census::FKind::Shared { si, master } = formula.kind else { return None };
+        if formula.ambiguous_group {
+            return None;
+        }
+        let source = if master { formula } else { census.get(census.master_of(self.sheet, si)?)? };
+        let range = source.range?;
+        range.contains(at).then_some((source.at, range, &source.text))
+    }
+
+    /// Expands a shared formula at its requested member coordinate.
+    pub fn translate_shared_formula(&self, text: &str, from: CellIndex, to: CellIndex) -> Option<String> {
+        let dr = i64::from(to.row) - i64::from(from.row);
+        let dc = i64::from(to.col) - i64::from(from.col);
+        crate::formula::translate::translate(text, dr, dc, &|name| self.wb.env.is_name(name)).ok()
+    }
+
+    /// Whether the coordinate is a non-anchor cell of an array formula.
+    pub fn is_array_result_cell(&self, at: CellIndex) -> bool {
+        let census = &self.wb.census;
+        census.result_anchor(self.sheet, at)
+            .and_then(|id| census.get(id))
+            .is_some_and(|formula| formula.kind == crate::census::FKind::Array)
+    }
+
+    /// Merged, array-formula and data-table ranges that a scalar-only
+    /// adapter must guard, including coordinates without stored cell nodes.
+    pub fn non_scalar_ranges(&self) -> Result<Vec<CellRange>> {
+        if let Some(block) = &self.wb.census.block {
+            return Err(block.to_error());
+        }
+        let mut ranges = self.merged_ranges();
+        let mut merge_parts = 0;
+        let mut merge_entries = 0;
+        for child in self.doc().root().elements() {
+            if child.is(sml::MergeCells::QNAME) {
+                merge_parts += 1;
+                refuse_alternate_content(child, sml::MergeCells::QNAME)?;
+                merge_entries += child.elements().filter(|item| item.is(sml::MergeCell::QNAME)).count();
+            } else if child.is(MC_ALTERNATE_CONTENT) {
+                let mut branch: Vec<_> = child.elements().collect();
+                while let Some(node) = branch.pop() {
+                    if node.is(sml::MergeCells::QNAME) || node.is(sml::MergeCell::QNAME) {
+                        return Err(ooxml_core::Error::UnresolvedSibling(sml::Worksheet::QNAME).into());
+                    }
+                    branch.extend(node.elements());
+                }
+            }
+        }
+        if merge_parts > 1 || merge_entries != ranges.len() {
+            return Err(Error::Malformed(format!("{}: incomplete merge ranges", self.part_name())));
+        }
+        ranges.extend(self.formula_result_ranges()?);
+        Ok(ranges)
+    }
+
+    /// Array-formula and data-table result ranges: the coordinates whose
+    /// value is owned by a multi-cell formula. Unlike
+    /// [`Self::non_scalar_ranges`], merged ranges are not included, since a
+    /// cell inside a merge still stores its own scalar value.
+    pub fn formula_result_ranges(&self) -> Result<Vec<CellRange>> {
+        if let Some(block) = &self.wb.census.block {
+            return Err(block.to_error());
+        }
+        let mut ranges = Vec::new();
+        for (_, formula) in self.wb.census.alive().filter(|(_, f)| f.sheet == self.sheet) {
+            if let Some(range) = formula.result_range() {
+                ranges.push(range);
+            } else if matches!(formula.kind, crate::census::FKind::Array | crate::census::FKind::DataTable) {
+                return Err(Error::Malformed(format!(
+                    "{}: formula at {} has no recognized result range",
+                    self.part_name(),
+                    formula.at
+                )));
+            }
+        }
+        Ok(ranges)
+    }
+}
+
+impl CellRef<'_> {
+    fn shared_string_entry(&self) -> Result<Option<&RawNode>> {
+        Ok(self.shared_string_source()?.map(|(_, node)| node))
+    }
+
+    fn shared_string_source(&self) -> Result<Option<(&XmlDocument, &RawNode)>> {
+        let Some(index) = self.view.cell_value() else { return Ok(None) };
+        let index = ooxml_core::value::parse_u32(&index.text())
+            .ok_or_else(|| Error::Malformed("invalid shared string index".into()))?;
+        // One cached index per package generation: O(1) per cell (the
+        // former per-cell relationship parse and `nth` scan was quadratic).
+        let entry = self.workbook.shared_string_items()?
+            .and_then(|items| items.get(index).map(|node| (items.document, node)))
+            .ok_or_else(|| Error::Malformed("shared string representation unavailable".into()))?;
+        Ok(Some(entry))
+    }
+
+    /// Reads inline or shared rich text and its run fonts.
+    pub fn rich_text(&self) -> Result<Vec<crate::RichTextRun>> {
+        let Some(node) = self.rich_text_node()? else { return Ok(Vec::new()) };
+        crate::registry::read::rich_text_runs(node)
+    }
+
+    /// Like [`Self::rich_text`], but each run font is read as written: name
+    /// and size may be absent, and `outline` / `shadow` are accepted
+    /// (see [`crate::DeclaredFont`]).
+    pub fn declared_rich_text(&self) -> Result<Vec<(String, Option<crate::DeclaredFont>)>> {
+        let Some(node) = self.rich_text_node()? else { return Ok(Vec::new()) };
+        crate::registry::read::declared_rich_text_runs(node)
+    }
+
+    fn rich_text_node(&self) -> Result<Option<&RawNode>> {
+        Ok(match self.data_type() {
+            EnumValue::Known(CellValues::InlineString) => self.raw().elements().find(|node| node.is(sml::InlineString::QNAME)),
+            EnumValue::Known(CellValues::SharedString) => self.shared_string_entry()?,
+            _ => None,
+        })
+    }
+
+    /// Whether the stored representation carries formula, rich text or cell
+    /// metadata that cannot be faithfully represented by a scalar alone.
+    pub fn has_non_scalar_content(&self) -> Result<bool> {
+        self.has_complex_content(false)
+    }
+
+    /// Like scalar classification, but allows ordinary error cells.
+    pub fn has_complex_content(&self, allow_error: bool) -> Result<bool> {
+        self.has_complex_content_with_dates(allow_error, false)
+    }
+
+    /// Like [`Self::has_complex_content`], but phonetic guide data (`rPh`
+    /// runs, `phoneticPr`) on a string without rich runs is not complex: the
+    /// value reads as the base text, as ExcelJS 4.4.0 reads a shared string.
+    /// The phonetic XML stays in its `si`/`is` unless the cell is rewritten.
+    pub fn has_complex_value(&self, allow_error: bool) -> Result<bool> {
+        self.complex_content(allow_error, false, true)
+    }
+
+    pub(crate) fn has_complex_content_with_dates(&self, allow_error: bool, allow_date: bool) -> Result<bool> {
+        self.complex_content(allow_error, allow_date, false)
+    }
+
+    fn complex_content(&self, allow_error: bool, allow_date: bool, allow_phonetic: bool) -> Result<bool> {
+        let node = self.raw();
+        if self.view.cell_formula().is_some()
+            || node.attr(QName::new("", "vm")).is_some()
+            || node.attr(QName::new("", "cm")).is_some()
+        {
+            return Ok(true);
+        }
+
+        let has_runs = |node: &RawNode| {
+            node.elements().any(|child| {
+                child.name().ns() == crate::SML_NS
+                    && match child.name().local() {
+                        "r" => true,
+                        "rPh" | "phoneticPr" => !allow_phonetic,
+                        _ => false,
+                    }
+            })
+        };
+        match self.data_type() {
+            EnumValue::Known(CellValues::Error) => Ok(!allow_error),
+            EnumValue::Known(CellValues::Date) => Ok(!allow_date),
+            EnumValue::Known(CellValues::InlineString) => {
+                Ok(self.view.inline_string().is_some_and(|inline| has_runs(inline.raw())))
+            }
+            EnumValue::Known(CellValues::SharedString) => {
+                Ok(self.shared_string_entry()?.is_some_and(has_runs))
+            }
+            _ => Ok(false),
+        }
     }
 }
 
@@ -873,6 +1482,52 @@ mod tests {
             agree::<sml::Worksheet, sml::SheetData>("worksheet", &s);
         }
         assert!(ok.0 > 10 && ok.1 > 10, "both outcomes exercised: {ok:?}");
+    }
+
+    #[test]
+    fn read_views_expose_indexed_coordinates() {
+        let mut book = crate::Workbook::new().unwrap();
+        let mut sheet = book.worksheet_by_name("Sheet1").unwrap();
+        for (row, col) in [(2, 7), (4, 1), (4, 27)] {
+            sheet.cell_mut(row, col).unwrap().set_number(1.0).unwrap();
+        }
+        let coordinates: Vec<_> = sheet
+            .cells()
+            .map(|cell| {
+                let cell = cell.unwrap();
+                let at = cell.index();
+                assert_eq!(cell.reference(), at.to_string());
+                assert_eq!(sheet.cell(at.row, at.col).unwrap().unwrap().index(), at);
+                (at.row, at.col)
+            })
+            .collect();
+        assert_eq!(coordinates, [(2, 7), (4, 1), (4, 27)]);
+        let prefix: Vec<_> = sheet
+            .cells_before_row(3)
+            .map(|cell| cell.unwrap().index())
+            .collect();
+        assert_eq!(prefix.len(), 1);
+        assert_eq!((prefix[0].row, prefix[0].col), (2, 7));
+        assert_eq!(sheet.cells_before_row(0).count(), 0);
+    }
+
+    #[test]
+    fn formula_result_ranges_exclude_merges() {
+        use crate::CellRange;
+        let mut book = crate::Workbook::new().unwrap();
+        let mut sheet = book.worksheet_by_name("Sheet1").unwrap();
+        let anchor = CellRange::parse("A1:B1").unwrap().first;
+        sheet.cell_mut(anchor.row, anchor.col).unwrap().set_string("merged").unwrap();
+        sheet.merge("A1:B1").unwrap();
+        let array = CellRange::parse("D1:D2").unwrap();
+        sheet.cell_mut(array.first.row, array.first.col).unwrap()
+            .set_array_formula("1+2", array, false).unwrap();
+        let bytes = book.to_bytes().unwrap();
+        let mut reopened = crate::Workbook::from_bytes(bytes).unwrap();
+        let sheet = reopened.worksheet_by_name("Sheet1").unwrap();
+        let merged = CellRange::parse("A1:B1").unwrap();
+        assert_eq!(sheet.formula_result_ranges().unwrap(), [array]);
+        assert_eq!(sheet.non_scalar_ranges().unwrap(), [merged, array]);
     }
 
     #[test]

@@ -5,10 +5,10 @@ mod threads;
 mod vml;
 mod xml;
 
-pub use notes::Note;
+pub use notes::{Note, NoteBox, NoteEditAs};
 pub use threads::{Comment, Person, PersonId};
 
-use ooxml_core::{NsDecl, PartNameRequest, RegistryPlan, RegistryRefusal, XmlDocument};
+use ooxml_core::{ElementSpec, NsDecl, PartNameRequest, RegistryPlan, RegistryRefusal, XmlDocument};
 use ooxml_schema::sml;
 
 use crate::images::{REL_VML, part_error, record_shape};
@@ -21,23 +21,188 @@ const NOTES_TYPE: &str = "application/vnd.openxmlformats-officedocument.spreadsh
 const REL_NS: [NsDecl<'static>; 1] = [NsDecl::new("r", xml::RID.ns)];
 
 enum Operation<'a> {
-    Add(Note),
+    Add(&'a [Note]),
+    ReplaceLegacy(&'a [Note]),
     SetText(&'a str),
+    SetRuns(&'a [crate::RichTextRun], Option<&'a NoteBox>),
     RemoveNote,
     AddThread(Comment),
     Reply(Comment),
     RemoveThread,
 }
 
+/// Rich text runs with fonts as written (see [`crate::DeclaredFont`]).
+type DeclaredRuns = Vec<(String, Option<crate::DeclaredFont>)>;
+
+/// A legacy note as stored, for readers that report its markup (SheetJS `r`
+/// and `h`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct NoteSource {
+    /// The cell the note belongs to.
+    pub at: CellIndex,
+    /// The author name (empty without a valid `authorId`).
+    pub author: String,
+    /// The note text, as [`Worksheet::note_text`] reads it.
+    pub text: String,
+    /// The XML inside the note's `text` element as stored; `None` without one.
+    pub text_xml: Option<String>,
+    /// The runs with fonts as written when the text is made of `r` runs;
+    /// `None` for plain text or when a run font cannot be read.
+    pub runs: Option<DeclaredRuns>,
+}
+
 impl Worksheet<'_> {
+    /// Reads the text of a legacy note, excluding threaded comment fallbacks.
+    pub fn note_text(&self, at: CellIndex) -> Result<Option<String>> {
+        self.with_legacy_note(at, notes::text)
+    }
+
+    /// Reads the text runs and supported fonts of a legacy note.
+    pub fn note_runs(&self, at: CellIndex) -> Result<Option<Vec<crate::RichTextRun>>> {
+        self.with_legacy_note(at, |note| {
+            let runs = note.elements().find(|child| child.is(sml::CommentText::QNAME))
+                .and_then(|text| crate::registry::read::rich_text_runs(text).ok())
+                .unwrap_or_default();
+            if runs.is_empty() {
+                vec![(notes::text(note), None)]
+            } else {
+                runs
+            }
+        })
+    }
+
+    /// Like [`Self::note_runs`], but each run font is read as written: name
+    /// and size may be absent, and `outline` / `shadow` are accepted
+    /// (see [`crate::DeclaredFont`]).
+    pub fn declared_note_runs(&self, at: CellIndex) -> Result<Option<DeclaredRuns>> {
+        self.with_legacy_note(at, |note| {
+            let runs = note.elements().find(|child| child.is(sml::CommentText::QNAME))
+                .and_then(|text| crate::registry::read::declared_rich_text_runs(text).ok())
+                .unwrap_or_default();
+            if runs.is_empty() {
+                vec![(notes::text(note), None)]
+            } else {
+                runs
+            }
+        })
+    }
+
+    /// Reads the explicitly stored box options of a legacy note.
+    pub fn note_box_fields(&mut self, at: CellIndex) -> Result<Vec<String>> {
+        CellIndex::new(at.row, at.col)?;
+        let sheet = self.part_name().to_owned();
+        let Some((part, doc)) = vml::read(&mut self.wb.pkg, &sheet)? else { return Ok(Vec::new()) };
+        Ok(vml::note_shape(&part, &doc, at)?.map(vml::note_box_fields).unwrap_or_default())
+    }
+
+    fn with_legacy_note<T>(&self, at: CellIndex, read: impl FnOnce(&ooxml_core::RawNode) -> T) -> Result<Option<T>> {
+        CellIndex::new(at.row, at.col)?;
+        let sheet = self.part_name();
+        let pkg = &self.wb.pkg;
+        let Some(part) = xml::target(pkg, sheet, REL_NOTES)? else { return Ok(None) };
+        if let Some((part, doc)) = threads::read(pkg, sheet)?
+            && !threads::at(&part, &doc, at)?.is_empty()
+        {
+            return Ok(None);
+        }
+        let doc = xml::read(pkg, &part, notes::ROOT)?;
+        let notes = notes::Notes::new(&doc, &part)?;
+        Ok(notes.at(at)?.map(read))
+    }
+
+    /// Lists legacy note coordinates without decoding authors or text.
+    pub fn note_positions(&self) -> Result<Vec<CellIndex>> {
+        self.collect_legacy_notes(|notes| notes.positions().map(|at| (at, at)).collect())
+    }
+
+    /// Lists legacy note coordinates, authors and text in document order.
+    pub fn cell_notes(&self) -> Result<Vec<(CellIndex, String, String)>> {
+        self.collect_legacy_notes(|notes| notes.entries(None).map(|entry| (entry.0, entry)).collect())
+    }
+
+    /// Lists legacy notes in document order with their stored `text` markup
+    /// and declared run fonts (see [`NoteSource`]).
+    pub fn note_sources(&self) -> Result<Vec<NoteSource>> {
+        self.collect_legacy_notes(|notes| notes.sources().collect())
+    }
+
+    /// The visibility of each VML note shape, in document order: `true` when
+    /// its `x:ClientData` has `x:Visible`. Empty without a legacy drawing.
+    pub fn note_visibility(&mut self) -> Result<Vec<(CellIndex, bool)>> {
+        let sheet = self.part_name().to_owned();
+        let Some((_, doc)) = vml::read(&mut self.wb.pkg, &sheet)? else { return Ok(Vec::new()) };
+        Ok(vml::note_visibility(&doc))
+    }
+
+    /// Lists legacy notes on one zero-based row in document order.
+    pub fn row_notes(&self, row: u32) -> Result<Vec<(CellIndex, String, String)>> {
+        self.collect_legacy_notes(|notes| notes.entries(Some(row)).map(|entry| (entry.0, entry)).collect())
+    }
+
+    /// Lists legacy note coordinates on one zero-based row.
+    pub fn row_note_positions(&self, row: u32) -> Result<Vec<CellIndex>> {
+        self.collect_legacy_notes(|notes| notes.positions().filter(|at| at.row == row).map(|at| (at, at)).collect())
+    }
+
+    fn collect_legacy_notes<T>(&self, entries: impl FnOnce(&notes::Notes<'_>) -> Vec<(CellIndex, T)>) -> Result<Vec<T>> {
+        let sheet = self.part_name();
+        let pkg = &self.wb.pkg;
+        let Some(part) = xml::target(pkg, sheet, REL_NOTES)? else { return Ok(Vec::new()) };
+        let doc = xml::read(pkg, &part, notes::ROOT)?;
+        let notes = notes::Notes::new(&doc, &part)?;
+        let thread = threads::read(pkg, sheet)?;
+        let entries = entries(&notes);
+        let Some((part, doc)) = thread else {
+            return Ok(entries.into_iter().map(|(_, value)| value).collect());
+        };
+        let mut legacy = Vec::with_capacity(entries.len());
+        for (at, value) in entries {
+            if threads::at(&part, &doc, at)?.is_empty() {
+                legacy.push(value);
+            }
+        }
+        Ok(legacy)
+    }
+
     /// Adds a legacy note to a cell that has no note or thread.
     pub fn add_note(&mut self, at: CellIndex, note: Note) -> Result<()> {
-        self.edit_comments(at, Operation::Add(note))
+        self.add_legacy_notes(at, std::slice::from_ref(&note))
+    }
+
+    /// Adds legacy notes at the same cell in order, with a shared VML shape.
+    /// The first note controls the shape. Refuses cells with an existing note or thread.
+    pub fn add_legacy_notes(&mut self, at: CellIndex, notes: &[Note]) -> Result<()> {
+        let Some(first) = notes.first() else {
+            return Ok(());
+        };
+        if let Some(settings) = &first.box_settings {
+            settings.validate()?;
+        }
+        self.edit_comments(at, Operation::Add(notes))
+    }
+
+    /// Replaces all legacy comments at a cell, retaining its existing VML shape.
+    pub fn replace_legacy_notes(&mut self, at: CellIndex, notes: &[Note]) -> Result<()> {
+        if let Some(settings) = notes.first().and_then(|note| note.box_settings.as_ref()) {
+            settings.validate()?;
+        }
+        self.edit_comments(at, Operation::ReplaceLegacy(notes))
     }
 
     /// Replaces a legacy note's text while preserving its author and VML shape.
     pub fn set_note_text(&mut self, at: CellIndex, text: &str) -> Result<()> {
         self.edit_comments(at, Operation::SetText(text))
+    }
+
+    /// Replaces the rich text while preserving the note author and VML shape.
+    pub fn set_note_runs(&mut self, at: CellIndex, runs: &[crate::RichTextRun]) -> Result<()> {
+        self.edit_comments(at, Operation::SetRuns(runs, None))
+    }
+
+    /// Replaces the note text and explicit VML box options.
+    pub fn set_note_model(&mut self, at: CellIndex, runs: &[crate::RichTextRun], settings: &NoteBox) -> Result<()> {
+        settings.validate()?;
+        self.edit_comments(at, Operation::SetRuns(runs, Some(settings)))
     }
 
     /// Removes a legacy note and its matching VML shape.
@@ -76,7 +241,7 @@ impl Worksheet<'_> {
         if is_thread
             && matches!(
                 operation,
-                Operation::SetText(_) | Operation::RemoveNote | Operation::AddThread(_)
+                Operation::ReplaceLegacy(_) | Operation::SetText(_) | Operation::SetRuns(..) | Operation::RemoveNote | Operation::AddThread(_)
             )
         {
             return Err(Error::ThreadedComment);
@@ -92,24 +257,50 @@ impl Worksheet<'_> {
             XmlDocument::parse(notes::EMPTY.as_bytes())?
         };
         let notes = notes::Notes::new(&doc, notes_part.as_deref().unwrap_or(&sheet))?;
-        let current = notes.at(at)?;
+        let current = if matches!(operation, Operation::ReplaceLegacy(_)) {
+            None
+        } else {
+            notes.at(at)?
+        };
         let mut added = None;
+        let mut updated_box = None;
         let mut remove_note_shape = false;
         let mut thread_markup = None;
         let mut new_guid = None;
         let mut remove_thread = false;
         let note_edits = match operation {
-            Operation::Add(note) => {
+            Operation::Add(new_notes) => {
                 if is_thread && current.is_none() {
                     return Err(Error::ThreadedComment);
                 }
-                let edits = notes.append(at, &note, None)?;
-                added = Some(vml::append(wb, &sheet, legacy.as_ref(), at, note.visible)?);
+                let edits = notes.append_all(at, new_notes, None)?;
+                let note = &new_notes[0];
+                added = Some(vml::append(wb, &sheet, legacy.as_ref(), at, note.visible, note.box_settings.as_ref())?);
+                edits
+            }
+            Operation::ReplaceLegacy(new_notes) => {
+                let (edits, had_notes) = notes.replace_all(at, new_notes)?;
+                match (had_notes, new_notes.first()) {
+                    (false, None) => return Ok(()),
+                    (false, Some(note)) => {
+                        added = Some(vml::append(wb, &sheet, legacy.as_ref(), at, note.visible, note.box_settings.as_ref())?);
+                    }
+                    (true, None) => remove_note_shape = true,
+                    (true, Some(_)) => {}
+                }
                 edits
             }
             Operation::SetText(text) => {
                 let current = current.ok_or(Error::NoSuchNote)?;
                 vec![notes.set_text(current, text)?]
+            }
+            Operation::SetRuns(runs, settings) => {
+                let current = current.ok_or(Error::NoSuchNote)?;
+                if let Some(settings) = settings {
+                    let (part, doc) = legacy.as_ref().ok_or_else(|| part_error(&sheet, "missing VML note drawing"))?;
+                    updated_box = Some((part, doc, vml::update_note_box(part, doc, at, settings)?));
+                }
+                vec![notes.set_runs(current, runs)?]
             }
             Operation::RemoveNote => {
                 let current = current.ok_or(Error::NoSuchNote)?;
@@ -126,7 +317,7 @@ impl Worksheet<'_> {
                     Note::new(format!("{}{text}", threads::FALLBACK, text = comment.text))
                         .author(format!("tc={id}"));
                 let edits = notes.append(at, &fallback, Some(&id))?;
-                added = Some(vml::append(wb, &sheet, legacy.as_ref(), at, false)?);
+                added = Some(vml::append(wb, &sheet, legacy.as_ref(), at, false, None)?);
                 thread_markup = Some(markup);
                 new_guid = Some(id);
                 edits
@@ -245,6 +436,10 @@ impl Worksheet<'_> {
                     xml::stage(pkg, &mut plan, part, doc, edits)?;
                 }
             }
+        }
+        if let Some((part, doc, edits)) = updated_box {
+            xml::require_owner(pkg, part, &sheet)?;
+            xml::stage(pkg, &mut plan, part, doc, edits)?;
         }
         let retired: Vec<_> = if let Some((part, doc, node)) = removed {
             xml::require_owner(pkg, part, &sheet)?;

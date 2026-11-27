@@ -44,7 +44,7 @@ fn is_opc_metadata(name: &str) -> bool {
 const CFB_MAGIC: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
 /// The state of one part.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum PartState {
     /// Never parsed; raw-copied on save.
     Raw,
@@ -153,7 +153,7 @@ pub enum PartStateKind {
     Replaced,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Part {
     name: String,
     /// Index of the original zip entry (meaningless for an added part).
@@ -188,6 +188,24 @@ pub struct Package {
 }
 
 impl Package {
+    /// Creates an independent editing candidate from the current package state.
+    ///
+    /// The original ZIP bytes are shared. Parsed parts and staged edits are
+    /// copied, and registry plans belong to their original package only.
+    pub fn fork(&self) -> Self {
+        Self {
+            archive: self.archive.clone(),
+            parts: self.parts.clone(),
+            content_types: self.content_types.clone(),
+            package_rels: self.package_rels.clone(),
+            parse_options: self.parse_options,
+            id: add::new_package_id(),
+            generation: self.generation,
+            removed_names: self.removed_names.clone(),
+            removed_rel_ids: self.removed_rel_ids.clone(),
+        }
+    }
+
     /// Opens a package file. The whole file is read into memory first.
     ///
     /// Errors: [`Error::EncryptedPackage`] for an OLE/CFB file,
@@ -290,6 +308,18 @@ impl Package {
     /// Part (zip entry) names in original order.
     pub fn part_names(&self) -> impl Iterator<Item = &str> {
         self.parts.iter().map(|p| p.name.as_str())
+    }
+
+    /// Original ZIP modification time as year, month, day, hour, minute and second.
+    pub fn part_modified(&self, name: &str) -> Option<[u16; 6]> {
+        let part = self.get(name).ok()?;
+        if part.detached {
+            return None;
+        }
+        let mut archive = self.archive.clone();
+        let time = archive.by_index_raw(part.index).ok()?.last_modified()?;
+        Some([time.year(), time.month().into(), time.day().into(), time.hour().into(),
+            time.minute().into(), time.second().into()])
     }
 
     /// The stored zip entry name for an OPC-equivalent part name, if present.
@@ -512,6 +542,11 @@ impl Package {
         Ok((plan, RemovedPart { relationships: removed.relationships, content_type_override: removed.overrides > 0 }))
     }
 
+    /// Revision of the package contents, for invalidating derived read caches.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
     /// Every change to the package goes through here: a registry plan made
     /// before it is stale (review of PR #38 m2).
     fn touch(&mut self) {
@@ -582,24 +617,48 @@ impl Package {
     /// Writes the package. `Raw` and dirty-free `Parsed` parts are
     /// raw-copied; part order is preserved.
     pub fn write_to<W: Write + Seek>(&self, writer: W) -> Result<W> {
+        self.write_with_compression(writer, None, None)
+    }
+
+    fn write_with_compression<W: Write + Seek>(
+        &self, writer: W, compression: Option<CompressionMethod>, deflate_level: Option<i64>,
+    ) -> Result<W> {
         let mut zw = ZipWriter::new(writer);
         let mut archive = self.archive.clone();
         for part in &self.parts {
-            let fresh: Option<Vec<u8>> = match &part.state {
-                PartState::Raw => None,
-                PartState::Parsed(d) if !d.is_dirty() && !part.detached => None,
+            let directory = part.name.ends_with('/');
+            let requested = compression.map(|method| if directory { CompressionMethod::Stored } else { method });
+            let rewrite_raw = requested.is_some_and(|method| {
+                method != part.compression || (method == CompressionMethod::Deflated && deflate_level.is_some())
+            });
+            let fresh = match &part.state {
+                PartState::Raw => rewrite_raw.then(|| self.read_original(part)).transpose()?,
+                PartState::Parsed(d) if !d.is_dirty() && !part.detached =>
+                    rewrite_raw.then(|| self.read_original(part)).transpose()?,
                 PartState::Parsed(d) => Some(d.serialize().into_bytes()),
                 PartState::Replaced(b) => Some(b.clone()),
             };
             match fresh {
                 None => zw.raw_copy_file(archive.by_index_raw(part.index)?)?,
                 Some(bytes) => {
-                    let method = match part.compression {
+                    let method = requested.unwrap_or(match part.compression {
                         CompressionMethod::Stored => CompressionMethod::Stored,
                         _ => CompressionMethod::Deflated,
+                    });
+                    let options = if requested.is_some() && !part.detached {
+                        archive.by_index_raw(part.index)?.options()
+                    } else {
+                        SimpleFileOptions::default()
                     };
-                    zw.start_file(part.name.as_str(), SimpleFileOptions::default().compression_method(method))?;
-                    zw.write_all(&bytes)?;
+                    let options = options
+                        .compression_method(method)
+                        .compression_level(deflate_level.filter(|_| method == CompressionMethod::Deflated));
+                    if requested.is_some() && directory && bytes.is_empty() {
+                        zw.add_directory(part.name.as_str(), options)?;
+                    } else {
+                        zw.start_file(part.name.as_str(), options)?;
+                        zw.write_all(&bytes)?;
+                    }
                 }
             }
         }
@@ -609,6 +668,20 @@ impl Package {
     /// Serializes the package to bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         Ok(self.write_to(Cursor::new(Vec::new()))?.into_inner())
+    }
+
+    /// Serializes the complete package using DEFLATE or uncompressed storage.
+    /// Entries already using the requested method can retain their raw bytes.
+    pub fn to_bytes_with_compression(&self, compressed: bool) -> Result<Vec<u8>> {
+        let method = if compressed { CompressionMethod::Deflated } else { CompressionMethod::Stored };
+        Ok(self.write_with_compression(Cursor::new(Vec::new()), Some(method), None)?.into_inner())
+    }
+
+    /// Serializes each file using DEFLATE at the requested compression level.
+    pub fn to_bytes_with_deflate_level(&self, level: u8) -> Result<Vec<u8>> {
+        Ok(self.write_with_compression(
+            Cursor::new(Vec::new()), Some(CompressionMethod::Deflated), Some(i64::from(level)),
+        )?.into_inner())
     }
 
     /// Saves atomically: writes a temporary file next to `path`, syncs it,
@@ -625,10 +698,11 @@ impl Package {
         };
         let (tmp, file) = create_temp(&dir, &file_name.to_string_lossy())?;
         let result = (|| -> Result<()> {
-            let writer = self.write_to(BufWriter::new(file))?;
-            let file = writer.into_inner().map_err(|e| Error::Io(e.into_error()))?;
-            file.sync_all()?;
-            drop(file);
+            {
+                let writer = self.write_to(BufWriter::new(file))?;
+                let file = writer.into_inner().map_err(|e| Error::Io(e.into_error()))?;
+                file.sync_all()?;
+            }
             fs::rename(&tmp, path)?;
             Ok(())
         })();

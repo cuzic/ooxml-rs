@@ -317,7 +317,7 @@ pub(crate) fn plan_call(wb: &mut Workbook, at: CellIndex, call: &CellCall) -> Re
             )
         }
         Formula(t) => (
-            CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+            CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned(), None),
             Extra::default(),
         ),
         RemoveFormula => (CellOp::RemoveFormula, Extra::default()),
@@ -335,7 +335,7 @@ pub(crate) fn plan_call(wb: &mut Workbook, at: CellIndex, call: &CellCall) -> Re
             (op, extra)
         }
         FormulaWithFormat(t, f) => (
-            CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned()),
+            CellOp::Formula(t.strip_prefix('=').unwrap_or(t).to_owned(), None),
             format(f),
         ),
         DateTimeWithFormat(d, f) => {

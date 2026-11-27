@@ -77,6 +77,94 @@ pub(crate) fn color_from_node(e: &RawNode) -> Option<Color> {
 
 /// A `font` entry, or `None` when it has anything a [`Font`] cannot express.
 pub(crate) fn font_from_node(n: &RawNode) -> Option<Font> {
+    read_font(n, false)
+}
+
+/// Bit set in [`DeclaredFont::fields`] when the element writes `name` or `rFont`.
+pub const DECLARED_FONT_NAME: u8 = 1;
+/// Bit set in [`DeclaredFont::fields`] when the element writes `sz`.
+pub const DECLARED_FONT_SIZE: u8 = 2;
+/// Bit set in [`DeclaredFont::fields`] when the element contains `outline`.
+pub const DECLARED_FONT_OUTLINE: u8 = 4;
+/// Bit set in [`DeclaredFont::fields`] when the element contains `shadow`.
+pub const DECLARED_FONT_SHADOW: u8 = 8;
+/// Bit set in [`DeclaredFont::fields`] when the element contains `condense`.
+pub const DECLARED_FONT_CONDENSE: u8 = 16;
+/// Bit set in [`DeclaredFont::fields`] when the element contains `extend`.
+pub const DECLARED_FONT_EXTEND: u8 = 32;
+
+/// A `font` (or run-property) element read as written. Unlike the
+/// [`Format`] projection it does not require `name` and `sz`: a missing
+/// field keeps the [`Font`] default, and [`Self::fields`] records which of
+/// the two the element declared ([`DECLARED_FONT_NAME`], [`DECLARED_FONT_SIZE`]).
+/// The other bits mark elements whose mere presence a reader may report
+/// (`outline`, `shadow`, `condense`, `extend`), whatever their `val`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeclaredFont {
+    pub font: Font,
+    pub fields: u8,
+}
+
+/// The [`DECLARED_FONT_NAME`] / [`DECLARED_FONT_SIZE`] bits of a font element.
+pub(crate) fn declared_font_fields(n: &RawNode) -> u8 {
+    n.elements()
+        .filter(|field| field.name().ns() == crate::SML_NS)
+        .fold(0, |flags, field| flags | match field.name().local() {
+            "name" | "rFont" => DECLARED_FONT_NAME,
+            "sz" => DECLARED_FONT_SIZE,
+            "condense" => DECLARED_FONT_CONDENSE,
+            "extend" => DECLARED_FONT_EXTEND,
+            _ => 0,
+        })
+}
+
+/// A `font` element as written, or `None` when it has anything a [`Font`]
+/// cannot express.
+pub(crate) fn declared_font_from_node(n: &RawNode) -> Option<DeclaredFont> {
+    let mut fields = declared_font_fields(n);
+    let font = read_font_with(n, true, Some(&mut fields))?;
+    Some(DeclaredFont { font, fields })
+}
+
+/// Rich text runs whose fonts are read as written ([`DeclaredFont`]).
+pub(crate) fn declared_rich_text_runs(node: &RawNode) -> crate::Result<Vec<(String, Option<DeclaredFont>)>> {
+    let namespace = crate::SML_NS;
+    node.elements().filter(|run| run.is(QName::new(namespace, "r"))).map(|run| {
+        let text = run.elements().find(|child| child.is(QName::new(namespace, "t")))
+            .map(|text| crate::escape::decode(&text.text()).into_owned()).unwrap_or_default();
+        let font = run.elements().find(|child| child.is(QName::new(namespace, "rPr")))
+            .map(|font| declared_font_from_node(font)
+                .ok_or_else(|| crate::Error::NotExpressible("rich text run font".into())))
+            .transpose()?;
+        Ok((text, font))
+    }).collect()
+}
+
+pub(crate) fn rich_text_runs(node: &RawNode) -> crate::Result<Vec<crate::RichTextRun>> {
+    let namespace = crate::SML_NS;
+    node.elements().filter(|run| run.is(QName::new(namespace, "r"))).map(|run| {
+        let text = run.elements().find(|child| child.is(QName::new(namespace, "t")))
+            .map(|text| crate::escape::decode(&text.text()).into_owned()).unwrap_or_default();
+        let font = run.elements().find(|child| child.is(QName::new(namespace, "rPr")))
+            .map(|font| run_font_from_node(font)
+                .ok_or_else(|| crate::Error::NotExpressible("rich text run font".into())))
+            .transpose()?;
+        Ok((text, font))
+    }).collect()
+}
+
+pub(crate) fn run_font_from_node(n: &RawNode) -> Option<Font> {
+    read_font(n, true)
+}
+
+fn read_font(n: &RawNode, run: bool) -> Option<Font> {
+    read_font_with(n, run, None)
+}
+
+/// Reads a font. With `presence`, `outline` and `shadow` (which a [`Font`]
+/// cannot store) are accepted and recorded there as declared-field bits;
+/// without it they make the font inexpressible.
+fn read_font_with(n: &RawNode, run: bool, mut presence: Option<&mut u8>) -> Option<Font> {
     if !n.attrs().is_empty() {
         return None;
     }
@@ -125,20 +213,68 @@ pub(crate) fn font_from_node(n: &RawNode) -> Option<Font> {
                 f.size = FontSize::new(val(e)?.trim().parse().ok()?)?;
                 has_size = true;
             }
-            "name" if only(e) => f.name = val(e)?,
+            "name" | "rFont" if only(e) => f.name = val(e)?,
             "family" if only(e) => f.family = Some(val(e)?.trim().parse().ok()?),
             "scheme" if only(e) => f.scheme = Some(val(e)?),
             "color" => f.color = Some(color_from_node(e)?),
+            "outline" | "shadow" if only(e) => {
+                let bit = if e.name().local() == "outline" { DECLARED_FONT_OUTLINE } else { DECLARED_FONT_SHADOW };
+                *presence.as_deref_mut()? |= bit;
+            }
             _ => return None,
         }
     }
-    (!f.name.is_empty() && has_size).then_some(f)
+    (run || (!f.name.is_empty() && has_size)).then_some(f)
 }
 
-/// A `fill` entry: a pattern fill (`gradientFill` is outside the model).
+/// A pattern or gradient fill entry.
+fn gradient_from_node(node: &RawNode) -> Result<Fill, String> {
+    use super::format::Gradient;
+    let number = |element: &RawNode, key: &'static str, fallback: Option<f64>| -> Result<f64, String> {
+        match element.attr(QName::new("", key)) {
+            Some(value) => value.parse().map_err(|_| format!("invalid gradient {key}")),
+            None => fallback.ok_or_else(|| format!("missing gradient {key}")),
+        }
+    };
+    let fraction = |element, key, fallback| {
+        Tint::new(number(element, key, fallback)?).ok_or_else(|| format!("invalid gradient {key}"))
+    };
+    let geometry = match node.attr(QName::new("", "type")) {
+        None | Some("linear") => {
+            let degree = number(node, "degree", Some(0.0))?;
+            if !degree.is_finite() || !(0.0..360.0).contains(&degree) || degree.fract() != 0.0 {
+                return Err("unsupported gradient angle".into());
+            }
+            Gradient::Angle(degree as u16)
+        }
+        Some("path") => Gradient::Path {
+            left: fraction(node, "left", Some(0.0))?, top: fraction(node, "top", Some(0.0))?,
+            right: fraction(node, "right", Some(0.0))?, bottom: fraction(node, "bottom", Some(0.0))?,
+        },
+        _ => return Err("unsupported gradient geometry".into()),
+    };
+    let stops = node.elements().map(|stop| {
+        if !stop.is(QName::new(crate::SML_NS, "stop")) {
+            return Err("unexpected gradient child".into());
+        }
+        let mut children = stop.elements();
+        let stop_color = children.next().filter(|node| node.is(QName::new(crate::SML_NS, "color")))
+            .and_then(color_from_node).ok_or("invalid gradient color")?;
+        if children.next().is_some() {
+            return Err("unexpected gradient stop child".into());
+        }
+        Ok((fraction(stop, "position", None)?, stop_color))
+    }).collect::<Result<Vec<_>, String>>()?;
+    Ok(Fill::Gradient { geometry, stops })
+}
+
+/// A `fill` entry: a pattern or gradient fill.
 pub(crate) fn fill_from_node(n: &RawNode) -> Result<Fill, String> {
     let mut kids = n.elements();
     let (Some(pf), None) = (kids.next(), kids.next()) else { return Err("fill".into()) };
+    if pf.is(QName::new(crate::SML_NS, "gradientFill")) {
+        return gradient_from_node(pf);
+    }
     if !pf.is(sml::PatternFill::QNAME) {
         return Err(format!("fill: {}", pf.name().local()));
     }

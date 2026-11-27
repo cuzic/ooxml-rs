@@ -1080,3 +1080,44 @@ type attribute and the shared-string reference count when applicable.
 
 - Microsoft 365 Excel (16.0.20326) opens and preserves two sparkline groups targeting the same cell when saved.
 - Phase3 rename and delete return `UnrewritableReference` for a sheet referenced by a sparkline's `xm:f`.
+
+### Post-acceptance note — explicit array ranges
+
+`CellMut::set_array_formula` writes an uncached array anchor with an explicit
+result range. The range starts at the target cell. Dynamic arrays register
+XLDAPR cell metadata. The write preserves stored values under the other cells
+in the range and refuses overlap with merged cells, other array or data-table
+ranges, and formulas at non-anchor positions. When a sheet dimension is
+present, it grows to include the full array range. Stored values under a
+static array, or in a dynamic array's spill range, do not refuse the write:
+Excel recomputes on open and shows #SPILL! for a blocked spill, and the
+saved file itself is valid (PR #170 review round 1, m1).
+
+`CellMut::set_array_formula_with_result` also accepts a caller-provided
+number, string, boolean, or standard Excel error and writes the cache with
+the formula in the same transaction. Dependency edits can invalidate the
+cache through the ordinary formula census.
+
+`Workbook::fill_of_style_including_default` reads the referenced fill,
+including the fill at index zero, for style projection by the browser
+adapter.
+
+
+`Workbook::theme_colors` reads sRGB palette entries and system color
+fallbacks from the workbook's DrawingML theme in SpreadsheetML index order.
+
+`CellMut::set_formula_with_result` writes ordinary formulas with a
+caller-supplied cache using the same validation and dependency
+invalidation as array anchors.
+
+### Post-acceptance note — shared formula group writes
+
+`Worksheet::set_shared_formula` writes a whole group (master plus members)
+in one batch with a fresh worksheet-local shared index, `set_shared_formula_master`
+creates a lone master, and `set_shared_formula_member` adds a follower inside
+an existing unambiguous master's declared range. Rewriting every cell of an
+existing group replaces it without a hand-off; any other write to a group
+follows the existing shared-master rules (ADR-0003 §4.2). A master's declared
+range may cover other formula cells (members of another group, an array);
+reads resolve each cell through the census and Excel opens the result, so this
+is allowed and recorded here rather than refused (PR #170 review round 1, m2).

@@ -24,15 +24,23 @@ use crate::workbook::{CalcPolicy, REL_CALC_CHAIN, Workbook};
 use crate::index::{Located, SheetIndex, located_cell, sheet_data};
 use crate::worksheet::{TargetPlan, locate, plan_target, write_cell};
 
+pub(crate) type FormulaCache = Option<(sml::CellValues, String)>;
+
 /// What a setter writes into the target cell.
 #[derive(Clone, Debug)]
 pub(crate) enum CellOp {
     /// `<v>` text of a number.
     Number(String),
+    /// Explicit UTC ISO 8601 date text (`t="d"`).
+    Date(String),
     /// Inline-string text, already `_xHHHH_`-escaped.
     Text(String),
     /// Formula text, without `=`.
-    Formula(String),
+    Formula(String, FormulaCache),
+    ArrayFormula(String, CellRange, Option<u32>, FormulaCache),
+    SharedFormula(String, u32, Option<CellRange>, FormulaCache),
+    /// Uncached dynamic array (ADR-0024 C1 plan entry; the Journal path).
+    /// [`CellOp::ArrayFormula`] with `Some(cm)` is the cached form.
     DynamicFormula(String, u32),
     RemoveFormula,
     /// Removes the value and formula (`v`, `is`, `f`, `t`) of an existing
@@ -64,6 +72,12 @@ pub(crate) struct Extra {
     pub(crate) style: Option<StyleRequest>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ClearingFormulaGroup {
+    StaticArray(usize, CellIndex),
+    Shared(usize, u32),
+}
+
 /// What the apply phase installs in the registries.
 #[derive(Debug, Default)]
 pub(crate) struct RegistryApply {
@@ -72,6 +86,7 @@ pub(crate) struct RegistryApply {
     pub(crate) refs_delta: i64,
     pub(crate) refs_changed: bool,
     styles: Option<StylePlan>,
+    patched_styles: HashMap<(usize, u32), (std::sync::Arc<crate::Format>, u32)>,
 }
 
 /// The cells an edit invalidates.
@@ -268,8 +283,8 @@ fn report_write(
     // dropping either conjunct is natural
     let state_same = content_same && style_same;
     // `write_cell` keeps unknown attributes/children and `cm`/`vm` on every
-    // path but `DynamicFormula` (which sets `cm`): audit V2
-    let node_same = !matches!(w.op, CellOp::DynamicFormula(..));
+    // path but the `cm`-setting ones (audit V2)
+    let node_same = !matches!(w.op, CellOp::DynamicFormula(..) | CellOp::ArrayFormula(_, _, Some(_), _));
     Ok(TargetReport {
         sheet: w.sheet,
         at: w.at,
@@ -366,8 +381,10 @@ fn content_style_same(
         // a plain `f` with text `t`: same text, normal kind, no `f`
         // attributes. `cm` is not compared (`write_cell` keeps it, so it is
         // trivially the same). A shared member's own text therefore differs
-        // (its `t`/`si` attributes), so it applies and splits as sequentially
-        CellOp::Formula(t) => {
+        // (its `t`/`si` attributes), so it applies and splits as sequentially.
+        // A caller-supplied cache is never skipped: skipping would drop the
+        // cache write (the Journal only plans uncached formulas).
+        CellOp::Formula(t, cache) => {
             let plain = FormulaState {
                 text: t.clone(),
                 t: "normal".into(),
@@ -384,10 +401,15 @@ fn content_style_same(
                 r2: None,
                 other: Vec::new(),
             };
-            matches!(&state.content, Content::Formula { f, .. } if f == &plain)
+            cache.is_none() && matches!(&state.content, Content::Formula { f, .. } if f == &plain)
         }
         // C3: never skipped (metadata-block identity is not compared)
         CellOp::DynamicFormula(..) => false,
+        // New writers the Journal never plans (browser adapters): never
+        // skipped, so a future plan input cannot silently drop them. These
+        // arms are currently unreachable from journal/op.rs::plan_call, which
+        // maps no call to these ops; they exist as fail-safe defaults.
+        CellOp::Date(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => false,
         // C4: a target has a formula; removing `f` and the cache always changes content
         CellOp::RemoveFormula => false,
         // removes nothing from an already empty cell
@@ -428,17 +450,58 @@ fn xml_char_ok(c: char) -> bool {
     matches!(c, '\t' | '\n' | '\r' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..)
 }
 
+pub(crate) fn validate_formula_text(text: &str) -> Result<()> {
+    let bad = |reason: String| Error::InvalidFormula { text: text.to_owned(), reason };
+    if let Some(ch) = text.chars().find(|c| !xml_char_ok(*c)) {
+        return Err(bad(format!("character U+{:04X} cannot be stored in XML", ch as u32)));
+    }
+    parse(text).map_err(|e| bad(format!("{} at byte {}", e.message, e.at)))?;
+    match crate::formula::future::check(text) {
+        Ok(()) => Ok(()),
+        Err(crate::formula::future::Refusal::MissingPrefix { name, prefix }) => Err(Error::MissingFunctionPrefix { name, prefix }),
+        Err(crate::formula::future::Refusal::Operator { operator, file_form }) => Err(Error::DynamicArrayOperator { operator, file_form }),
+    }
+}
+
 fn registry_cell_state(doc: &XmlDocument, at: CellIndex, target: &TargetPlan) -> (bool, u32) {
     match located_cell(doc, &target.loc) {
         Some(c) => (
             c.attr(sml::Cell::ATTR_T).is_some_and(|t| t.trim() == "s"),
-            c.attr(sml::Cell::ATTR_S).and_then(ooxml_core::value::parse_u32).unwrap_or(0),
+            c.attr(sml::Cell::ATTR_S).map(|value| ooxml_core::value::parse_u32(value).unwrap_or(0))
+                .unwrap_or_else(|| missing_cell_style(doc, &target.loc, at)),
         ),
         None => (false, missing_cell_style(doc, &target.loc, at)),
     }
 }
 
 impl Workbook {
+    /// Whether the workbook requests full recalculation on open.
+    pub fn full_calc_on_load(&self) -> bool {
+        self.calc.full_calc_on_load
+    }
+
+    /// Sets the workbook's recalculation-on-open flag.
+    pub fn set_full_calc_on_load(&mut self, enabled: bool) -> Result<()> {
+        self.check_editable()?;
+        if enabled == self.calc.full_calc_on_load {
+            return Ok(());
+        }
+        let part = self.workbook_part.clone();
+        self.poisoning(|wb| {
+            let doc = wb.pkg.xml_part_mut(&part)?;
+            if enabled {
+                set_full_calc_on_load(doc)?;
+            } else {
+                let mut root = doc.lens_mut::<sml::Workbook>()?;
+                if let Some(mut calc) = root.child_mut::<sml::CalculationProperties>() {
+                    calc.remove_attr(sml::CalculationProperties::ATTR_FULL_CALC_ON_LOAD)?;
+                }
+            }
+            wb.calc.full_calc_on_load = enabled;
+            Ok(())
+        })
+    }
+
     fn graph(&mut self) -> &Graph {
         if self.graph.is_none() {
             self.graph = Some(Graph::build(&self.env, &self.census));
@@ -593,7 +656,7 @@ impl Workbook {
         headers: &HashSet<(usize, CellIndex)>,
         new_table: bool,
     ) -> Result<CellWritePlan> {
-        self.plan_cell_writes(writes, headers, new_table, None, RegistryApply::default())
+        self.plan_cell_writes(writes, headers, new_table, None, RegistryApply::default(), None)
     }
 
     /// Plans writes at post-edit coordinates. With an index map, every write
@@ -611,7 +674,72 @@ impl Workbook {
         if let Some(edit) = &edit && writes.iter().any(|(sheet, ..)| *sheet != edit.sheet) {
             return Err(Error::Malformed("writes composed with a structural edit must target the edited sheet".into()));
         }
-        self.plan_cell_writes(writes, headers, false, edit, registry)
+        self.plan_cell_writes(writes, headers, false, edit, registry, None)
+    }
+
+    /// Clears the stored cells of an exact static array in one write plan.
+    pub(crate) fn clear_static_array_row(&mut self, sheet: usize, range: CellRange) -> Result<()> {
+        let exact = self.census.at(sheet, range.first).and_then(|id| self.census.get(id))
+            .is_some_and(|formula| formula.kind == FKind::Array && !formula.dynamic && formula.range == Some(range));
+        if !exact || range.first.row != range.last.row {
+            return Err(Error::ArrayAnchor { cell: range.first.to_string() });
+        }
+        let positions = self.stored_cells_in_static_array_row(sheet, range)?;
+        let writes = positions.into_iter().map(|at| (sheet, at, CellOp::Clear, Extra::default())).collect();
+        let plan = self.plan_cell_writes(writes, &HashSet::new(), false, None, RegistryApply::default(),
+            Some(ClearingFormulaGroup::StaticArray(sheet, range.first)))?;
+        self.apply_writes(plan)
+    }
+
+    /// Clears the cells of one verified shared group in one write plan.
+    pub(crate) fn clear_shared_formula_row(
+        &mut self, sheet: usize, master: CellIndex, columns: &[u32],
+    ) -> Result<()> {
+        let error = |reason: &str| Error::SharedFormulaMaster { cell: master.to_string(), reason: reason.into() };
+        let Some(formula) = self.census.at(sheet, master).and_then(|id| self.census.get(id)) else {
+            return Err(error("expected a shared formula master"));
+        };
+        let FKind::Shared { si, master: true } = formula.kind else {
+            return Err(error("expected a shared formula master"));
+        };
+        let range = formula.range.filter(|range| range.first == master && range.last.row == master.row)
+            .ok_or_else(|| error("the shared formula group must be contained in one row"))?;
+        if formula.ambiguous_group {
+            return Err(error("ambiguous shared formula group"));
+        }
+        let mut expected = columns.iter().copied().collect::<HashSet<_>>();
+        if expected.len() != columns.len() {
+            return Err(error("duplicate shared formula members"));
+        }
+        let mut positions = vec![master];
+        for (_, member) in self.census.alive().filter(|(_, cell)| cell.sheet == sheet &&
+            cell.kind == FKind::Shared { si, master: false })
+        {
+            if !range.contains(member.at) || !expected.remove(&member.at.col) {
+                return Err(error("expected every shared formula member within its range"));
+            }
+            positions.push(member.at);
+        }
+        if !expected.is_empty() {
+            return Err(error("unexpected shared formula members"));
+        }
+        let writes = positions.into_iter().map(|at| (sheet, at, CellOp::Clear, Extra::default())).collect();
+        let plan = self.plan_cell_writes(writes, &HashSet::new(), false, None, RegistryApply::default(),
+            Some(ClearingFormulaGroup::Shared(sheet, si)))?;
+        self.apply_writes(plan)
+    }
+
+    fn stored_cells_in_static_array_row(&mut self, sheet: usize, range: CellRange) -> Result<Vec<CellIndex>> {
+        self.ensure_index(sheet)?;
+        let part = self.sheets[sheet].part.as_deref().expect("worksheet has a part");
+        let index = self.indexes.get(&sheet).expect("indexed worksheet");
+        let rows = index.target_rows(part)?;
+        let position = rows.binary_search_by_key(&(range.first.row + 1), |entry| entry.row)
+            .map_err(|_| Error::Malformed(format!("{part}: array anchor row is missing")))?;
+        Ok(index.target_cells(&rows[position], part)?.iter()
+            .map(|&(col, _)| CellIndex { row: range.first.row, col })
+            .filter(|&at| range.contains(at))
+            .collect())
     }
 
     fn plan_cell_writes(
@@ -621,10 +749,27 @@ impl Workbook {
         new_table: bool,
         mut edit: Option<WriteIndexMap<'_>>,
         mut registry: RegistryApply,
+        clearing_group: Option<ClearingFormulaGroup>,
     ) -> Result<CellWritePlan> {
         self.check_editable()?;
         let staged_index = edit.as_ref().map(|edit| SheetIndex::build(edit.worksheet));
         let mut appends = registry.strings.iter().filter_map(StringPlan::reservation).collect();
+
+        // A shared group can be replaced together when all of its members
+        // receive shared formula writes. No old member then needs a hand-off.
+        let shared_targets: HashSet<_> = writes.iter()
+            .filter(|(_, _, op, _)| matches!(op, CellOp::SharedFormula(..)))
+            .map(|(sheet, at, _, _)| (*sheet, *at))
+            .collect();
+        let mut replaced_groups = HashMap::new();
+        if !shared_targets.is_empty() && edit.is_none() {
+            for (_, formula) in self.census.alive() {
+                if let FKind::Shared { si, .. } = formula.kind {
+                    let covered = !formula.ambiguous_group && shared_targets.contains(&(formula.sheet, formula.at));
+                    *replaced_groups.entry((formula.sheet, si)).or_insert(true) &= covered;
+                }
+            }
+        }
 
         let mut planned: Vec<PlannedWrite> = Vec::with_capacity(writes.len());
         let mut seen: HashSet<(usize, CellIndex)> = HashSet::new();
@@ -659,29 +804,37 @@ impl Workbook {
                 }
                 if let Some(fid) = target {
                     let c = self.census.get(fid).expect("alive");
-                    if matches!(c.kind, FKind::Array | FKind::DataTable) || c.dynamic {
+                    if (matches!(c.kind, FKind::Array | FKind::DataTable) || c.dynamic) &&
+                        clearing_group != Some(ClearingFormulaGroup::StaticArray(sheet, c.at)) {
                         return Err(Error::ArrayAnchor { cell });
                     }
                 }
                 if let Some(a) = before.and_then(|old| self.census.result_anchor(sheet, old)) {
                     let old = self.census.get(a).expect("alive").at;
-                    if let Some(anchor) = shifted.as_ref().map_or(Some(old), |edit| edit.successor(old)) {
+                    if clearing_group != Some(ClearingFormulaGroup::StaticArray(sheet, old))
+                        && let Some(anchor) = shifted.as_ref().map_or(Some(old), |edit| edit.successor(old))
+                    {
                         return Err(Error::ArrayResultCell { cell, anchor: anchor.to_string() });
                     }
                 }
-                if let CellOp::Formula(text) | CellOp::DynamicFormula(text, _) = &op {
-                    let bad = |reason: String| Error::InvalidFormula { text: text.clone(), reason };
-                    if let Some(ch) = text.chars().find(|c| !xml_char_ok(*c)) {
-                        return Err(bad(format!("character U+{:04X} cannot be stored in XML", ch as u32)));
+                if let CellOp::ArrayFormula(_, range, ..) = &op {
+                    let overlaps = |other: CellRange| {
+                        range.first.row <= other.last.row && other.first.row <= range.last.row
+                            && range.first.col <= other.last.col && other.first.col <= range.last.col
+                    };
+                    if let Some(merged) = ctx.merges.iter().find(|m| overlaps(**m)) {
+                        return Err(Error::MergedCell { cell, range: merged.to_string() });
                     }
-                    parse(text).map_err(|e| bad(format!("{} at byte {}", e.message, e.at)))?;
-                    // the file form of future functions and dynamic-array operators
-                    // (ADR-0003 addendum P5-pre, ADR-0017 Q7)
-                    match crate::formula::future::check(text) {
-                        Ok(()) => {}
-                        Err(crate::formula::future::Refusal::MissingPrefix { name, prefix }) => return Err(Error::MissingFunctionPrefix { name, prefix }),
-                        Err(crate::formula::future::Refusal::Operator { operator, file_form }) => return Err(Error::DynamicArrayOperator { operator, file_form }),
+                    if let Some((_, other)) = self.census.alive().find(|(_, f)| {
+                        f.sheet == sheet && (f.at != at && range.contains(f.at)
+                            || (matches!(f.kind, FKind::Array | FKind::DataTable) || f.dynamic)
+                                && f.range.is_some_and(overlaps))
+                    }) {
+                        return Err(Error::ArrayResultCell { cell, anchor: other.at.to_string() });
                     }
+                }
+                if let CellOp::Formula(text, _) | CellOp::DynamicFormula(text, _) | CellOp::ArrayFormula(text, ..) | CellOp::SharedFormula(text, _, Some(_), _) = &op {
+                    validate_formula_text(text)?;
                 }
                 if matches!(op, CellOp::RemoveFormula) && target.is_none() {
                     continue;
@@ -711,17 +864,23 @@ impl Workbook {
             let old_cell = registry_cell_state(doc, at, &target_plan);
             self.plan_registries(old_cell, &mut target_plan, &op, extra, &mut registry)?;
             formula_set_changes |= unshifted && match op {
-                CellOp::Formula(_) => target.is_none(),
-                CellOp::DynamicFormula(..) => true,
+                CellOp::Formula(..) => target.is_none(),
+                CellOp::DynamicFormula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..) => true,
                 _ => target.is_some(),
             };
 
             // ---- shared groups: one cell per group per batch; hand-off (§4.2) ----
             if unshifted && let Some(fid) = target {
                 let c = self.census.get(fid).expect("alive").clone();
-                if let FKind::Shared { si, master } = c.kind {
+                if let FKind::Shared { si, master } = c.kind
+                    && replaced_groups.get(&(sheet, si)) != Some(&true)
+                    && clearing_group != Some(ClearingFormulaGroup::Shared(sheet, si))
+                {
                     if master && matches!(op, CellOp::DynamicFormula(..)) {
                         return Err(Error::SharedFormulaMaster { cell, reason: "dynamic array would replace a shared formula master".into() });
+                    }
+                    if master && matches!(op, CellOp::ArrayFormula(..)) {
+                        return Err(Error::SharedFormulaMaster { cell, reason: "array would replace a shared formula master".into() });
                     }
                     if !groups.insert((sheet, si)) {
                         return Err(Error::SharedFormulaMaster {
@@ -738,6 +897,13 @@ impl Workbook {
             // ---- dependents (union) ----
             let d = if !unshifted {
                 DepSet::default()
+            } else if let CellOp::ArrayFormula(_, range, cm, _) = &op {
+                let (r2, c2) = if cm.is_some() {
+                    (MAX_ROWS - 1, MAX_COLS - 1)
+                } else {
+                    (range.last.row, range.last.col)
+                };
+                self.dependents_of_seeds(&[], vec![Rect { sheet, r1: at.row, c1: at.col, r2, c2 }])
             } else if matches!(op, CellOp::DynamicFormula(..)) {
                 self.dependents_of_seeds(&[], vec![Rect { sheet, r1: at.row, c1: at.col, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 }])
             } else if !style_only || self.style_sensitive()? {
@@ -942,18 +1108,31 @@ impl Workbook {
     /// change in `t="s"` cells. Changes nothing.
     fn plan_registries(&mut self, (old_t_s, current_s): (bool, u32), target_plan: &mut TargetPlan, op: &CellOp, extra: Extra, registry: &mut RegistryApply) -> Result<()> {
         if let Some(req) = &extra.style {
-            self.styles()?;
-            let current_plan = registry.styles.take();
-            let st = self.registries.styles.take().expect("activated");
-            let (base, staged) = match &current_plan {
-                Some(plan) => (&plan.next, plan.staged.as_ref()),
-                None => (&st, None),
+            let patch = match req {
+                StyleRequest::Patch(format) => Some(((std::sync::Arc::as_ptr(format) as usize, current_s), format)),
+                _ => None,
             };
-            let plan = base.plan(self, req, current_s, staged);
-            self.registries.styles = Some(st);
-            let plan = plan?;
-            target_plan.style = Some(plan.s);
-            registry.styles = Some(plan);
+            target_plan.style = Some(if let Some((_, index)) = patch.and_then(|(key, _)| registry.patched_styles.get(&key)) {
+                *index
+            } else {
+                self.styles()?;
+                let current_plan = registry.styles.take();
+                let st = self.registries.styles.take().expect("activated");
+                let (base, staged) = match &current_plan {
+                    Some(plan) => (&plan.next, plan.staged.as_ref()),
+                    None => (&st, None),
+                };
+                let plan = base.plan(self, req, current_s, staged);
+                self.registries.styles = Some(st);
+                let plan = plan?;
+                let index = plan.s;
+                registry.styles = Some(plan);
+                if let Some((key, format)) = patch {
+                    // Retain the allocation so its identity cannot be reused during this plan.
+                    registry.patched_styles.insert(key, (format.clone(), index));
+                }
+                index
+            });
         }
         if !matches!(op, CellOp::StyleOnly) {
             let delta = i64::from(matches!(op, CellOp::Shared(_))) - i64::from(old_t_s);
@@ -1163,24 +1342,32 @@ impl Workbook {
             return Ok(());
         }
         for w in writes {
-            if w.target.is_some() || matches!(w.op, CellOp::Formula(_) | CellOp::DynamicFormula(..)) {
+            if w.target.is_some() || matches!(w.op, CellOp::Formula(..) | CellOp::DynamicFormula(..) | CellOp::ArrayFormula(..) | CellOp::SharedFormula(..)) {
                 self.style_sensitive = None;
             }
             if let Some(fid) = w.target {
                 self.census.remove(fid);
             }
-            let dynamic = matches!(w.op, CellOp::DynamicFormula(..));
-            if let CellOp::Formula(text) | CellOp::DynamicFormula(text, _) = w.op {
+            let (text, kind, range, dynamic, has_cache) = match w.op {
+                CellOp::DynamicFormula(text, _) => (text, FKind::Array, Some(CellRange { first: w.at, last: w.at }), true, false),
+                CellOp::ArrayFormula(text, range, cm, cache) => (text, FKind::Array, Some(range), cm.is_some(), cache.is_some()),
+                CellOp::Formula(text, cache) => (text, FKind::Normal, None, false, cache.is_some()),
+                CellOp::SharedFormula(text, si, range, cache) => (
+                    text, FKind::Shared { si, master: range.is_some() }, range, false, cache.is_some(),
+                ),
+                _ => continue,
+            };
+            {
                 let c = FCell {
                     sheet: w.sheet,
                     at: w.at,
-                    kind: if dynamic { FKind::Array } else { FKind::Normal },
-                    range: dynamic.then_some(CellRange { first: w.at, last: w.at }),
+                    kind,
+                    range,
                     volatile: false,
                     dynamic,
                     spill_error: false,
                     ambiguous_group: false,
-                    has_cache: false,
+                    has_cache,
                     results_stripped: false,
                     text,
                 };
@@ -1325,7 +1512,7 @@ mod tests {
         let s1 = sheet(wb, "Sheet1");
         vec![
             (s1, CellIndex::parse("A1").unwrap(), CellOp::Number("5".into()), Extra::default()),
-            (s1, CellIndex::parse("B12").unwrap(), CellOp::Formula("A1*7".into()), Extra::default()),
+            (s1, CellIndex::parse("B12").unwrap(), CellOp::Formula("A1*7".into(), None), Extra::default()),
             (s1, CellIndex::parse("C12").unwrap(), CellOp::Text("t".into()), Extra::default()),
         ]
     }
@@ -2069,7 +2256,7 @@ mod tests {
             &wb,
             s0,
             "B2",
-            CellOp::Formula("A1*2".into()),
+            CellOp::Formula("A1*2".into(), None),
             Extra::default(),
         ));
         assert!(t.state_same && t.node_same && t.validation_same);
@@ -2077,7 +2264,7 @@ mod tests {
             &wb,
             s0,
             "B2",
-            CellOp::Formula("A1*3".into()),
+            CellOp::Formula("A1*3".into(), None),
             Extra::default(),
         ));
         assert!(!t.state_same);
@@ -2088,7 +2275,7 @@ mod tests {
             &g,
             gs,
             "E3",
-            CellOp::Formula("$A3+E$1".into()),
+            CellOp::Formula("$A3+E$1".into(), None),
             Extra::default(),
         ));
         assert!(t.group_or_array && !t.state_same && !t.validation_same);
@@ -2098,7 +2285,7 @@ mod tests {
             &g,
             gs,
             "D2",
-            CellOp::Formula("$A2+D$1".into()),
+            CellOp::Formula("$A2+D$1".into(), None),
             Extra::default(),
         );
         assert_eq!(r.len(), 2);
@@ -2530,7 +2717,7 @@ mod tests {
                 Extra::default(),
                 "B6",
             ),
-            (CellOp::Formula("1+2".into()), Extra::default(), "B7"),
+            (CellOp::Formula("1+2".into(), None), Extra::default(), "B7"),
             (CellOp::RemoveFormula, Extra::default(), "A1"),
             (CellOp::ClearValue, Extra::default(), "B8"),
             (CellOp::StyleOnly, style, "A1"),
@@ -2560,7 +2747,7 @@ mod tests {
         let mut wb = Workbook::new().unwrap();
         let before = wb.to_bytes().unwrap();
         std::assert_matches!(
-            wb.plan_cell_write(0, at("A1"), CellOp::Formula("1+".into()), Extra::default()),
+            wb.plan_cell_write(0, at("A1"), CellOp::Formula("1+".into(), None), Extra::default()),
             Err(Error::InvalidFormula { .. })
         );
         std::assert_matches!(

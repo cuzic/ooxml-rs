@@ -433,10 +433,43 @@ fn part2_sweep_over_a_local_corpus() {
 fn fill_variants_round_trip_through_format_read() {
     let mut wb = Workbook::new().unwrap();
     let mut ws = wb.add_worksheet().unwrap();
-    let f = Format { fill: Some(Fill::Pattern { pattern: "darkGrid".into(), fg: Some(Color::Indexed(10)), bg: Some(Color::Auto) }), ..Format::new() };
-    ws.cell_mut(0, 0).unwrap().set_number_with_format(1.0, &f).unwrap();
-    let Some(FormatRead::Expressible(g)) = ws.format(0, 0).unwrap() else { panic!() };
-    assert_eq!(g.fill, f.fill);
+    use ooxml_xlsx::{Gradient, Tint};
+
+    let fills = [
+        Fill::Pattern { pattern: "darkGrid".into(), fg: Some(Color::Indexed(10)), bg: Some(Color::Auto) },
+        Fill::Gradient {
+            geometry: Gradient::Angle(45),
+            stops: vec![(Tint::NONE, Color::rgb(0x336699)), (Tint::new(1.0).unwrap(), Color::Indexed(10))],
+        },
+    ];
+    for (row, fill) in fills.into_iter().enumerate() {
+        let f = Format { fill: Some(fill), ..Format::new() };
+        let row = row as u32;
+        ws.cell_mut(row, 0).unwrap().set_number_with_format(1.0, &f).unwrap();
+        let Some(FormatRead::Expressible(g)) = ws.format(row, 0).unwrap() else { panic!() };
+        assert_eq!(g.fill, f.fill);
+    }
+}
+
+#[test]
+fn column_style_survives_reopen_and_clears_independently_of_width() {
+    let mut book = Workbook::new().unwrap();
+    let mut sheet = book.add_worksheet().unwrap();
+    sheet.cell_mut(0, 0).unwrap().set_number_with_format(1.0, &Format::with_font(bold()).set_num_format("0.000")).unwrap();
+    let style = sheet.cell(0, 0).unwrap().unwrap().style_index().unwrap();
+    sheet.set_column_width(1, 3, 20.0).unwrap();
+    sheet.set_column_style_index(1, 3, style).unwrap();
+    sheet.set_column_style_index(2, 2, 0).unwrap();
+    sheet.cell_mut(1, 1).unwrap().set_number(12.0).unwrap();
+    assert!(sheet.cell_font(1, 1).unwrap().unwrap().bold);
+    sheet.cell_mut(1, 1).unwrap().set_font(&bold()).unwrap();
+    assert_eq!(sheet.number_format(1, 1).unwrap().as_deref(), Some("0.000"));
+    let mut reopened = Workbook::from_bytes(book.to_bytes().unwrap()).unwrap();
+    let sheet = reopened.worksheet().unwrap();
+    assert_eq!(sheet.column_style_index(1).unwrap(), style);
+    assert_eq!(sheet.column_style_index(2).unwrap(), 0);
+    assert_eq!(sheet.column_style_index(3).unwrap(), style);
+    assert_eq!(sheet.column_layout(2).unwrap().0, Some(20.0));
 }
 
 #[test]

@@ -32,7 +32,84 @@ fn out_xml(wb: &Workbook) -> String {
     sheet_xml(&wb.to_bytes().unwrap())
 }
 
+#[test]
+fn number_stored_as_text_warning_preserves_other_ignored_errors() {
+    let input = sheet_with(
+        r#"<dimension ref="A1:C4"/>"#,
+        r#"<ignoredErrors><ignoredError sqref="A1" formula="1" numberStoredAsText="1"/></ignoredErrors>"#,
+        "",
+    );
+    let (book, result) = try_on(&input, |sheet| sheet.set_ignore_numbers_stored_as_text(false));
+    result.unwrap();
+    let xml = out_xml(&book);
+    assert!(xml.contains(r#"<ignoredError sqref="A1" formula="1"/>"#));
+    assert!(!xml.contains("numberStoredAsText"));
+    let updated = book.to_bytes().unwrap();
+    let (book, result) = try_on(&updated, |sheet| sheet.set_ignore_numbers_stored_as_text(true));
+    result.unwrap();
+    let xml = out_xml(&book);
+    assert!(xml.contains(r#"<ignoredError sqref="A1:C4" numberStoredAsText="1"/>"#));
+    assert!(xml.contains(r#"<ignoredError sqref="A1" formula="1"/>"#));
+
+    let ambiguous = sheet_with(r#"<dimension ref="A1"/>"#, "<ignoredErrors/><ignoredErrors/>", "");
+    let (_, result) = try_on(&ambiguous, |sheet| sheet.set_ignore_numbers_stored_as_text(true));
+    assert!(result.is_err());
+}
+
+#[test]
+fn theme_reset_replaces_custom_theme_or_adds_missing_theme() {
+    const THEME_PART: &str = "xl/theme/theme1.xml";
+    const DEFAULT_THEME: &[u8] = include_bytes!("../template/blank/xl/theme/theme1.xml");
+    let original = include_bytes!("../template/blank.xlsx");
+    let custom_theme = std::str::from_utf8(DEFAULT_THEME).unwrap().replace("Office Theme", "Custom Theme");
+    let customized = with_part(original, THEME_PART, &custom_theme);
+    let mut workbook = Workbook::from_bytes(customized.clone()).unwrap();
+    workbook.reset_theme().unwrap();
+    let before_refusal = workbook.to_bytes().unwrap();
+    assert!(workbook.set_theme_xml("<wrongRoot/>").is_err());
+    assert_eq!(workbook.to_bytes().unwrap(), before_refusal);
+    let restored = workbook.to_bytes().unwrap();
+    assert_eq!(part(&restored, THEME_PART), DEFAULT_THEME);
+    for unchanged in ["xl/workbook.xml", "xl/_rels/workbook.xml.rels", "xl/worksheets/sheet1.xml"] {
+        assert_eq!(part(&restored, unchanged), part(&customized, unchanged));
+    }
+
+    let without_theme = book(&[("S", "")], "", "");
+    let mut workbook = Workbook::from_bytes(without_theme.clone()).unwrap();
+    workbook.reset_theme().unwrap();
+    let restored = workbook.to_bytes().unwrap();
+    assert_eq!(part(&restored, THEME_PART), DEFAULT_THEME);
+    assert_eq!(part(&restored, "xl/workbook.xml"), part(&without_theme, "xl/workbook.xml"));
+    let mut reloaded = Workbook::from_bytes(restored).unwrap();
+    reloaded.reset_theme().unwrap();
+    assert_eq!(part(&reloaded.to_bytes().unwrap(), THEME_PART), DEFAULT_THEME);
+}
+
 // ---- views (§8) ----
+
+#[test]
+fn reads_sheet_views_in_document_order() {
+    let bytes = sheet_with(
+        r#"<sheetViews><sheetView workbookViewId="1" zoomScale="125"><pane xSplit="600" activePane="topRight"/><selection pane="topRight" activeCell="D4"/></sheetView><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="600" activePane="bottomLeft"/><selection pane="topLeft" activeCell="A1"/></sheetView></sheetViews>"#,
+        "",
+        "",
+    );
+    let mut workbook = Workbook::from_bytes(bytes.clone()).unwrap();
+    let mut sheet = workbook.worksheet().unwrap();
+    let views = sheet.sheet_views().unwrap();
+    let attribute = |index: usize, name: &str| {
+        views[index].iter().find(|(key, _)| key == name).map(|(_, value)| value.as_str())
+    };
+    assert_eq!(views.len(), 2);
+    assert_eq!(attribute(0, "workbookViewId"), Some("1"));
+    assert_eq!(attribute(0, "activeCell"), Some("D4"));
+    assert_eq!(attribute(0, "state"), Some("split"));
+    assert_eq!(attribute(1, "workbookViewId"), Some("0"));
+    assert_eq!(attribute(1, "showGridLines"), Some("0"));
+    assert_eq!(attribute(1, "activeCell"), None);
+    assert_eq!(sheet.primary_view().unwrap().as_ref(), Some(&views[1]));
+    assert_unchanged(&workbook, &bytes);
+}
 
 #[test]
 fn freeze_split_unfreeze() {
@@ -125,6 +202,17 @@ fn rows_are_edited_or_created_in_order() {
 // ---- page setup (§10) ----
 
 #[test]
+fn reads_row_page_breaks_from_worksheet_xml() {
+    let input = sheet_with("", r#"<rowBreaks count="3"><brk id="9" min="2" max="3" man="true"/><brk id="4"/><brk id="bad"/></rowBreaks>"#, "");
+    let (_, result) = try_on(&input, |ws| ws.row_page_breaks());
+    let breaks = result.unwrap();
+    assert_eq!(breaks, [
+        ooxml_xlsx::RowPageBreak { id: 9, min: 2, max: 3, manual: true },
+        ooxml_xlsx::RowPageBreak { id: 4, min: 0, max: 0, manual: false },
+    ]);
+}
+
+#[test]
 fn page_setup_margins_print_header_footer_breaks() {
     let input = sheet_with("", r#"<pageSetup paperSize="9" r:id="rId1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>"#, "");
     let (wb, r) = try_on(&input, |ws| {
@@ -181,6 +269,38 @@ fn workbook_protection_and_legacy_hash() {
     assert!(out_xml(&wb).contains(r#"<sheetProtection password="83AF" sheet="1" objects="1" scenarios="1"/>"#));
 }
 
+#[test]
+fn clearing_a_row_height_preserves_other_layout() {
+    let input = book(&[("S", r#"<row r="2" ht="30" customHeight="1" hidden="1"><c r="A2"><v>7</v></c></row>"#)], "", "");
+    let (wb, result) = try_on(&input, |ws| {
+        ws.clear_row_height(1)?;
+        ws.clear_row_height(5)
+    });
+    result.unwrap();
+    let xml = out_xml(&wb);
+    assert!(xml.contains(r#"<row r="2" hidden="1"><c r="A2"><v>7</v></c></row>"#), "{xml}");
+    assert!(!xml.contains(r#"<row r="6""#), "{xml}");
+    let (wb, result) = try_on(&input, |ws| ws.clear_row_height(5));
+    result.unwrap();
+    assert_eq!(wb.to_bytes().unwrap(), input);
+}
+
+#[test]
+fn prune_only_plain_empty_cells_and_rebuild_the_index() {
+    use ooxml_xlsx::CellIndex;
+    let input = book(&[("S", r#"<row r="2"><c r="A2"/><c r="B2" s="1"/><c r="C2" custom="keep"/><c r="D2"><v>7</v></c><c r="E2" s="0"/></row>"#)], "", "");
+    let (wb, result) = try_on(&input, |ws| {
+        ws.prune_empty_cells(&[CellIndex::parse("D2")?, CellIndex::parse("E2")?, CellIndex::parse("C2")?,
+            CellIndex::parse("A2")?, CellIndex::parse("B2")?, CellIndex::parse("A2")?])?;
+        // This edit uses the shifted cell indices.
+        assert_eq!(ws.cell(1, 3)?.unwrap().value()?, ooxml_xlsx::CellValue::Number(7.0));
+        ws.cell_mut(1, 3)?.set_number(8.0)
+    });
+    result.unwrap();
+    let xml = out_xml(&wb);
+    assert!(xml.contains(r#"<row r="2"><c r="B2" s="1"/><c r="C2" custom="keep"/><c r="D2"><v>8</v></c></row>"#), "{xml}");
+}
+
 // ---- data validation (§5) ----
 
 const X14_DV: &str = r#"<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="1" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list" allowBlank="1"><x14:formula1><xm:f>Other!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>D1:D9</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst>"#;
@@ -207,6 +327,9 @@ fn data_validation_add_and_remove() {
     let mut wb = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
     {
         let mut ws = wb.worksheet().unwrap();
+        let rules = ws.validation_rules().unwrap();
+        assert_eq!(rules.iter().map(|rule| rule.reference.as_str()).collect::<Vec<_>>(), ["A1:A9", "B1 B3:B4", "C1"]);
+        assert_eq!(rules[1].attributes, ws.validation_attributes_for("B1 B3:B4").unwrap());
         ws.remove_validation("B3:B4 B1").unwrap_err(); // the order is part of sqref here
         ws.remove_validation("B1 B3:B4").unwrap();
         ws.remove_validation("A1:A9").unwrap();
@@ -265,6 +388,28 @@ fn validation_review_refusals_are_atomic() {
 }
 
 #[test]
+fn table_row_shifts_check_standard_and_extended_validation_ranges() {
+    use ooxml_xlsx::{CellRange, CellWrite, Table};
+    let plain = r#"<dataValidations count="1"><dataValidation sqref="B3:B4"/></dataValidations>"#;
+    let extended = X14_DV.replace("D1:D9", "B3:B4");
+    for validation in [plain, extended.as_str()] {
+        let input = sheet_with("", validation, "");
+        let (mut wb, result) = try_on(&input, |ws| {
+            ws.add_table(Table::new(CellRange::parse("A1:B4").unwrap()).name("Sales"))
+        });
+        result.unwrap();
+        let before = wb.to_bytes().unwrap();
+        let mut ws = wb.worksheet().unwrap();
+        assert_matches!(ws.remove_table_rows("Sales", 0, 1), Err(Error::TableRange { .. }));
+        assert_matches!(
+            ws.insert_table_rows("Sales", 1, &[&[CellWrite::String("new"), CellWrite::Number(1.0)]]),
+            Err(Error::TableRange { .. })
+        );
+        assert_eq!(wb.to_bytes().unwrap(), before);
+    }
+}
+
+#[test]
 fn remove_x14_validation_preserves_unknown_siblings() {
     let sibling = r#"<x14:other vendor="keep" />"#;
     let ext_sibling = r#"<ext uri="other"><vendor/></ext>"#;
@@ -279,6 +424,42 @@ fn remove_x14_validation_preserves_unknown_siblings() {
 }
 
 // ---- hyperlinks (§4) ----
+
+#[test]
+fn removes_only_single_cell_hyperlinks_in_the_requested_range() {
+    use ooxml_xlsx::{CellRange, Link, LinkOptions};
+    let mut wb = Workbook::new().unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    for reference in ["A1", "A2", "B1:B2", "C1"] {
+        ws.set_hyperlink(reference, &Link::Location("Sheet1!D4".into()), &LinkOptions::default()).unwrap();
+    }
+    ws.remove_cell_hyperlinks(CellRange::parse("A1:B2").unwrap()).unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let xml = sheet_xml(&bytes);
+    assert!(!xml.contains(r#"<hyperlink ref="A1""#) && !xml.contains(r#"<hyperlink ref="A2""#), "{xml}");
+    assert!(xml.contains(r#"ref="B1:B2""#) && xml.contains(r#"ref="C1""#), "{xml}");
+    let mut reopened = Workbook::from_bytes(bytes.clone()).unwrap();
+    reopened.worksheet().unwrap().remove_cell_hyperlinks(CellRange::parse("A1:B2").unwrap()).unwrap();
+    assert_eq!(reopened.to_bytes().unwrap(), bytes);
+}
+
+#[test]
+fn removes_only_single_cell_hyperlinks_at_selected_positions() {
+    use ooxml_xlsx::{CellIndex, Link, LinkOptions};
+    let mut wb = Workbook::new().unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    for reference in ["A1", "B1", "C1", "D1:D2"] {
+        ws.set_hyperlink(reference, &Link::Location("Sheet1!F1".into()), &LinkOptions::default()).unwrap();
+    }
+    let cells = ["A1", "C1", "D1"].map(|cell| CellIndex::parse(cell).unwrap()).into_iter().collect();
+    ws.remove_cell_hyperlinks_at(&cells).unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let xml = sheet_xml(&bytes);
+    assert!(!xml.contains(r#"<hyperlink ref="A1""#) && !xml.contains(r#"<hyperlink ref="C1""#), "{xml}");
+    assert!(xml.contains(r#"ref="B1""#) && xml.contains(r#"ref="D1:D2""#), "{xml}");
+    wb.worksheet().unwrap().remove_cell_hyperlinks_at(&cells).unwrap();
+    assert_eq!(wb.to_bytes().unwrap(), bytes);
+}
 
 #[test]
 fn hyperlinks_external_internal_and_removal() {
@@ -673,4 +854,143 @@ fn indexed_column_splits_and_breaks_refuse_alternate_content_before_apply() {
     let (wb, result) = try_on(&input, |ws| ws.add_row_break(2));
     assert_matches!(result, Err(Error::Core(ooxml_core::Error::UnresolvedSibling(_))));
     assert_eq!(wb.to_bytes().unwrap(), Workbook::from_bytes(input).unwrap().to_bytes().unwrap());
+}
+
+#[test]
+fn standalone_extended_icons_preserve_formulas_and_reject_duplicate_ids() {
+    use ooxml_xlsx::{Cfvo, ExtendedIconRule};
+    let mut wb = Workbook::new().unwrap();
+    let thresholds = [
+        (Cfvo::Min, None),
+        (Cfvo::Num(10.0), Some(false)),
+        (Cfvo::Formula("A1+2".into()), Some(true)),
+    ];
+    let rule = ExtendedIconRule {
+        id: Some("{00000000-0000-4000-8000-000000000001}"),
+        priority: Some(1),
+        priority_floor: 0,
+        name: "3Stars",
+        thresholds: &thresholds,
+        icons: &[("NoIcons".into(), 0), ("5Boxes".into(), 4), ("3Triangles".into(), 1)],
+        reverse: true,
+        show_value: false,
+    };
+    wb.worksheet().unwrap().add_extended_icon_rule("A1:A3", &rule).unwrap();
+    let output = wb.to_bytes().unwrap();
+    let xml = sheet_xml(&output);
+    assert!(xml.contains(r#"iconSet="3Stars" reverse="1" showValue="0" custom="1""#), "{xml}");
+    assert!(xml.contains(r#"type="num" gte="0""#), "{xml}");
+    assert!(xml.contains(">A1+2</xm:f>"), "{xml}");
+    assert!(xml.contains(">A1:A3</xm:sqref>"), "{xml}");
+    let mut reopened = Workbook::from_bytes(output.clone()).unwrap();
+    assert_eq!(reopened.worksheet().unwrap().extended_conditional_format_blocks().unwrap().len(), 1);
+    assert!(xml.contains(r#"iconSet="5Boxes" iconId="4""#), "{xml}");
+    let invalid_icons = [("3Triangles".into(), 3), ("5Boxes".into(), 4), ("NoIcons".into(), 0)];
+    let invalid = ExtendedIconRule { icons: &invalid_icons, ..rule };
+    assert_matches!(reopened.worksheet().unwrap().add_extended_icon_rule("B1", &invalid), Err(Error::InvalidSetting { .. }));
+    assert_unchanged(&reopened, &output);
+    let duplicate = ExtendedIconRule { priority: Some(2), ..rule };
+    assert_matches!(reopened.worksheet().unwrap().add_extended_icon_rule("B1", &duplicate), Err(Error::InvalidSetting { .. }));
+    assert_unchanged(&reopened, &output);
+}
+
+#[test]
+fn extended_data_bar_links_both_rules_and_refuses_invalid_settings_atomically() {
+    use ooxml_xlsx::{Cfvo, Color, ExtendedDataBar, ExtendedDataBarThreshold, Rule, Tint};
+    let mut wb = Workbook::new().unwrap();
+    let thresholds = [Cfvo::Min, Cfvo::Formula("A1+10".into())];
+    let rule = Rule::data_bar(thresholds[0].clone(), thresholds[1].clone(), "FF112233".into(), 0, 100, true).unwrap();
+    wb.worksheet().unwrap().add_conditional_format("A1:A3", &rule).unwrap();
+    let initial = wb.to_bytes().unwrap();
+    let mut wb = Workbook::from_bytes(initial.clone()).unwrap();
+    let bar = ExtendedDataBar {
+        id: Some("{00000000-0000-4000-8000-000000000025}"),
+        thresholds: &[ExtendedDataBarThreshold::AutoMin, ExtendedDataBarThreshold::Value(thresholds[1].clone())],
+        lengths: (Some(0), Some(100)),
+        flags: [true, false, true, true].map(Some),
+        show_value: None,
+        axis: Some("middle"),
+        direction: Some("rightToLeft"),
+        colors: [Some(Color::Rgb(0xFF556677)), Some(Color::Theme { index: 4, tint: Tint::new(-0.25).unwrap() }),
+            Some(Color::Indexed(13)), None, Some(Color::Auto)],
+    };
+    let invalid = ExtendedDataBar { axis: Some("bad"), ..bar };
+    assert_matches!(wb.worksheet().unwrap().attach_extended_data_bar("A1:A3", &invalid), Err(Error::InvalidSetting { .. }));
+    assert_unchanged(&wb, &initial);
+    wb.worksheet().unwrap().attach_extended_data_bar("A1:A3", &bar).unwrap();
+    let xml = out_xml(&wb);
+    assert_eq!(xml.matches(bar.id.unwrap()).count(), 2, "{xml}");
+    assert!(xml.contains(r#"axisPosition="middle" direction="rightToLeft""#), "{xml}");
+    assert!(xml.contains(r#"<x14:fillColor rgb="FF556677""#), "{xml}");
+    assert!(xml.contains(r#"theme="4" tint="-0.25""#), "{xml}");
+    assert!(xml.contains(r#"indexed="13""#), "{xml}");
+    assert!(xml.contains(r#"<x14:axisColor auto="1""#), "{xml}");
+    assert!(xml.contains(r#"<x14:cfvo type="autoMin""#), "{xml}");
+    assert!(xml.contains(">A1+10</xm:f>"), "{xml}");
+    wb.worksheet().unwrap().remove_conditional_format("A1:A3", None).unwrap();
+    assert!(!out_xml(&wb).contains(bar.id.unwrap()));
+}
+
+#[test]
+fn extended_data_bar_writes_only_declared_attributes() {
+    use ooxml_xlsx::{Cfvo, Color, ExtendedDataBar, ExtendedDataBarThreshold, Rule};
+    let thresholds = [ExtendedDataBarThreshold::Value(Cfvo::Min), ExtendedDataBarThreshold::Value(Cfvo::Max)];
+    let declared = ExtendedDataBar {
+        id: None, thresholds: &thresholds, lengths: (None, None), flags: [None; 4], show_value: None,
+        axis: None, direction: None, colors: [None, None, None, None, None],
+    };
+    let base = Rule::data_bar_declared(Cfvo::Min, Cfvo::Max, Color::Rgb(0xFF638EC6), None, None, None).unwrap();
+    let mut wb = Workbook::new().unwrap();
+    wb.worksheet().unwrap().add_conditional_format("A1:A3", &base).unwrap();
+    let before = wb.to_bytes().unwrap();
+    let mut wb = Workbook::from_bytes(before.clone()).unwrap();
+    // Omitted lengths are range-checked against the schema defaults (10 and 90), atomically.
+    for invalid in [
+        ExtendedDataBar { lengths: (Some(95), None), ..declared },
+        ExtendedDataBar { lengths: (None, Some(5)), ..declared },
+        ExtendedDataBar { lengths: (Some(0), Some(101)), ..declared },
+        ExtendedDataBar { direction: Some("upward"), ..declared },
+    ] {
+        assert_matches!(wb.worksheet().unwrap().attach_extended_data_bar("A1:A3", &invalid), Err(Error::InvalidSetting { .. }));
+        assert_unchanged(&wb, &before);
+    }
+    let x14_bar = |wb: &Workbook| {
+        let xml = out_xml(wb);
+        let start = xml.find("<x14:dataBar").unwrap();
+        xml[start..xml[start..].find('>').unwrap() + start + 1].to_string()
+    };
+    wb.worksheet().unwrap().attach_extended_data_bar("A1:A3", &declared).unwrap();
+    assert_eq!(x14_bar(&wb), "<x14:dataBar>");
+    let mut wb = Workbook::from_bytes(before).unwrap();
+    let some = ExtendedDataBar {
+        lengths: (Some(0), Some(100)), flags: [Some(true), Some(false), None, Some(false)],
+        axis: Some("middle"), direction: None, ..declared
+    };
+    wb.worksheet().unwrap().attach_extended_data_bar("A1:A3", &some).unwrap();
+    assert_eq!(x14_bar(&wb), concat!(r#"<x14:dataBar minLength="0" maxLength="100" border="1" gradient="0" "#,
+        r#"negativeBarBorderColorSameAsPositive="0" axisPosition="middle">"#));
+}
+
+#[test]
+fn declared_data_bar_writes_only_declared_layout_attributes() {
+    use ooxml_xlsx::{Cfvo, Color, Rule};
+    let bar = |min, max, show| Rule::data_bar_declared(Cfvo::Min, Cfvo::Max, Color::Rgb(0xFF638EC6), min, max, show);
+    let xml_of = |rule: &Rule| {
+        let mut wb = Workbook::new().unwrap();
+        wb.worksheet().unwrap().add_conditional_format("A1", rule).unwrap();
+        let xml = out_xml(&wb);
+        let start = xml.find("<dataBar").unwrap();
+        xml[start..xml[start..].find('>').unwrap() + start + 1].to_string()
+    };
+    assert_eq!(xml_of(&bar(None, None, None).unwrap()), "<dataBar>");
+    assert_eq!(xml_of(&bar(Some(5), None, None).unwrap()), r#"<dataBar minLength="5">"#);
+    assert_eq!(xml_of(&bar(None, Some(70), Some(true)).unwrap()), r#"<dataBar maxLength="70" showValue="1">"#);
+    assert_eq!(xml_of(&bar(Some(10), Some(90), Some(false)).unwrap()), r#"<dataBar minLength="10" maxLength="90" showValue="0">"#);
+    // Omitted limits are checked against the schema defaults (10 and 90).
+    assert_matches!(bar(Some(95), None, None), Err(Error::InvalidSetting { .. }));
+    assert_matches!(bar(None, Some(5), None), Err(Error::InvalidSetting { .. }));
+    assert_matches!(bar(None, Some(101), None), Err(Error::InvalidSetting { .. }));
+    // The fixed-layout constructor still writes both limits and only a hidden value.
+    let fixed = Rule::data_bar(Cfvo::Min, Cfvo::Max, "FF638EC6".into(), 10, 90, true).unwrap();
+    assert_eq!(xml_of(&fixed), r#"<dataBar minLength="10" maxLength="90">"#);
 }

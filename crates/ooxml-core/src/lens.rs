@@ -1285,6 +1285,24 @@ impl<'a, E: ElementSpec> LensMut<'a, E> {
         self.node_mut().preserve_attribute_spelling();
     }
 
+    /// Ensures a prefixed namespace binding at this element without
+    /// shadowing a binding already in scope, and returns the effective prefix.
+    pub fn ensure_namespace_prefix(&mut self, declaration: NsDecl<'_>) -> Result<String> {
+        let new = self.plan_declarations(&[declaration])?;
+        if let Some((prefix, uri)) = new.into_iter().next() {
+            let node = self.node_mut();
+            node.push_attr(RawAttr {
+                name: XName::new(XMLNS_NS.into(), &prefix, Some("xmlns")),
+                value: uri.as_str().into(),
+            });
+            node.mark_own_dirty();
+            self.mark_path();
+            return Ok(prefix);
+        }
+        choose_attr_prefix(self.root, &self.path, declaration.uri)?
+            .ok_or_else(|| Error::NamespaceNotInScope(declaration.uri.into()))
+    }
+
     /// Sets attribute `q` (untyped). An existing attribute keeps its position
     /// and prefix; a new one is appended. A namespaced attribute needs a
     /// non-empty prefix bound to its URI ([`Error::NamespaceNotInScope`]).

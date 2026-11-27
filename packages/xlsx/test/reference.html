@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pinned browser compatibility references</title>
+<body>Running</body>
+<script src="./node_modules/exceljs/dist/exceljs.min.js"></script>
+<script type="module">
+  try {
+    const SheetJS = await import('./node_modules/xlsx/xlsx.mjs');
+    const bytes = async (name) => new Uint8Array(await (await fetch('./fixtures/' + name + '.xlsx')).arrayBuffer());
+    const scalar = await bytes('scalar');
+    const view = new Uint8Array(scalar.length + 8);
+    view.set(scalar, 4);
+    const input = view.subarray(4, 4 + scalar.length);
+    const sheet = SheetJS.read(input);
+    const excel = new ExcelJS.Workbook();
+    const load = excel.xlsx.load(input);
+    const loaded = await load;
+    const old = excel.worksheets[0];
+    const oldCell = old.getCell('A1');
+    const excelWrite = excel.xlsx.writeBuffer();
+    const output = await excelWrite;
+    const sameCell = oldCell === old.getCell('A1');
+    const exactName = excel.getWorksheet('sheet1') === undefined;
+    await excel.xlsx.load(await bytes('empty'));
+    const ref = (name) => SheetJS.read(name).Sheets.Other;
+    const undersized = ref(await bytes('undersized'));
+    const absent = ref(await bytes('absent'));
+    const sheetOutput = SheetJS.write(sheet, { type: 'array', bookType: 'xlsx' });
+    globalThis.xlsxReference = {
+      sheetjs: SheetJS.version,
+      sheetOutputArrayBuffer: sheetOutput instanceof ArrayBuffer,
+      sheetOffset: sheet.Sheets.Sheet1.A1.v,
+      dimension: [undersized['!ref'], undersized.C3.v, absent['!ref'], absent.C3.v],
+      excelOutputUint8Array: output instanceof Uint8Array,
+      excelOutputArrayBuffer: output instanceof ArrayBuffer,
+      excelPromises: load instanceof Promise && excelWrite instanceof Promise,
+      excelLoadIdentity: loaded === excel,
+      excelExactName: exactName,
+      excelCellIdentity: sameCell,
+      excelOldHandleValue: oldCell.value,
+      excelNewWorksheet: old !== excel.worksheets[0],
+    };
+    document.body.textContent = 'PASS';
+  } catch (error) {
+    document.body.textContent = 'FAIL ' + (error?.stack ?? error);
+  }
+</script>

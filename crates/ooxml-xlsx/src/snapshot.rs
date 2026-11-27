@@ -370,20 +370,20 @@ mod tests {
     fn a_constant_cell_round_trips() {
         round_trip("A1", CellOp::Number("99".into()));
         round_trip("A1", CellOp::Text("x".into()));
-        round_trip("A1", CellOp::Formula("B1*2".into()));
+        round_trip("A1", CellOp::Formula("B1*2".into(), None));
     }
 
     #[test]
     fn a_formula_cell_with_a_cache_round_trips() {
         round_trip("C1", CellOp::Number("5".into()));
-        round_trip("C1", CellOp::Formula("A1-B1".into()));
+        round_trip("C1", CellOp::Formula("A1-B1".into(), None));
         round_trip("C2", CellOp::RemoveFormula);
     }
 
     #[test]
     fn a_shared_member_round_trips() {
         round_trip("D2", CellOp::Number("5".into()));
-        round_trip("D2", CellOp::Formula("A2+1".into()));
+        round_trip("D2", CellOp::Formula("A2+1".into(), None));
     }
 
     #[test]
@@ -623,7 +623,7 @@ mod tests {
         let baseline = wb.compute_dependents(0, at("C5")).cells;
         assert!(baseline.is_empty());
         let snap = wb.snapshot_cell(0, at("A1")).unwrap();
-        write(&mut wb, "A1", CellOp::Formula("INDIRECT(\"Z9\")".into()));
+        write(&mut wb, "A1", CellOp::Formula("INDIRECT(\"Z9\")".into(), None));
         assert!(!wb.compute_dependents(0, at("C5")).cells.is_empty());
         wb.restore_cell(0, at("A1"), &snap, RestoreStyle::Snapshot).unwrap();
         assert!(wb.compute_dependents(0, at("C5")).cells.is_empty());
@@ -757,14 +757,14 @@ mod tests {
         let mut wb = shared_book();
         // formula text changes
         let snap = wb.snapshot_cell(0, at("C1")).unwrap();
-        write(&mut wb, "C1", CellOp::Formula(r#"CELL("format",A2)"#.into()));
+        write(&mut wb, "C1", CellOp::Formula(r#"CELL("format",A2)"#.into(), None));
         assert!(wb.style_sensitive().unwrap());
         wb.restore_cell(0, at("C1"), &snap, RestoreStyle::Snapshot).unwrap();
         assert_eq!(wb.style_sensitive, None, "formula text differs");
         assert!(!wb.style_sensitive().unwrap());
         // a formula comes into being (A2 had none)
         let snap = wb.snapshot_cell(0, at("A2")).unwrap();
-        write(&mut wb, "A2", CellOp::Formula("INFO(\"x\")".into()));
+        write(&mut wb, "A2", CellOp::Formula("INFO(\"x\")".into(), None));
         assert!(wb.style_sensitive().unwrap());
         wb.restore_cell(0, at("A2"), &snap, RestoreStyle::Snapshot).unwrap();
         assert_eq!(wb.style_sensitive, None, "presence differs");
