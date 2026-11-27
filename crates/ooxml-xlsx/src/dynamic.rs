@@ -8,7 +8,7 @@ use ooxml_schema::sml;
 
 use crate::edit::{CellOp, Extra};
 use crate::workbook::REL_METADATA;
-use crate::{CellMut, Error, Result, SML_NS};
+use crate::{CellRange, CellMut, CellValue, Error, Result, SML_NS};
 
 pub(crate) const XDA: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray";
 const URI: &str = "{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}";
@@ -146,6 +146,37 @@ fn ensure_block(doc: &mut XmlDocument) -> Result<u32> {
     u32::try_from(count).map_err(|_| Error::Malformed("too many cell metadata blocks".into()))
 }
 
+pub(crate) fn formula_cache(at: crate::CellIndex, result: CellValue) -> Result<crate::edit::FormulaCache> {
+    use sml::CellValues;
+
+    Ok(match result {
+        CellValue::Empty => None,
+        CellValue::Number(value) if value.is_finite() => Some((CellValues::Number, crate::worksheet::format_number(value))),
+        CellValue::Number(value) => return Err(Error::InvalidNumber(value)),
+        CellValue::String(value) => {
+            let units = value.encode_utf16().count();
+            if units > crate::worksheet::MAX_STRING_LEN {
+                return Err(Error::StringTooLong(units));
+            }
+            let escaped = crate::escape::encode(&value).into_owned();
+            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&escaped) {
+                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+            }
+            Some((CellValues::String, escaped))
+        }
+        CellValue::Date(value) if crate::setters::parse_iso_date(&value).is_some() =>
+            Some((CellValues::Date, value)),
+        CellValue::Bool(value) => Some((CellValues::Boolean, u8::from(value).to_string())),
+        CellValue::Error(value) if crate::setters::CELL_ERRORS.contains(&value.as_str()) => {
+            Some((CellValues::Error, value))
+        }
+        _ => return Err(Error::InvalidValue {
+            cell: at.to_string(),
+            message: "unsupported formula result".into(),
+        }),
+    })
+}
+
 impl CellMut<'_, '_> {
     /// Writes an uncached dynamic-array formula in file form, with the
     /// anchor as its initial array reference. See [`Self::set_formula`]
@@ -155,13 +186,40 @@ impl CellMut<'_, '_> {
     /// cause `#SPILL!` in Excel. Only an existing recorded result range
     /// restricts adjacent cell writes.
     pub fn set_dynamic_formula(self, text: &str) -> Result<()> {
+        let anchor = self.at;
+        self.set_array_formula(text, CellRange { first: anchor, last: anchor }, true)
+    }
+
+    /// Writes an array formula over the given inclusive range. The cell
+    /// must be its top-left anchor. Dynamic arrays also receive XLDAPR metadata.
+    pub fn set_array_formula(self, text: &str, range: CellRange, dynamic: bool) -> Result<()> {
+        self.set_array_formula_with_result(text, range, dynamic, CellValue::Empty)
+    }
+
+    /// Writes an array formula and a caller-supplied cached result on its anchor.
+    /// Supported results are numbers, strings, booleans, UTC ISO dates and standard Excel errors.
+    pub fn set_array_formula_with_result(
+        self, text: &str, range: CellRange, dynamic: bool, result: CellValue,
+    ) -> Result<()> {
+        let cache = formula_cache(self.at, result)?;
         let wb = &mut *self.ws.wb;
         wb.check_editable()?;
         if wb.census.implicit_references.contains(&self.ws.sheet) {
             return Err(Error::MissingReference {
                 part: wb.sheets[self.ws.sheet].part.clone().expect("worksheet"),
-                what: "row or cell (a dynamic array requires explicit references)".into(),
+                what: "row or cell (an array requires explicit references)".into(),
             });
+        }
+        crate::CellIndex::new(range.last.row, range.last.col)?;
+        if range.first != self.at || !range.contains(self.at) {
+            return Err(Error::Malformed("array formula must start at its anchor".into()));
+        }
+        let text = text.strip_prefix('=').unwrap_or(text);
+        if !dynamic {
+            let plan = wb.plan_writes(vec![(
+                self.ws.sheet, self.at, CellOp::ArrayFormula(text.into(), range, None, cache), Extra::default(),
+            )])?;
+            return wb.apply_writes(plan);
         }
         let rels = wb.pkg.relationships(&wb.workbook_part)?;
         let mut related = rels.by_type(REL_METADATA);
@@ -195,11 +253,10 @@ impl CellMut<'_, '_> {
             });
         }
         let cm = ensure_block(&mut doc)?;
-        let text = text.strip_prefix('=').unwrap_or(text);
         let plan = wb.plan_writes(vec![(
             self.ws.sheet,
             self.at,
-            CellOp::DynamicFormula(text.into(), cm),
+            CellOp::ArrayFormula(text.into(), range, Some(cm), cache),
             Extra::default(),
         )])?;
         let mut registry = RegistryPlan::new(&wb.pkg);
