@@ -1,6 +1,6 @@
 # ADR-0023: xlsx range reads and writes at workbook scope, and the Python binding policy
 
-- Status: **Proposed** (revision 3)
+- Status: **Proposed** (revision 4)
 - Date: 2026-11-27
 - Repository baseline: `213e27a` (main after PR #170)
 - Depends on:
@@ -31,7 +31,7 @@
     round 2 (revision 3).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) (no phase number: this is an API
   layer over Phase0–Phase7, not a new format phase).
-- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4).
+- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4); [round 3](0023-opus-review-round3.md) (not converged: M1, M2, m1–m3).
 
 ## Revision history
 
@@ -72,6 +72,19 @@
   - **m2:** the read cell struct is named `RangeCell` (`streaming::ReadCell` already exists).
   - **m3:** `CLEAR` and `clear()` map to `ClearValue`, which never creates blank cells.
   - **m4:** baseline, sequencing and U5 ownership updated (ADR-0021 has landed).
+- **Revision 4** (review round 3: M1, M2, m1–m3).
+  - **M1:** the drop predicate is a reads-only state-equality extracted from C1's §4.4
+    core and shared with R1 (not C1's post-validation report, which cannot see past the
+    guards); the F13 relation is stated (no divergence: the sequential twin drops
+    identically). `write_changed_cells`/`clear_range` exist on both `Workbook` (sequential
+    twin, part A) and `Journal`.
+  - **M2:** `formulas="formula"` returns `ooxml_rs.Formula` objects (round-trippable; Q8
+    already requires explicit `Formula()` for writing); value-mode writes back against a
+    formula cell drop on cache equality (a 0023-specific rule, sequential twin identical);
+    identical formula writes drop via the shared report. Oracle 3 pins formula preservation.
+  - **m1:** `clear_range` uses `ClearValue`; U2 adds the missing `CellCall` payloads with
+    sequential references into oracle 1.
+  - **m2:** cross-reference fixed to ADR-0024 §10.3. **m3:** Sources updated.
 
 ## Context
 
@@ -472,6 +485,8 @@ Duration(f64),
 impl Workbook {
     pub fn write_cells(&mut self, sheet: SheetRef<'_>, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()>;
     pub fn write_cells_with_styles(&mut self, sheet: SheetRef<'_>, writes: &[(CellIndex, CellWrite<'_>)], styles: &[Option<u32>]) -> Result<()>;
+    pub fn write_changed_cells(&mut self, sheet: SheetRef<'_>, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<usize>;
+    pub fn clear_range(&mut self, sheet: SheetRef<'_>, range: CellRange) -> Result<usize>;
 }
 impl Journal {
     /// Drops every write whose target already reads equal (below), then appends the rest
@@ -488,15 +503,27 @@ impl Journal {
   same `DuplicateCellWrite`/`SharedFormulaMaster` errors, no extent restriction (ADR-0021's
   "insert within the original range" rule is a SheetJS projection constraint, not a native
   one).
-- `write_changed_cells`/`clear_range` are **journal calls** (revision 3, ADR-0024 §4.1/§4.5):
-  the remainder is appended as one multi-op call, so guards, atomicity, poison semantics and
-  `truncate`/`Commit` behaviour are the journal's, not a second implementation. R1 then sees
-  only changed cells; its whole-call skip is a safety net, never the dropping mechanism.
-- **"Reads equal"** (`write_changed_cells`, M4) is **C1's per-target report, shared with R1
-  by construction** — not a bespoke comparison. Each write is resolved to its op first
-  (§6.1, including DateKind-keeping), then reported: dropped when the report says state-same
-  (content and style), kept otherwise. A cell **with a formula** never reads equal to a
-  constant write (the report compares against formula content); formula writes are never
+- `write_changed_cells`/`clear_range` exist twice (revision 4): the `Journal` methods
+  append one multi-op journal call (ADR-0024 §4.1/§4.5), and the `Workbook` methods are
+  their sequential twins (part A) running the same C1 plan without a log. Guards, atomicity,
+  poison semantics and `truncate`/`Commit` behaviour come from the journal path; R1 then sees
+  only changed cells, and its whole-call skip is a safety net, never the dropping mechanism.
+- **"Reads equal"** (`write_changed_cells`, M4) is a **reads-only state-equality** evaluated
+  per cell without planning: the §4.4 core (content with type and rich runs, or formula text
+  with kind and every `f` attribute; `s`, with missing equal to `0`) extracted into one
+  function shared with R1 — R1 calls it on validated plans (unchanged results), the pre-drop
+  calls it on read state. Each write is resolved to its op first (§6.1, including
+  DateKind-keeping), then compared; dropped when state-same, kept otherwise. This does not
+  contradict F13: F13 forbids the generic skip hiding refusals the sequential path would
+  raise (a divergence); here the drop is the API's defined semantics and the sequential twin
+  drops identically, so journal and sequential agree cell for cell.
+- A constant write against a formula cell drops when it equals the cell's **cached value**
+  (same serial/value with the write's kind rules; revision 4, M2): dropping keeps formula
+  and cache byte-identical, while applying would silently destroy the formula on a no-op
+  round-trip. This rule is 0023-specific (R1's report lacks it); the sequential twin applies
+  it identically. An explicit change still applies and replaces the formula, as the caller's
+  edit. A formula write drops when its text, kind and attributes equal the cell's effective
+  formula (the shared report covers it); otherwise it is the caller's edit and is never
   dropped. The comparison reads; it writes nothing and invents nothing.
 - The point of `write_changed_cells`: a read → modify → write-back of a region changes only
   the cells the caller changed; unchanged merge members, table headers and array members are
@@ -527,8 +554,9 @@ overwriting a computed column would always refuse. Decision:
 - `write_cells` itself keeps today's rule (no group-wide semantics behind a plain batch);
   only the two range-shaped operations opt in.
 
-`clear_range` writes `CellWrite::Clear` **only to stored cells with content** (§3) in the
-range, in one plan, and returns how many it cleared; it never creates blank cells. Styles are
+`clear_range` writes `CellWrite::ClearValue` (m1: on a stored cell identical to `Clear`,
+and a journal op already) **only to stored cells with content** (§3) in the
+range, in one call, and returns how many it cleared; it never creates blank cells. Styles are
 kept. Merge members normally have no content and are skipped; a merge member that does store
 content refuses with `MergedCell`. Any other guarded cell with content (array member, rich
 value, table header, …) refuses the whole call, byte-identical.
@@ -819,7 +847,8 @@ first.
     edits, and a commit contains only the owner's edits.
   - Exit without exception: clear the owner, `notify_all`. Exit with an exception:
     `journal.truncate(entry)` (replay- or fast-based per ADR-0024; structural ops truncate
-    with `truncate_fast` only where §10.1 allows), clear the owner, `notify_all`, re-raise.
+    with `truncate_fast` only where ADR-0024 §10.3 allows), clear the owner, `notify_all`,
+    re-raise.
   - `transaction()` on the owner thread while one is open is `RuntimeError` (no nesting). On
     another thread it waits, like any call.
   - The owner is an OS thread, so a transaction must be entered and exited on one thread
@@ -897,7 +926,11 @@ first.
   microseconds are rounded to milliseconds. Anything else → `TypeError`.
 - A value read and written back unchanged is dropped by `write_changed_cells` (§6.2), so
   `read_range` → edit → `write_range` changes only the edited cells, including on regions with
-  merges, headers and formulas.
+  merges, headers and formulas. Concretely: a constant written back against a formula cell
+  with an equal cache is dropped (the formula survives); an identical `Formula` write is
+  dropped by the shared report; anything else applies (an explicit change replaces the
+  formula). A `formulas="formula"` read returns `ooxml_rs.Formula` objects (below), so it
+  round-trips; a `str` starting with `=` stays text and never resurrects a formula (Q8).
 
 ### 12. Python binding: minimal API (first release)
 
@@ -915,7 +948,7 @@ here. A larger surface (formats, colors, widths, tables, images) is a follow-up 
 | `used_range(sheet, mode="values") -> str \| None` | §3 |
 | `first_free_row(sheet, column=None, mode="values") -> int \| None` | §4 |
 | `read_range(sheet, ref, *, header=False, formulas="value", dates=True) -> list[list]` (or `(header, rows)`) | §5 |
-| `read_cell(sheet, ref)`, `read_formula(sheet, ref) -> str \| None` | §5 on one cell |
+| `read_cell(sheet, ref)`, `read_formula(sheet, ref) -> Formula \| None` | §5 on one cell (a `Formula` round-trips; a `str` would stay text per Q8) |
 | `write_cells(sheet, [(ref, value), …])` | one journal call (every non-`None` value written) |
 | `write_range(sheet, top_left, rows)` | `write_changed_cells` (§6.2, §6.3) |
 | `append_rows(sheet, rows, start_column="A", key_column=None)` | `first_free_row` + `write_changed_cells`, under one lock |
@@ -925,11 +958,13 @@ here. A larger surface (formats, colors, widths, tables, images) is a follow-up 
 | `edit_refusal() -> tuple[str, str] \| None` | `edit_refusal()` → `(crate, kind)` |
 | `transaction()` | §11.2 |
 
-- `read_range`: `formulas="value"` returns cached values; `"formula"` returns `"=" + text`
-  for formula cells with text, the value elsewhere (openpyxl `data_only=False` parity), and
-  raises `RefusedError` kind `("binding", "FormulaUnavailable")` for an `Unavailable` cell
-  (naming the cell); `"both"` returns `(value, formula_or_None)` pairs and never raises for
-  `Unavailable` (formula `None`). Default: Q1.
+- `read_range`: `formulas="value"` returns cached values; `"formula"` returns
+  `ooxml_rs.Formula` objects for formula cells with text (round-trippable: writing one back
+  is a `Formula` write, dropped when identical), the value elsewhere, and raises
+  `RefusedError` kind `("binding", "FormulaUnavailable")` for an `Unavailable` cell (naming
+  the cell); `"both"` returns `(value, Formula-or-None)` pairs and never raises for
+  `Unavailable` (formula `None`). Default: Q1. `Formula` has `.text` (no `=`) and
+  `str()` renders `"=" + text` for display parity with openpyxl.
 - `header=True` returns `(header, rows)`: the first row converted with `str()`, `None` → `""`,
   duplicates kept (a list, not a dict). Turning rows into a DataTable is the host's job.
 - `ref` may be a whole column or row (`"A:C"`, `"3:5"`); the binding clips it to
@@ -1002,10 +1037,12 @@ journal-based, so the units that implement them wait for the J series. Order:
    containing merges, a table header, formulas, a fill-down shared column and blanks, then
    `write_range` of the same values with one cell changed: `Ok`, and the XML diff touches only
    that cell (plus the dependent-cache strips ADR-0003 requires). With `None` in place of
-   values: no change at all (M4). The pre-drop predicate is C1's per-target report, the same
-   predicate R1 uses — but the pre-drop is load-bearing, not an optimization: R1 only skips
-   whole calls, so without it one changed cell would drag unchanged guarded cells through
-   the guards and refuse the call.
+   values: no change at all (M4). A value-mode round-trip over formula cells keeps every
+   formula whose cache still equals (M2); a formula-mode round-trip keeps every formula
+   (identical `Formula` writes drop); changing one cache value replaces exactly that
+   formula. The pre-drop predicate is the shared §4.4 state-equality — but the pre-drop is
+   load-bearing, not an optimization: R1 only skips whole calls, so without it one changed
+   cell would drag unchanged guarded cells through the guards and refuse the call.
 4. **Dates.** 1900 and 1904 fixtures: serial 0, 1, 59, 60, 61, 2,958,465, a negative serial,
    a fractional serial with milliseconds; formats 14, 18–22, 45–47, `[h]:mm`, `[mm]:ss`,
    `h:mm AM/PM`, `yyyy-mm-dd hh:mm`, a locale-tagged date and an East Asian built-in id;
@@ -1074,7 +1111,9 @@ One PR per unit.
 - **U2 — workbook-scoped writes.** `SheetRef`, `Workbook::worksheet_ref`,
   `Workbook::{write_cells, write_cells_with_styles}`, `CellWrite::{DateTime, Duration}` with
   `#[non_exhaustive]`, the `DateKind` classifier (shared with U4), oracles 2, 3 (first half)
-  and the write half of 4. After J1 (journal-op batches).
+  and the write half of 4. Adds the missing journal payloads (`IsoDate`, `FormulaWithResult`,
+  `DateTime` with kind, `Duration`) to `CellCall` with sequential references drawn into
+  oracle 1 (m1). After J1 (journal-op batches).
 - **U3 — extent.** `UsedRange`, `used_range`, `first_free_row`, the four-way doc table
   (§3, §4), sequential plus View-normalized paths, oracles 6 (part), 8. After J1 (View).
 - **U4 — range reads.** `ReadOptions`, `RangeRead`, `RangeCell`, `ReadValue`, `FormulaText`,
@@ -1248,10 +1287,10 @@ No finding is rebutted.
   sheet_ops/grid.rs, formula/precedents.rs}`, `crates/ooxml-core/src/package.rs`,
   `crates/ooxml-docx/src/{replace.rs, error.rs}`, `crates/ooxml-pptx/src/{presentation.rs,
   replace.rs}`, `.github/workflows/ci.yml`, `Cargo.toml`.
-- The ADR-0021 implementation's working tree (uncommitted, 2026-11-25): ADR-0021, ADR-0022,
-  the `ooxml-xlsx` additions listed in Context (including `edit.rs`'s shared-group batch rule
-  and `clear_shared_formula_row`), and `crates/ooxml-xlsx-wasm/src/lib.rs` (classifier, batch
-  functions, error codes).
+- `main` at `213e27a` (post-#170): the Context table, ADR-0021, ADR-0022,
+  `crates/ooxml-xlsx-wasm/src/lib.rs` (classifier, batch functions, error codes).
+- ADR-0024 (Accepted) and the journal implementation: `crates/ooxml-xlsx/src/journal/op.rs`
+  (`CellCall`), `edit.rs` (`CellWritePlan::report`, the C1 per-target report).
 - Thread-safety: a compile-time `Send`/`Sync` assertion on `Workbook`, `Document`,
   `Presentation` and `ooxml_xlsx::Error`, run against both trees (Context), repeated by review
   round 1.
@@ -1268,3 +1307,13 @@ No finding is rebutted.
 | m2 | Fixed: `ReadCell` renamed to `RangeCell` (§5.1). |
 | m3 | Fixed: `CLEAR` and `clear()` map to `ClearValue`, which never creates blank cells (§11.4). |
 | m4 | Fixed: baseline is current main; sequencing rewritten (ADR-0021 landed, J order, U5 owner); `write_cells`/`insert` location fixed (transient note removed). |
+
+## Review response (round 3)
+
+| Finding | Response |
+|---|---|
+| M1 | Fixed: the drop predicate is a reads-only §4.4 state-equality extracted for sharing with R1 (not C1's post-validation report, which cannot see past the guards); the F13 relation is stated (no divergence: the new sequential twin drops identically); `write_changed_cells`/`clear_range` exist on both `Workbook` and `Journal` (§6.2, §6.3). |
+| M2 | Fixed: `formulas="formula"` returns `ooxml_rs.Formula` objects (round-trippable; Q8 keeps `str` as text); value-mode writes back against formula cells drop on cache equality (a 0023-specific rule, sequential twin identical); identical `Formula` writes drop via the shared report; oracle 3 pins formula preservation (§6.2, §11.4, §12). |
+| m1 | Fixed: `clear_range` uses `ClearValue`; U2 adds the missing `CellCall` payloads with sequential references into oracle 1 (§6.3, Delivery). |
+| m2 | Fixed: cross-reference is ADR-0024 §10.3 (§11.2). |
+| m3 | Fixed: Sources are current main plus ADR-0024 and the journal files. |
