@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use ooxml_core::{ElementSpec, QName, RawItem, RawNode, RegistryPlan, XmlDocument};
 use ooxml_schema::sml;
 
-use super::{Change, NthAt, RewrittenLocation, defined_names, names_lens, same_name};
+use super::{Change, NthAt, RewrittenLocation, names_lens, same_name};
+use crate::defined_names::raw_defined_names;
 use crate::census::{FKind, SheetKind};
 use crate::edit::strip_cells;
 use crate::formula::lexer::{Area, Prefix, TokKind, lex};
@@ -970,7 +971,8 @@ impl Workbook {
         let mut change = Change::default();
         let book = self.workbook_part.clone();
         let mut updated_names = Vec::new();
-        for (i, name, _, text) in defined_names(self.pkg.xml_part(&book)?) {
+        for (i, raw) in raw_defined_names(self.pkg.xml_part(&book)?) {
+            let (name, text) = (&raw.name, &raw.text);
             let location = format!("defined name {name}");
             if let Some(new) = ctx.rewrite(&text, None, Some(&name), &book, &location)? {
                 record(&mut report, &book, location, &text, &new);

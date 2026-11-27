@@ -27,6 +27,7 @@ use ooxml_core::{ElementSpec, LensMut, Package, PartNameRequest, RegistryPlan, T
 use ooxml_schema::sml::{self, SheetStateValues};
 
 use crate::census::{FKind, SheetKind};
+use crate::defined_names::{is_builtin, raw_defined_names};
 use crate::edit::strip_cells;
 use crate::error::{Error, Result};
 use crate::formula::lexer::{Prefix, TokKind, lex};
@@ -160,36 +161,6 @@ fn names_lens(doc: &mut XmlDocument) -> Result<Option<LensMut<'_, sml::DefinedNa
 }
 
 /// `(child index, name, localSheetId, text)` of every `definedName`.
-fn defined_name_elements(doc: &XmlDocument) -> impl Iterator<Item = (usize, &ooxml_core::RawNode)> {
-    doc.root().elements().find(|node| node.is(sml::DefinedNames::QNAME))
-        .into_iter().flat_map(|names| names.indexed_elements())
-        .filter(|(_, node)| node.is(sml::DefinedName::QNAME))
-}
-
-fn defined_name_scope(node: &ooxml_core::RawNode) -> Option<u32> {
-    node.attr(ooxml_core::QName::new("", "localSheetId")).and_then(|value| value.trim().parse().ok())
-}
-
-fn defined_names(doc: &XmlDocument) -> Vec<(usize, String, Option<u32>, String)> {
-    defined_name_elements(doc).map(|(index, node)| (
-        index,
-        node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default().to_owned(),
-        defined_name_scope(node),
-        node.text().into_owned(),
-    )).collect()
-}
-
-fn global_user_defined_names(doc: &XmlDocument) -> impl Iterator<Item = (&str, &ooxml_core::RawNode)> {
-    defined_name_elements(doc).filter_map(|(_, node)| {
-        if defined_name_scope(node).is_some() {
-            return None;
-        }
-        let name = node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default();
-        let built_in = name.get(..6).is_some_and(|prefix| prefix.eq_ignore_ascii_case("_xlnm."));
-        (!built_in).then_some((name, node))
-    })
-}
-
 impl Workbook {
     /// Reads the workbook's defined names, including local and built-in names.
     pub fn defined_name_nodes(&mut self) -> Result<Vec<ooxml_core::RawNode>> {
@@ -203,17 +174,20 @@ impl Workbook {
     /// Returns workbook-wide user-defined names and their formula text in document order.
     pub fn global_defined_names(&mut self) -> Result<Vec<(String, String)>> {
         let document = self.pkg.xml_part(&self.workbook_part)?;
-        Ok(global_user_defined_names(document)
-            .map(|(name, node)| (name.to_owned(), node.text().into_owned()))
+        Ok(raw_defined_names(document)
+            .into_iter()
+            .filter(|(_, raw)| raw.local_id().is_none() && !is_builtin(&raw.name))
+            .map(|(_, raw)| (raw.name, raw.text))
             .collect())
     }
 
     /// Returns formula text for an exact workbook-wide user-defined name.
     pub fn global_defined_name_formulas(&mut self, name: &str) -> Result<Vec<String>> {
         let document = self.pkg.xml_part(&self.workbook_part)?;
-        Ok(global_user_defined_names(document)
-            .filter(|(candidate, _)| *candidate == name)
-            .map(|(_, node)| node.text().into_owned())
+        Ok(raw_defined_names(document)
+            .into_iter()
+            .filter(|(_, raw)| raw.local_id().is_none() && !is_builtin(&raw.name) && raw.name == name)
+            .map(|(_, raw)| raw.text)
             .collect())
     }
 
@@ -247,11 +221,11 @@ impl Workbook {
             if sheet.is_some_and(|index| index as usize >= self.sheets.len()) {
                 return Err(Error::Malformed("defined name sheet is outside the workbook".into()));
             }
-            let old = defined_name_elements(staged.as_ref().unwrap_or(doc))
-                .find(|(_, node)| node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default()
-                    .eq_ignore_ascii_case(name) && defined_name_scope(node) == sheet);
+            let old = raw_defined_names(staged.as_ref().unwrap_or(doc))
+                .into_iter()
+                .find(|(_, raw)| raw.name.eq_ignore_ascii_case(name) && raw.local_id() == sheet);
             if (old.is_none() && formula.is_empty()) ||
-                old.is_some_and(|(_, node)| !formula.is_empty() && comment.is_none() && node.text() == formula) {
+                old.as_ref().is_some_and(|(_, raw)| !formula.is_empty() && comment.is_none() && raw.text == formula) {
                 continue;
             }
             let old_index = old.map(|(index, _)| index);
@@ -299,10 +273,10 @@ impl crate::Worksheet<'_> {
     /// Returns the sheet-local built-in print references.
     pub fn print_references(&self, titles: bool) -> Vec<String> {
         let name = if titles { "_xlnm.Print_Titles" } else { "_xlnm.Print_Area" };
-        self.wb.pkg.parsed_part(&self.wb.workbook_part).map(defined_names)
+        self.wb.pkg.parsed_part(&self.wb.workbook_part).map(raw_defined_names)
             .unwrap_or_default().into_iter()
-            .filter(|(_, key, local, _)| key == name && *local == Some(self.sheet as u32))
-            .map(|(_, _, _, text)| text).collect()
+            .filter(|(_, raw)| raw.name == name && raw.local_id() == Some(self.sheet as u32))
+            .map(|(_, raw)| raw.text).collect()
     }
 
     /// Replaces a sheet-local print reference list.
@@ -310,18 +284,18 @@ impl crate::Worksheet<'_> {
         let name = if titles { "_xlnm.Print_Titles" } else { "_xlnm.Print_Area" };
         let sheet = self.sheet as u32;
         let part = self.wb.workbook_part.clone();
-        let old = self.wb.pkg.parsed_part(&part).map(defined_names).unwrap_or_default();
-        let matches: Vec<_> = old.into_iter().filter(|(_, key, local, _)| {
-            key == name && *local == Some(sheet)
+        let old = self.wb.pkg.parsed_part(&part).map(raw_defined_names).unwrap_or_default();
+        let matches: Vec<_> = old.into_iter().filter(|(_, raw)| {
+            raw.name == name && raw.local_id() == Some(sheet)
         }).collect();
-        if matches.iter().map(|(_, _, _, text)| text).eq(formulas.iter()) {
+        if matches.iter().map(|(_, raw)| &raw.text).eq(formulas.iter()) {
             return Ok(());
         }
         self.wb.poisoning(|wb| {
             let doc = wb.pkg.xml_part_mut(&part)?;
             let mut root = doc.lens_mut::<sml::Workbook>()?;
             let mut names = root.get_or_insert::<sml::DefinedNames>()?;
-            for (index, _, _, _) in matches.into_iter().rev() {
+            for (index, _) in matches.into_iter().rev() {
                 names.remove_at(index);
             }
             for formula in formulas {
@@ -346,14 +320,14 @@ impl crate::Worksheet<'_> {
 
 /// Remaps `definedName/@localSheetId` (positions); `None` removes the name.
 fn remap_local_names(doc: &mut XmlDocument, map: &dyn Fn(u32) -> Option<u32>) -> Result<()> {
-    let names = defined_names(doc);
+    let names = raw_defined_names(doc);
     let Some(mut dn) = names_lens(doc)? else { return Ok(()) };
     let mut removes = Vec::new();
-    for (i, _, local, _) in &names {
-        let Some(old) = local else { continue };
-        match map(*old) {
+    for (i, raw) in &names {
+        let Some(old) = raw.local_id() else { continue };
+        match map(old) {
             None => removes.push(*i),
-            Some(new) if new != *old => {
+            Some(new) if new != old => {
                 let n = dn.nth_child_mut_at(*i).ok_or_else(|| malformed("definedName"))?;
                 sml::DefinedNameViewMut(n).set_local_sheet_id(new)?;
             }
@@ -455,7 +429,7 @@ impl Workbook {
     fn env_texts(&self) -> Vec<String> {
         self.pkg
             .parsed_part(&self.workbook_part)
-            .map(|d| defined_names(d).into_iter().map(|(_, _, _, t)| t).collect())
+            .map(|d| raw_defined_names(d).into_iter().map(|(_, raw)| raw.text).collect())
             .unwrap_or_default()
     }
 
@@ -1170,9 +1144,10 @@ impl Workbook {
         let rewrites = |id| locations::sheet_rewrites(id, deleting).next().is_some();
         // defined names
         let wb_part = self.workbook_part.clone();
-        let dn = if rewrites(32) { defined_names(self.pkg.xml_part(&wb_part)?) } else { Vec::new() };
+        let dn = if rewrites(32) { raw_defined_names(self.pkg.xml_part(&wb_part)?) } else { Vec::new() };
         let mut name_edits = Vec::new();
-        for (ci, name, local, text) in &dn {
+        for (ci, raw) in &dn {
+            let (name, local, text) = (&raw.name, raw.local_id(), &raw.text);
             // a name local to a deleted sheet goes with it: not a rewrite
             // (review of PR #53, m2)
             if local.is_some_and(|l| skip.contains(&(l as usize))) {
@@ -1761,19 +1736,19 @@ impl Workbook {
             }
         }
         let sf = fold(sheet_name);
-        let wb_names = self.pkg.parsed_part(&self.workbook_part).map(defined_names).unwrap_or_default();
+        let wb_names = self.pkg.parsed_part(&self.workbook_part).map(raw_defined_names).unwrap_or_default();
         // names that refer to the sheet, directly or through other names
         // (`Src2 = Src`, `Src = Data!A1`; review R2-m2). The set only grows,
         // so a cycle of names ends the loop.
-        let mut names_on_sheet: Vec<String> = wb_names.iter().filter(|(_, _, _, t)| names::mentions_prefix(t, sheet_name)).map(|(_, n, _, _)| fold(n)).collect();
+        let mut names_on_sheet: Vec<String> = wb_names.iter().filter(|(_, raw)| names::mentions_prefix(&raw.text, sheet_name)).map(|(_, raw)| fold(&raw.name)).collect();
         loop {
             let more: Vec<String> = wb_names
                 .iter()
-                .filter(|(_, n, _, _)| !names_on_sheet.contains(&fold(n)))
-                .filter(|(_, _, _, t)| {
-                    lex(t).is_ok_and(|toks| toks.iter().any(|k| matches!(&k.kind, TokKind::Name { name, .. } if names_on_sheet.contains(&fold(name)))))
+                .filter(|(_, raw)| !names_on_sheet.contains(&fold(&raw.name)))
+                .filter(|(_, raw)| {
+                    lex(&raw.text).is_ok_and(|toks| toks.iter().any(|k| matches!(&k.kind, TokKind::Name { name, .. } if names_on_sheet.contains(&fold(name)))))
                 })
-                .map(|(_, n, _, _)| fold(n))
+                .map(|(_, raw)| fold(&raw.name))
                 .collect();
             if more.is_empty() {
                 break;

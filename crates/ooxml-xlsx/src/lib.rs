@@ -92,6 +92,8 @@ mod registry;
 mod setters;
 mod canonical;
 mod cell_state;
+mod defined_names;
+pub use defined_names::{DefinedName, NameScope, ResolvedName};
 mod snapshot;
 mod workbook;
 mod worksheet;
