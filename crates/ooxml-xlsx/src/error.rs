@@ -283,6 +283,33 @@ pub enum Error {
     #[error("sheet {0:?} is not a worksheet")]
     NotAWorksheet(String),
 
+    /// No defined name folds equal to the requested one (in the requested
+    /// scope, if any).
+    #[error("no defined name {0:?}")]
+    NoSuchName(String),
+
+    /// The lookup cannot pick one name: two fold alike in the chosen scope,
+    /// or a same-folded name has an invalid scope (fail closed).
+    #[error("ambiguous defined name {name:?}: {reason}")]
+    AmbiguousName {
+        /// The requested name, as passed.
+        name: String,
+        /// One of `"invalid localSheetId"`, `"names fold alike"`.
+        reason: &'static str,
+    },
+
+    /// The name resolves but its text is not one sheet-qualified absolute
+    /// area on a worksheet.
+    #[error("defined name {name:?} is not a range: {reason}")]
+    NameNotARange {
+        /// The requested name, as passed.
+        name: String,
+        /// One of `"constant"`, `"formula"`, `"multiple areas"`,
+        /// `"relative reference"`, `"external reference"`, `"#REF!"`,
+        /// `"3D reference"`, `"not a worksheet"`.
+        reason: &'static str,
+    },
+
     /// An earlier edit failed while being applied (a bug: the plan had
     /// proved it would succeed). The workbook may hold a partial edit, so
     /// every later edit and every save is refused; re-open the file.
@@ -727,6 +754,9 @@ impl Error {
             Error::InvalidFormula { .. } => "InvalidFormula",
             Error::NoSuchSheet(..) => "NoSuchSheet",
             Error::NotAWorksheet(..) => "NotAWorksheet",
+            Error::NoSuchName(..) => "NoSuchName",
+            Error::AmbiguousName { .. } => "AmbiguousName",
+            Error::NameNotARange { .. } => "NameNotARange",
             Error::Poisoned(..) => "Poisoned",
             Error::SheetNamingUnsupported => "SheetNamingUnsupported",
             Error::DuplicateCellWrite { .. } => "DuplicateCellWrite",
@@ -840,6 +870,9 @@ impl Error {
             Error::InvalidFormula { .. } => None,
             Error::NoSuchSheet(..) => None,
             Error::NotAWorksheet(..) => None,
+            Error::NoSuchName(..) => None,
+            Error::AmbiguousName { .. } => None,
+            Error::NameNotARange { .. } => None,
             Error::Poisoned(..) => None,
             Error::SheetNamingUnsupported => None,
             Error::DuplicateCellWrite { cell, .. } => Some(cell.as_str()),
@@ -959,6 +992,9 @@ mod tests {
             (Error::InvalidFormula { text: String::from("x"), reason: String::from("x") }, None),
             (Error::NoSuchSheet(String::from("x")), None),
             (Error::NotAWorksheet(String::from("x")), None),
+            (Error::NoSuchName(String::from("x")), None),
+            (Error::AmbiguousName { name: String::from("x"), reason: "x" }, None),
+            (Error::NameNotARange { name: String::from("x"), reason: "x" }, None),
             (Error::Poisoned(String::from("x")), None),
             (Error::SheetNamingUnsupported, None),
             (Error::DuplicateCellWrite { cell: String::from("B2") }, Some("B2")),
