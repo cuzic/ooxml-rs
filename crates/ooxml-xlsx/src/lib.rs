@@ -109,7 +109,7 @@ pub use workbook::{CalcPolicy, Workbook};
 pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
 pub use condfmt::{CfOperator, CfRemoval, Cfvo, ExtendedDataBar, ExtendedDataBarThreshold, ExtendedIconRule, IconSetValues, Rule, RuleKind};
 pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
-pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
+pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions, RowPageBreak};
 pub use formula::future::add_future_prefixes;
 pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
 pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, SheetProtectionModel, WorkbookProtection};
