@@ -1,8 +1,8 @@
 # ADR-0023: xlsx range reads and writes at workbook scope, and the Python binding policy
 
-- Status: **Proposed** (revision 2)
-- Date: 2026-11-25
-- Repository baseline: `f88d02c` (main after PR #140)
+- Status: **Proposed** (revision 3)
+- Date: 2026-11-27
+- Repository baseline: `213e27a` (main after PR #170)
 - Depends on:
   - [ADR-0001](0001-lossless-round-trip-architecture.md): Layer 1–3, T1/T1b/T2, `Err` ⇒
     byte-identical output, fail closed.
@@ -17,17 +17,21 @@
     allowed, writes to other cells refused.
   - [ADR-0018](0018-xlsx-phase7-structural-edits.md): structural edits exposed by the binding;
     G2 `copy_sheet` (out of scope here).
-  - **ADR-0021** (browser XLSX APIs compatible with SheetJS CE and ExcelJS) and **ADR-0022**
-    (Rust worksheet projection and generated JavaScript adapters), both Proposed and **not yet
-    on `main`**: they arrive with the pending ADR-0021 implementation (see "Prerequisite and
-    sequencing"). This ADR reuses their Rust API names and follows their rules: Rust owns
-    parsing, edit guards, formula-cache policy and serialization; adapters own API shape and
-    value projection; native and Wasm entry points share classifiers and guards; an incomplete
-    classification fails closed; never invent cached results; native poisoning is not
-    rollback.
+  - **ADR-0021** (browser XLSX APIs) and **ADR-0022** (Rust worksheet projection),
+    both Proposed; their Rust work has landed on `main` (PR #170). This ADR reuses their Rust
+    API names and follows their rules: Rust owns parsing, edit guards, formula-cache policy
+    and serialization; adapters own API shape and value projection; native and Wasm entry
+    points share classifiers and guards; an incomplete classification fails closed; never
+    invent cached results; native poisoning is not rollback.
+  - [ADR-0024](0024-xlsx-edit-journal.md) (Accepted): the Edit Journal. Range batches are
+    journal-op batches (§4.1 multi-op calls, validated per §4.5); unchanged-cell skipping is
+    R1/R2 (§7.1); reads in a session go through the View in normalized mode (§6.1); rollback
+    is `truncate(seq)` (§10.3) with save-during-transaction refused (Q5 (A)); the J1/J2/J3
+    delivery order gates the units below. Owner decision Q4 required this rewrite before
+    round 2 (revision 3).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) (no phase number: this is an API
   layer over Phase0–Phase7, not a new format phase).
-- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13).
+- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4).
 
 ## Revision history
 
@@ -45,7 +49,7 @@
     `ooxml_rs.CLEAR` sentinel or `clear()`. `write_range` skips values equal to what the
     cell already reads as, so a read → modify → write round trip changes only edited cells
     (§6.2, §11.4).
-  - **M5:** `ReadCell` always records formula presence, `cm`, `vm` and storage; classification
+  - **M5:** `RangeCell` always records formula presence, `cm`, `vm` and storage; classification
     runs on `RangeRead` and returns the blocking error when roles are incomplete (§5.1, §9).
   - **M6:** `CellRole` is a struct with independent merge and formula roles (§5.1).
   - **M7:** name resolution is a new small resolver sharing only the fold and the parsed
@@ -57,6 +61,17 @@
     `bindings/python/`, outside `crates/*`, with its own CI job; the root workspace and the
     AGENTS.md commands are unchanged (§10).
   - Minor fixes m1–m13 in their sections.
+- **Revision 3** (review round 2: M1, m1–m4; owner decision Q4, ADR-0024 §13.4).
+  - **M1:** rebuilt on the Edit Journal: §6.2/§6.3 batches are journal-op batches
+    (multi-op calls); unchanged-cell dropping shares C1's per-target report with R1
+    (no bespoke comparison); reads in a session go through the View in normalized mode
+    (§5); `fork()` transactions become `truncate(seq)` with Q5 (A) (§11.2); Delivery
+    re-sequenced after the J series.
+  - **m1:** multi-group plans: the clearing set holds several groups; replaced-group
+    detection stays in the C1 plan machinery shared with the journal append path.
+  - **m2:** the read cell struct is named `RangeCell` (`streaming::ReadCell` already exists).
+  - **m3:** `CLEAR` and `clear()` map to `ClearValue`, which never creates blank cells.
+  - **m4:** baseline, sequencing and U5 ownership updated (ADR-0021 has landed).
 
 ## Context
 
@@ -82,10 +97,10 @@ rewrites references (ADR-0018 G1). It lacks two things, which this ADR adds:
 
 ### What exists already, and what is pending
 
-Read on `main` (`f88d02c`) and, for the pending work, in the ADR-0021 implementation's working
-tree (uncommitted as of 2026-11-25; names may still change before its PR merges):
+Read on current `main` (`213e27a`, post-#170). The ADR-0021/0022 Rust work has landed, so
+the right column names shipped APIs:
 
-| Need | On `main` | Pending ADR-0021/0022 work |
+| Need | Pre-existing | Landed in PR #170 |
 |---|---|---|
 | Batch write | `Worksheet::write_cells(&[(CellIndex, CellWrite)])`, all or nothing; `CellWrite::{Number, String, Formula, RemoveFormula}` | adds `CellWrite::{IsoDate, Error, Bool, Clear, FormulaWithResult}` and `write_cells_with_styles`; `clear_shared_formula_row` (one-row groups, `ClearingFormulaGroup::Shared`) |
 | Single date write | `CellMut::set_datetime(ExcelDateTime)` (serial in the workbook's system, `EnsureDate` style rule) | `CellMut::set_iso_date` (`t="d"`) |
@@ -158,9 +173,10 @@ Errors: `NoSuchSheet` (absent, or two names folding alike), `NotAWorksheet`. Eve
 workbook-scoped method in this ADR resolves its sheet through `worksheet_ref`, once, and then
 delegates to the `Worksheet` method of the same name; the binding reaches the ADR-0018
 `Worksheet` operations (`insert_rows`, …) the same way. **One matching rule for all native
-entry points.** The Wasm `XlsxDocument::worksheet(name)` matches exactly. If that is
-deliberate SheetJS/ExcelJS parity (for the ADR-0021 implementer to confirm), the Wasm adapter
-keeps an exact-match pre-check on its side and calls the shared Rust functions with
+entry points.** Journal calls resolve `SheetRef` to a `SheetId` at append; epochs absorb
+renames within a session (revision 3). The Wasm `XlsxDocument::worksheet(name)` matches exactly. If that is
+deliberate SheetJS/ExcelJS parity (U5 verifies it against the shipped adapter), the Wasm
+adapter keeps an exact-match pre-check on its side and calls the shared Rust functions with
 `SheetRef::Index`.
 
 Rust coordinates stay 0-based `CellIndex`/`CellRange` (normalised top-left to bottom-right).
@@ -194,6 +210,9 @@ impl Workbook     { pub fn used_range(&mut self, sheet: SheetRef<'_>, mode: Used
   check that reads `t`, the presence of `v`/`is`/`f`, and for `t="s"` the item **length**
   through the shared-string item index (`shared_string_items`), without cloning the string
   that `CellRef::value()` would return.
+- In a journal session the same functions run over the shadow with the View's normalized
+  masking (§5 framing): `Values`-mode content checks test content, not caches, so pending
+  strips do not change the answer.
 
 ### 4. `first_free_row`
 
@@ -228,12 +247,12 @@ pub struct ReadOptions {
 pub struct RangeRead {
     pub range: CellRange,              // the range read (normalised)
     pub width: u32,                    // range columns
-    pub cells: Vec<ReadCell>,          // row-major, len = rows × width, one per coordinate
+    pub cells: Vec<RangeCell>,          // row-major, len = rows × width, one per coordinate
     pub roles_incomplete: Option<&'static str>, // Some(kind) when the census or merge scan is incomplete (§5.6, m10)
 }
 
 #[non_exhaustive]
-pub struct ReadCell {
+pub struct RangeCell {
     pub value: ReadValue,
     pub formula: FormulaText,    // §5.3
     pub role: CellRole,
@@ -279,6 +298,13 @@ pub enum FormulaRole {
 impl Worksheet<'_> { pub fn read_range(&mut self, range: CellRange, opts: &ReadOptions) -> Result<RangeRead>; }
 impl Workbook     { pub fn read_range(&mut self, sheet: SheetRef<'_>, range: CellRange, opts: &ReadOptions) -> Result<RangeRead>; }
 ```
+
+- **Journal sessions read through the View in normalized mode** (ADR-0024 §6.1; revision
+  3). The `Workbook`/`Worksheet` readers above are the sequential reference (ADR-0024 part
+  A): U4 implements the read logic once over a shared read interface, and the session path
+  runs it over the shadow with normalized masking — pending strips (R2) read cacheless and
+  pending dimension growth applies. Native callers without a session use the direct methods
+  and see sequential state; both paths share code, never duplicated logic.
 
 `CellValue` keeps its meaning (`Date(String)` is the raw `t="d"` text). `ReadValue` is a new
 owned projection; it does not add a variant to `CellValue`. `header` is **not** a Rust
@@ -339,7 +365,9 @@ need.
   (`CellRef::value()` already returns the cache). A formula with no cache reads as `Blank`
   with `has_formula: true`. Nothing evaluates a formula and nothing synthesises a cache.
   After a formula write in the same session, the written cell and every dependent whose cache
-  was stripped (ADR-0003) read as `Blank` until a spreadsheet application recalculates.
+  was stripped (ADR-0003) read as `Blank` until a spreadsheet application recalculates. In a
+  journal session the same holds for **pending** strips, which normalized mode masks (R2
+  restores them only at save).
 - `formula` (with `FormulaRead::Text`) is the cell's **effective** formula text in file form
   (no leading `=`, future-function prefixes as stored), decided **per cell**, never failing
   the whole read (m3):
@@ -378,7 +406,7 @@ read (§12, Q1).
 - An area larger than `max_cells` is `Err(RangeTooLarge { cells, limit })` (new variant),
   before any allocation. Whole-column and whole-row requests in the binding are clipped to
   `used_range(Stored)` before calling Rust (§12), never by Rust.
-- Memory (m4): a `ReadCell` is about 100 bytes plus string heap; 1,000,000 coordinates are
+- Memory (m4): a `RangeCell` is about 100 bytes plus string heap; 1,000,000 coordinates are
   about 100 MB in Rust before Python objects (several times that once converted). Hence the
   default of 1,000,000 (Q9); a caller reading more sets `max_cells` explicitly or reads in
   row bands.
@@ -444,30 +472,36 @@ Duration(f64),
 impl Workbook {
     pub fn write_cells(&mut self, sheet: SheetRef<'_>, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<()>;
     pub fn write_cells_with_styles(&mut self, sheet: SheetRef<'_>, writes: &[(CellIndex, CellWrite<'_>)], styles: &[Option<u32>]) -> Result<()>;
-    /// Drops every write whose target already reads equal (below), then writes the rest as
-    /// one batch (§6.3 for shared groups). Returns how many cells were written.
+}
+impl Journal {
+    /// Drops every write whose target already reads equal (below), then appends the rest
+    /// as one multi-op journal call (§6.3 for shared groups). Returns how many cells were
+    /// written.
     pub fn write_changed_cells(&mut self, sheet: SheetRef<'_>, writes: &[(CellIndex, CellWrite<'_>)]) -> Result<usize>;
     /// Clears the content of every stored cell with content in `range` (§6.3).
     pub fn clear_range(&mut self, sheet: SheetRef<'_>, range: CellRange) -> Result<usize>;
 }
 ```
 
-- `write_cells`/`write_cells_with_styles` resolve the sheet and delegate; same atomicity
-  (every guard checked before apply), same `DuplicateCellWrite`/`SharedFormulaMaster`
-  errors, no extent restriction (ADR-0021's "insert within the original range" rule is a
-  SheetJS projection constraint, not a native one).
-- **"Reads equal"** (`write_changed_cells`, M4): the target's `ReadCell` (read with
-  `DateRead::Typed`) and the write match exactly: `Number(x)` vs `Number(x)` (bitwise after
-  `-0` → `0`), `String(s)` vs `Text(s)` with `rich_text: false`, `Bool`, `Error`, and
-  `DateTime(v, k)`/`Duration(d)` vs a `DateTime`/`Time`/`Duration` value with the same serial
-  and the same `DateKind`; `Clear` vs `Blank` without formula. A cell **with a formula**
-  never reads equal to a constant write: the write replaces the formula, as it would through
-  `write_cells` (that is the caller's edit). Formula writes are never dropped. The comparison
-  reads; it writes nothing and invents nothing.
+- `write_cells`/`write_cells_with_styles` resolve the sheet and delegate to the sequential
+  `Worksheet` batch (ADR-0024 part A); same atomicity (every guard checked before apply),
+  same `DuplicateCellWrite`/`SharedFormulaMaster` errors, no extent restriction (ADR-0021's
+  "insert within the original range" rule is a SheetJS projection constraint, not a native
+  one).
+- `write_changed_cells`/`clear_range` are **journal calls** (revision 3, ADR-0024 §4.1/§4.5):
+  the remainder is appended as one multi-op call, so guards, atomicity, poison semantics and
+  `truncate`/`Commit` behaviour are the journal's, not a second implementation. R1 then sees
+  only changed cells; its whole-call skip is a safety net, never the dropping mechanism.
+- **"Reads equal"** (`write_changed_cells`, M4) is **C1's per-target report, shared with R1
+  by construction** — not a bespoke comparison. Each write is resolved to its op first
+  (§6.1, including DateKind-keeping), then reported: dropped when the report says state-same
+  (content and style), kept otherwise. A cell **with a formula** never reads equal to a
+  constant write (the report compares against formula content); formula writes are never
+  dropped. The comparison reads; it writes nothing and invents nothing.
 - The point of `write_changed_cells`: a read → modify → write-back of a region changes only
   the cells the caller changed; unchanged merge members, table headers and array members are
   dropped before any guard sees them, so they do not refuse the batch (M4). A changed value
-  in a guarded cell still refuses the whole batch, byte-identical.
+  in a guarded cell still refuses the whole call, byte-identical.
 
 #### 6.3 Clearing and overwriting shared formula groups (M3)
 
@@ -476,15 +510,19 @@ impl Workbook {
 ADR-0003 §4.2). Excel saves filled-down formulas as shared groups, so clearing or
 overwriting a computed column would always refuse. Decision:
 
-- When the cells of a batch (`clear_range`, `write_changed_cells`, and through them the
-  binding's `clear`, `write_range`, `append_rows`) cover **every** member and the master of
-  one shared group, the group is cleared or replaced **as a whole in the same plan**: the
-  existing `ClearingFormulaGroup::Shared` mechanism of `clear_shared_formula_row` is
+- When the cells of a journal call (`clear_range`, `write_changed_cells`, and through them
+  the binding's `clear`, `write_range`, `append_rows`) cover **every** member and the master
+  of one shared group, the group is cleared or replaced **as a whole in the same C1 plan**:
+  the existing `ClearingFormulaGroup::Shared` mechanism of `clear_shared_formula_row` is
   generalised from one-row groups to any group whose `range` is verified (no
-  `ambiguous_group`, every member inside the range, master present). No hand-off is planned
-  for such a group; every other guard (merges, arrays, headers, protection, census) still
-  applies; dependents' caches are stripped as for any write.
-- A batch that covers **part** of a group still refuses (`SharedFormulaMaster`), as today.
+  `ambiguous_group`, every member inside the range, master present), and from a single group
+  per plan to a **clearing set holding several groups** (m1; a range call routinely spans
+  more than one fill-down column). Replaced-group detection stays in the C1 plan machinery
+  the journal append path already runs (`replaced_groups`), shared with the sequential
+  implementation rather than reimplemented. No hand-off is planned for such a group; every
+  other guard (merges, arrays, headers, protection, census) still applies; dependents'
+  caches are stripped as for any write.
+- A call that covers **part** of a group still refuses (`SharedFormulaMaster`), as today.
   Writing a partial group cell-by-cell through separate calls is unchanged (hand-off).
 - `write_cells` itself keeps today's rule (no group-wide semantics behind a plain batch);
   only the two range-shaped operations opt in.
@@ -526,7 +564,10 @@ impl Workbook {
 
 - `defined_names()` replaces the hand extraction in the Wasm adapter and the private tuple
   `sheet_ops::defined_names`. The ADR-0021 `defined_name_nodes` and `global_defined_names`
-  stay (Q10). The setters (`set_defined_name(s)`) are reused unchanged.
+  stay (Q10). The setters (`set_defined_name(s)`) stay sequential-only for native use: there
+  is no journal op for name writes (ADR-0024 Part B, P5, needs its own ADR), and a direct
+  shadow edit would bypass the log, so the binding exposes reads only until P5 lands. The
+  reads run over the shadow, which always holds current names.
 - **Resolution (M7)** is a new, small function written for this API. It shares with
   `formula::precedents` only the case fold and the parsed expression of a name (`NameDef`'s
   expression); it does **not** reuse `Env::resolve`, whose conservative rules (a local name
@@ -617,10 +658,10 @@ impl Worksheet<'_> {
   `ScalarDates::Unsupported`; otherwise `Ok(Some(value))`. The phonetic rule of
   `has_complex_value` is carried by `rich_text` (phonetic runs alone do not set it). These are
   exactly the inputs `classify_scalar_value`/`has_complex_value` read today; the fields exist
-  in `ReadCell` whatever `ReadOptions` says, so a read with `FormulaRead::Omit` still
+  in `RangeCell` whatever `ReadOptions` says, so a read with `FormulaRead::Omit` still
   classifies a formula cell as non-scalar.
 - With `roles_incomplete` set, `scalar` returns the blocking error for every index, as
-  `classify_sheet` does today via `non_scalar_ranges`. `ReadCell` has no public classifier of
+  `classify_sheet` does today via `non_scalar_ranges`. `RangeCell` has no public classifier of
   its own (a lone cell does not know whether its range's roles are complete).
 - `allow_merge_anchor` excludes the anchor's merge **by range equality**, not by the position
   of the merge in `non_scalar_ranges` (the Wasm `classify_cell` removes by index, relying on
@@ -631,7 +672,7 @@ impl Worksheet<'_> {
   latency gates).
 - The "no editable scalar representation" refusal becomes `Error::NonScalarCell { cell,
   reason }` instead of `InvalidValue` with a message, so bindings can branch on `kind()`.
-- **Ownership:** the ADR-0021 implementer moves the helpers (U5), after their Rust PR is on
+- **Ownership:** U5 (this ADR's implementer) moves the helpers now that PR #170 is on
   `main`, so that the Wasm crate is switched in the same PR and its browser tests prove
   parity. Acceptance includes: with a blocked census, `read_scalar` and `scalar_guards` return
   the same `Err` as the current Wasm path; a merged anchor that is also a shared master is
@@ -730,11 +771,13 @@ first.
 
 - `Workbook`, `Document` and `Presentation` are `#[pyclass(frozen)]` wrappers around a
   `std::sync::Mutex<Slot<T>>` and a `std::sync::Condvar`, where `Slot<T>` holds the Rust
-  value and the transaction state of §11.2. `Mutex<Slot<T>>` is `Send + Sync` because each
-  `T` is `Send` (Context), so the classes need **no `unsendable`** and work under a PyO3
-  version that requires `Sync` pyclasses. `unsendable` is rejected because a handle created
-  on one thread would panic when touched from another, which RPA hosts with worker threads
-  do.
+  value and the transaction state of §11.2. For xlsx, `T` is the `Journal` (revision 3):
+  `open`/`from_bytes`/`new` open one, every §12 call appends journal ops, reads go through
+  the View, and `save`/`to_bytes` commit. `Document` and `Presentation` have no journal and
+  keep sequential values. `Mutex<Slot<T>>` is `Send + Sync` because each `T` is `Send`
+  (Context), so the classes need **no `unsendable`** and work under a PyO3 version that
+  requires `Sync` pyclasses. `unsendable` is rejected because a handle created on one thread
+  would panic when touched from another, which RPA hosts with worker threads do.
 - **The mutex is only ever locked, and the condvar only ever waited on, with the GIL
   released.** Every method does:
   1. with the GIL: convert Python arguments into owned Rust values (strings, write sources,
@@ -764,29 +807,34 @@ first.
   ADR-0003 §3.1) is **not** rollback (ADR-0021). Outside a transaction the handle stays
   poisoned: every later edit and save raises `PoisonedError` (Rust already refuses them), and
   the caller reopens from its last saved file.
-- **Transactions (M1).** `with wb.transaction(): …` gives rollback to the state at entry.
+- **Transactions (M1; revision 3: journal-based, ADR-0024 §10.3).**
+  `with wb.transaction(): …` gives rollback to the state at entry.
   - Entry (GIL released): lock; wait on the condvar until no transaction is open; record
-    `owner = std::thread::current().id()` and `snapshot = Workbook::fork()` (from the
-    ADR-0021 work) in the slot; unlock.
+    `owner = std::thread::current().id()` and `entry = journal.current_seq()` — always a
+    call boundary, since every call appends whole and entry happens between calls — in the
+    slot; unlock. No fork, no snapshot.
   - While it is open, **only the owner thread** may use the handle. Every call from another
     thread waits on the condvar (GIL released) until the transaction ends. So no other
     thread's edit can be inside the transaction's span: a rollback discards only the owner's
     edits, and a commit contains only the owner's edits.
-  - Exit without exception: drop the snapshot, clear the owner, `notify_all`. Exit with an
-    exception: put the snapshot back as the workbook (the state at entry, with every edit
-    committed before entry), clear the owner, `notify_all`, re-raise.
+  - Exit without exception: clear the owner, `notify_all`. Exit with an exception:
+    `journal.truncate(entry)` (replay- or fast-based per ADR-0024; structural ops truncate
+    with `truncate_fast` only where §10.1 allows), clear the owner, `notify_all`, re-raise.
   - `transaction()` on the owner thread while one is open is `RuntimeError` (no nesting). On
     another thread it waits, like any call.
   - The owner is an OS thread, so a transaction must be entered and exited on one thread
     (the context-manager protocol does this). A transaction left open (a generator never
     closed) blocks other threads; the docstring says so, and a handle's `__del__` does not
     try to recover it.
-  - Cost: one copy of the parsed parts per transaction, not per call (Alternatives).
+  - **Save inside a transaction is refused** (Q5 (A)): `save`/`to_bytes` return
+    `TransactionOpen` while one is open. The caller exits first; there is no "commit on
+    save".
+  - Cost: no per-transaction copy; rollback replays or fast-truncates the span's ops.
     `Document` and `Presentation` have no poisoning and no transaction in this ADR.
 - **Panics**: PyO3 turns a Rust panic into `PanicException`; the `std` mutex is then
   poisoned. Inside a transaction, on the owner thread, the binding recovers the guard
-  (`PoisonError::into_inner`), restores the snapshot, clears the poison, releases ownership
-  and re-raises. Outside a transaction the handle is dead: every later call raises
+  (`PoisonError::into_inner`), truncates to the entry seq, clears the poison, releases
+  ownership and re-raises. Outside a transaction the handle is dead: every later call raises
   `PoisonedError` with kind `("binding", "HandlePoisoned")`.
 - The binding never retries, never falls back to a lossy path and never writes a partial
   file.
@@ -839,7 +887,8 @@ first.
   A column with a `Time` format thus yields `time` for values below one day and `datetime`
   above (the value really has a day part), never `timedelta` (M8).
 - Write (Python → `CellWrite`), checked in this order: `None` → **no write at that
-  coordinate** (M4); `ooxml_rs.CLEAR` → `Clear`; `bool` → `Bool` (before `int`);
+  coordinate** (M4); `ooxml_rs.CLEAR` → `ClearValue` (m3: never creates a blank cell);
+  `bool` → `Bool` (before `int`);
   `int`/`float` → `Number` (non-finite → `InvalidNumber` from Rust); `str` → `String`,
   **always text**, also when it starts with `=` (Q8); `ooxml_rs.Formula(text)` → `Formula`;
   `ooxml_rs.CellError(code)` → `Error`; `datetime.datetime` → `DateTime(v, DateTime)`;
@@ -859,20 +908,20 @@ here. A larger surface (formats, colors, widths, tables, images) is a follow-up 
 
 | Method | Rust |
 |---|---|
-| `Workbook.open(path)`, `Workbook.from_bytes(b)`, `Workbook.new()` | `open`, `from_bytes`, `new` |
-| `save(path)`, `to_bytes()` | `save`, `to_bytes` (§11.1) |
+| `Workbook.open(path)`, `Workbook.from_bytes(b)`, `Workbook.new()` | journal `open`, `from_bytes`, `new` (§11.1) |
+| `save(path)`, `to_bytes()` | journal `save`, `to_bytes` (§11.1); refused inside a transaction (Q5 (A)) |
 | `sheet_names() -> list[str]`, `date1904` (read-only property) | `sheet_names`, `date1904` |
-| `add_sheet(name, position=None)`, `rename_sheet(sheet, new)`, `delete_sheet(sheet)`, `move_sheet(sheet, to)` | ADR-0009 operations |
+| `add_sheet(name, position=None)`, `rename_sheet(sheet, new)`, `delete_sheet(sheet)`, `move_sheet(sheet, to)` | structural journal ops (needs J2) |
 | `used_range(sheet, mode="values") -> str \| None` | §3 |
 | `first_free_row(sheet, column=None, mode="values") -> int \| None` | §4 |
 | `read_range(sheet, ref, *, header=False, formulas="value", dates=True) -> list[list]` (or `(header, rows)`) | §5 |
 | `read_cell(sheet, ref)`, `read_formula(sheet, ref) -> str \| None` | §5 on one cell |
-| `write_cells(sheet, [(ref, value), …])` | `write_cells` (every non-`None` value written) |
+| `write_cells(sheet, [(ref, value), …])` | one journal call (every non-`None` value written) |
 | `write_range(sheet, top_left, rows)` | `write_changed_cells` (§6.2, §6.3) |
 | `append_rows(sheet, rows, start_column="A", key_column=None)` | `first_free_row` + `write_changed_cells`, under one lock |
 | `clear(sheet, ref) -> int` | `clear_range` (§6.3) |
-| `insert_rows` / `delete_rows` / `insert_cols` / `delete_cols(sheet, at, count)` | ADR-0018 G1 via `worksheet_ref` (report as a dict) |
-| `defined_names() -> list[DefinedName]`, `resolve_name(name, scope=None) -> (sheet_name, ref)`, `set_defined_name(name, formula, scope=None, comment=None)` | §7 |
+| `insert_rows` / `delete_rows` / `insert_cols` / `delete_cols(sheet, at, count)` | structural journal ops (needs J2) via `worksheet_ref` (report as a dict) |
+| `defined_names() -> list[DefinedName]`, `resolve_name(name, scope=None) -> (sheet_name, ref)` | §7 (reads over the shadow). Name writes await ADR-0024 Part B (P5); `set_defined_name` stays sequential-only for native use. |
 | `edit_refusal() -> tuple[str, str] \| None` | `edit_refusal()` → `(crate, kind)` |
 | `transaction()` | §11.2 |
 
@@ -916,20 +965,25 @@ in the binding over existing Rust APIs.)
 
 ## Prerequisite and sequencing
 
-ADR-0023 **depends on the ADR-0021 Rust work landing on `main` first**, as its own PR. That
-work touches the files this ADR's units would touch (`worksheet.rs`, `workbook.rs`,
-`setters.rs`, `edit.rs`, `sheet_ops/mod.rs`, `lib.rs` re-exports; `error.rs` is next to them).
-Order:
+The ADR-0021 Rust work has landed on `main` (PR #170); the prerequisite of revision 2 is
+met. Revision 3 adds the Edit Journal prerequisite (owner decision Q4, ADR-0024 §13.4): the
+range batches (§6.2/§6.3), the View reads (§5) and the binding transactions (§11.2) are
+journal-based, so the units that implement them wait for the J series. Order:
 
-1. **ADR-0021 implementation (now):** commit the Rust changes in `ooxml-core`/`ooxml-xlsx`
-   separately from the JS packages and open the PR; the cell read/write and defined-name part
-   first if it can be split.
-2. **This ADR (in parallel):** review rounds until no Blocker/Major. The ADR-0021 implementer
-   reads it and agrees to §9 (classifier lifted into `ooxml-xlsx`, Wasm switched to it).
-3. **After (1) merges:** U5 (the lift) by the ADR-0021 implementer; U1–U4 and U6 branched
-   from that `main`.
-4. **Independent of (1):** U7 (binding workspace, CI job, open/save, docx/pptx I/O) can
-   start once U1 is merged (it needs `kind()`), and touches no file of (1).
+1. **Now (no journal needed):** U1 (error identifiers), then U6 (defined-name reads and
+   resolver; the setters stay sequential-only) and U7 (binding workspace, CI job, exceptions,
+   docx/pptx I/O over the sequential APIs). U9 (Python docx/pptx API) after U7.
+2. **After J1:** U2 (workbook-scoped writes; the §6.2/§6.3 batches append journal-op calls),
+   U3 (extent, sequential plus View-normalized), U4 (range reads, sequential plus
+   View-normalized) → U4b (range writes) and U5 (classifier lift plus the Wasm switch;
+   needs U4, not the journal).
+3. **After J2:** the binding's structural rows (§12) become available as journal ops; U8
+   covers them.
+4. **After J3 (`truncate`):** U8 (Python xlsx API with `transaction()`).
+5. **J1 exit requirement (cross-ADR, for the J owner to confirm):** J1 publishes the
+   `Journal` type with `open`/`new`/`from_bytes`, keyed-op append, the View (echo and
+   normalized), `Commit`/save, and a `current_seq` accessor for transaction entry. Without
+   these, step 2 cannot start.
 
 ## Test oracles
 
@@ -948,7 +1002,10 @@ Order:
    containing merges, a table header, formulas, a fill-down shared column and blanks, then
    `write_range` of the same values with one cell changed: `Ok`, and the XML diff touches only
    that cell (plus the dependent-cache strips ADR-0003 requires). With `None` in place of
-   values: no change at all (M4).
+   values: no change at all (M4). The pre-drop predicate is C1's per-target report, the same
+   predicate R1 uses — but the pre-drop is load-bearing, not an optimization: R1 only skips
+   whole calls, so without it one changed cell would drag unchanged guarded cells through
+   the guards and refuse the call.
 4. **Dates.** 1900 and 1904 fixtures: serial 0, 1, 59, 60, 61, 2,958,465, a negative serial,
    a fractional serial with milliseconds; formats 14, 18–22, 45–47, `[h]:mm`, `[mm]:ss`,
    `h:mm AM/PM`, `yyyy-mm-dd hh:mm`, a locale-tagged date and an East Asian built-in id;
@@ -969,8 +1026,9 @@ Order:
    range (both roles reported, M6); `first_free_row` with and without a column, with a merge
    whose anchor has content (m2); `clear_range` over a merge.
 7. **Shared groups (M3).** `clear_range` and `write_range` over a full multi-row fill-down
-   group succeed in one plan, leave no orphan `f t="shared"` and strip dependents; over a
-   partial group they refuse, byte-identical.
+   group succeed in one call, leave no orphan `f t="shared"` and strip dependents; over a
+   partial group they refuse, byte-identical. A call spanning two full groups clears both
+   (the clearing set, m1).
 8. **Used range.** Style-only cells, rows without cells, a sheet with only empty `row`
    elements (`Stored` is `None`, m1), empty strings, a formula without a cache, a `dimension`
    of `A1` on a large sheet, a `dimension` larger than the data, data outside `dimension`.
@@ -991,13 +1049,14 @@ Order:
     thread B's `write_cells` issued while thread A's transaction is open completes only after
     A's transaction ends, and survives A's rollback; a second `transaction()` on A raises
     `RuntimeError`; a transaction rolled back after a refusal and after an injected apply
-    failure (fault-injection wheel) leaves bytes equal to the state at entry; a poisoned
+    failure (fault-injection wheel) leaves bytes equal to the state at entry (truncate to the
+    entry seq); `save`/`to_bytes` inside a transaction is refused (Q5 (A)); a poisoned
     handle outside a transaction raises `PoisonedError` on edit and save.
 13. **Mutation.** A deliberate mutation per unit (e.g. `used_range(Values)` counting
     style-only cells, a shared member returning its own empty `f`, `from_serial` called with
     `date1904 = false` on a 1904 workbook, `[h]` classified as `Time`, `None` mapped to
-    `Clear`, a transaction that does not wait for its owner, the binding locking with the GIL
-    held) is caught by the tests.
+    `ClearValue`, a transaction that truncates to the wrong seq, `save` allowed inside a
+    transaction, the binding locking with the GIL held) is caught by the tests.
 14. **Performance.** §5.7's measurements in `ooxml-bench` (1,000,000-cell sheet; shared
     strings; a sheet with 10,000 distinct styles), published in the PR, not gated.
 
@@ -1006,7 +1065,8 @@ format-only cells, first free row) is flagged *(u)* and checked by the owner man
 
 ## Delivery
 
-One PR per unit. U1–U4 and U6 branch from `main` after the ADR-0021 Rust PR has merged.
+One PR per unit.
+
 
 - **U1 — error identifiers.** `kind()` and `cell()` on `ooxml_core::Error` and the
   xlsx/docx/pptx `Error`s, with the exhaustiveness tests; the caller-input audit and
@@ -1014,31 +1074,34 @@ One PR per unit. U1–U4 and U6 branch from `main` after the ADR-0021 Rust PR ha
 - **U2 — workbook-scoped writes.** `SheetRef`, `Workbook::worksheet_ref`,
   `Workbook::{write_cells, write_cells_with_styles}`, `CellWrite::{DateTime, Duration}` with
   `#[non_exhaustive]`, the `DateKind` classifier (shared with U4), oracles 2, 3 (first half)
-  and the write half of 4.
+  and the write half of 4. After J1 (journal-op batches).
 - **U3 — extent.** `UsedRange`, `used_range`, `first_free_row`, the four-way doc table
-  (§3, §4), oracles 6 (part), 8.
-- **U4 — range reads.** `ReadOptions`, `RangeRead`, `ReadCell`, `ReadValue`, `FormulaText`,
+  (§3, §4), sequential plus View-normalized paths, oracles 6 (part), 8. After J1 (View).
+- **U4 — range reads.** `ReadOptions`, `RangeRead`, `RangeCell`, `ReadValue`, `FormulaText`,
   `CellRole`, `read_range`, `RangeTooLarge`, the shared ISO-date parser, the `ooxml-bench`
-  cases (§5), oracles 1, 4, 5, 6, 14.
-- **U4b — range writes.** `write_changed_cells`, `clear_range`, the whole-group extension of
-  `ClearingFormulaGroup::Shared` (§6.2, §6.3), oracles 3 (second half), 7. After U4.
-- **U5 — classifier lift (ADR-0021 implementer).** `ScalarOptions`, `RangeRead::scalar`,
+  cases (§5), oracles 1, 4, 5, 6, 14. After J1 (View).
+- **U4b — range writes.** `Journal::write_changed_cells`, `Journal::clear_range`, the C1
+  per-target drop predicate shared with R1, the multi-group clearing set (§6.2, §6.3),
+  oracles 3 (second half), 7. After U4 and J1.
+- **U5 — classifier lift.** `ScalarOptions`, `RangeRead::scalar`,
   `Worksheet::scalar_guards`/`read_scalar` with the per-generation cache, `NonScalarCell`;
-  the Wasm crate switched in the same PR (§9), oracle 10. After U4.
+  the Wasm crate switched in the same PR (§9), oracle 10. After U4 (transitively after J1,
+  but needs no journal API itself).
 - **U6 — defined names.** `DefinedName`, `NameScope`, `defined_names`, `ResolvedName`,
   `resolve_defined_name`, `NoSuchName`, `AmbiguousName`, `NameNotARange` (§7), oracle 9.
 - **U7 — binding workspace.** `bindings/python/` (Cargo workspace, `pyproject.toml`, Python
   package), root `exclude`, the CI job of §10, the exception hierarchy and `(crate, kind)`
-  table, the handle/mutex/condvar/GIL rule, `open`/`from_bytes`/`new`/`save`/`to_bytes` for
-  the three formats, `sheet_names`, the abi3 `datetime` check (§10, §11.1, §11.3), oracle 11.
-  After U1.
-- **U8 — Python xlsx API.** The `Workbook` table of §12 over U2–U4b and U6, value mapping
-  (§11.4), `transaction()` (§11.2), oracles 1–3, 12 through Python.
+  table, the handle/mutex/condvar/GIL rule, `open`/`from_bytes`/`new`/`save`/`to_bytes` and
+  `sheet_names` for docx/pptx (sequential; xlsx sessions move to U8), the abi3 `datetime`
+  check (§10, §11.1, §11.3), oracle 11. After U1.
+- **U8 — Python xlsx API.** Journal sessions (`open`/`from_bytes`/`new`/`save`/`to_bytes`),
+  the `Workbook` table of §12 over U2–U4b and U6, value mapping (§11.4), `transaction()`
+  (§11.2), oracles 1–3, 12 through Python. After J3 (for `truncate`), U2–U4b, U6 and U7.
 - **U9 — Python docx/pptx API.** `paragraph_texts`, `append_paragraph`, `replace`,
   `replace_many`, `slide_texts`, `replace_all` and the slide operations (§12).
 
-Order: U1 → (U2, U3, U6 in any order) → U4 → (U4b, U5); U7 after U1; U8 after U2–U4b, U6,
-U7; U9 after U7.
+Order: U1 → (U6, U7, U9) any time after; (U2, U3, U4) after J1 → (U4b, U5); U8 after J3
+(and J2 for its structural rows), U2–U4b, U6, U7.
 
 ## Alternatives considered
 
@@ -1072,7 +1135,12 @@ U7; U9 after U7.
 - **Per-call fork or byte-snapshot staging** (ADR-0021's ExcelJS path). Rejected as the
   default: refusals are already byte-identical without it; poisoning is a bug path; forking
   copies every parsed part and a byte snapshot re-serialises and reloads on each call, which
-  RPA loops of single-cell writes cannot afford. Offered per block as `transaction()`.
+  RPA loops of single-cell writes cannot afford. Transactions use `truncate(seq)` instead
+  (revision 3).
+- **Workbook-hosted range batches and `fork()` transactions** (this ADR's revision 2
+  design). Rejected by owner decision Q4 (ADR-0024 §13.4): it duplicates the journal's batch
+  validation, no-op skipping and rollback. Revision 3 builds the batches on journal ops, the
+  skipping on the C1 report shared with R1, and transactions on `truncate(seq)`.
 - **One Python exception class per Rust variant.** Rejected: about 300 classes to keep stable;
   `(crate, kind)` keeps every name, categories give useful `except` clauses.
 - **Evaluate formulas or synthesise caches on read.** Rejected: ADR-0003 and ADR-0021 forbid
@@ -1096,6 +1164,8 @@ U7; U9 after U7.
   (the older `is_date`/`is_date_format` keep their rule for existing callers).
 - Every format crate's error variant names become a stable public contract, consumed as
   `(crate, kind)`; caller-input errors get `InvalidArgument` where they used `Malformed`.
+- The xlsx range units wait for the J series (revision 3): U2–U5 need J1's public `Journal`
+  and View, U8 needs J2/J3; until then only U1, U6, U7 and U9 can land.
 - Range-shaped writes can clear or replace whole shared groups; partial groups still refuse.
 - The root workspace and its CI job are unchanged; a second Cargo workspace and a two-OS
   Python CI job are added, with a second `Cargo.lock` to keep current.
@@ -1131,8 +1201,9 @@ is decided in §10; its Q7, who implements, belongs in the implementation PRs, n
   `ooxml_rs.Formula`. The host translates its own convention.
 - **Q9. `max_cells` default.** Proposed: 1,000,000 coordinates per `read_range` (≈100 MB in
   Rust, more once converted to Python objects; §5.5).
-- **Q10 (with the ADR-0021 implementer).** Keep `Workbook::defined_name_nodes` public next to
-  `defined_names`, or deprecate it? Proposed: keep until the Wasm adapter no longer uses it.
+- **Q10.** Keep `Workbook::defined_name_nodes` public next to `defined_names`, or deprecate
+  it? Proposed: keep until the Wasm adapter no longer uses it (to confirm with the adapter
+  owner in U5).
 - **Q11. Named cells without a scope.** PAD's "named cell" may refer to a sheet-local name.
   Proposed: the binding keeps `scope=None` = global only, and the host, which knows the
   flow's active sheet, passes `scope`. Alternative: with `scope=None`, fall back to a local
@@ -1149,7 +1220,7 @@ is decided in §10; its Q7, who implements, belongs in the implementation PRs, n
 | M2 | Fixed: `(crate, kind)` keys, core `Io` → `OSError` subclasses, U1 audit and `InvalidArgument`, oracle 11 (§8, §11.3). |
 | M3 | Fixed with option (a): whole verified shared groups cleared/replaced in one plan by `clear_range` and `write_changed_cells`; partial groups still refuse; oracle 7 (§6.3). |
 | M4 | Fixed: `None` = unchanged, `CLEAR` sentinel, `write_changed_cells` drops writes that read equal (never across a formula, never inventing caches); oracle 3 (§6.2, §11.4). |
-| M5 | Fixed: `stored`, `has_formula` (always), `cell_metadata`, `rich_value` in `ReadCell`; classification on `RangeRead` returns the blocking error; merge-anchor exclusion by range equality; per-generation guard cache; oracle 10 (§5.1, §9). |
+| M5 | Fixed: `stored`, `has_formula` (always), `cell_metadata`, `rich_value` in `RangeCell`; classification on `RangeRead` returns the blocking error; merge-anchor exclusion by range equality; per-generation guard cache; oracle 10 (§5.1, §9). |
 | M6 | Fixed: `CellRole { merge, formula }`, both reported; oracle 6 (§5.1). |
 | M7 | Fixed: new resolver, shares only fold and parsed expression; scope rules restated; `AmbiguousName`; invalid scope fails closed; oracle 9 (§7). |
 | M8 | Fixed: `DateKind` (date/time/date-time/elapsed); `ReadValue::{Time, Duration}`; write kinds pick 14/21/22/46; oracle 4 (§5.2, §6.1, §11.4). |
@@ -1187,3 +1258,13 @@ No finding is rebutted.
 - ECMA-376 Part 1 §18.8.30 (built-in number formats), for `DateKind`'s built-in table.
 - PyO3 user guide (pyclass thread-safety, `unsendable`, releasing the GIL, abi3) and maturin
   documentation (`module-name`, `python-source`, `features`), at the versions pinned by U7.
+
+## Review response (round 2)
+
+| Finding | Response |
+|---|---|
+| M1 | Fixed: rebuilt on the Edit Journal per owner decision Q4 (ADR-0024 §13.4). §6.2/§6.3 batches are journal-op batches (multi-op calls); unchanged-cell dropping shares C1's per-target report with R1; session reads go through the View in normalized mode (§5); transactions are `truncate(entry)` with Q5 (A) (§11.2); Delivery re-sequenced after the J series with a J1 exit requirement. |
+| m1 | Fixed: the clearing set holds several groups per call; replaced-group detection stays in the shared C1 plan machinery; oracle 7 covers two groups (§6.3). |
+| m2 | Fixed: `ReadCell` renamed to `RangeCell` (§5.1). |
+| m3 | Fixed: `CLEAR` and `clear()` map to `ClearValue`, which never creates blank cells (§11.4). |
+| m4 | Fixed: baseline is current main; sequencing rewritten (ADR-0021 landed, J order, U5 owner); `write_cells`/`insert` location fixed (transient note removed). |
