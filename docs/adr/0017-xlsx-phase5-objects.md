@@ -1088,7 +1088,10 @@ result range. The range starts at the target cell. Dynamic arrays register
 XLDAPR cell metadata. The write preserves stored values under the other cells
 in the range and refuses overlap with merged cells, other array or data-table
 ranges, and formulas at non-anchor positions. When a sheet dimension is
-present, it grows to include the full array range.
+present, it grows to include the full array range. Stored values under a
+static array, or in a dynamic array's spill range, do not refuse the write:
+Excel recomputes on open and shows #SPILL! for a blocked spill, and the
+saved file itself is valid (PR #170 review round 1, m1).
 
 `CellMut::set_array_formula_with_result` also accepts a caller-provided
 number, string, boolean, or standard Excel error and writes the cache with
@@ -1106,3 +1109,15 @@ fallbacks from the workbook's DrawingML theme in SpreadsheetML index order.
 `CellMut::set_formula_with_result` writes ordinary formulas with a
 caller-supplied cache using the same validation and dependency
 invalidation as array anchors.
+
+### Post-acceptance note — shared formula group writes
+
+`Worksheet::set_shared_formula` writes a whole group (master plus members)
+in one batch with a fresh worksheet-local shared index, `set_shared_formula_master`
+creates a lone master, and `set_shared_formula_member` adds a follower inside
+an existing unambiguous master's declared range. Rewriting every cell of an
+existing group replaces it without a hand-off; any other write to a group
+follows the existing shared-master rules (ADR-0003 §4.2). A master's declared
+range may cover other formula cells (members of another group, an array);
+reads resolve each cell through the census and Excel opens the result, so this
+is allowed and recorded here rather than refused (PR #170 review round 1, m2).
