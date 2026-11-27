@@ -51,6 +51,42 @@ fn unchanged_package_is_passed_through() {
 }
 
 #[test]
+fn explicit_zip_compression_preserves_part_contents() {
+    let input = std::fs::read(FIXTURE).unwrap();
+    let mut package = Package::from_bytes(input).unwrap();
+    package.xml_part(SHEET1).unwrap();
+    for (compressed, method) in [(false, zip::CompressionMethod::Stored), (true, zip::CompressionMethod::Deflated)] {
+        let bytes = package.to_bytes_with_compression(compressed).unwrap();
+        let expected: Vec<_> = package.part_names().collect();
+        let actual = entries(&bytes);
+        assert_eq!(actual.iter().map(|(name, ..)| name.as_str()).collect::<Vec<_>>(), expected);
+        for (name, stored_method, ..) in actual {
+            if !name.ends_with('/') {
+                assert_eq!(stored_method, method, "{name}");
+            }
+            assert_eq!(decompressed(&bytes, &name), package.read_part(&name).unwrap(), "{name}");
+        }
+    }
+}
+
+#[test]
+fn explicit_deflate_levels_recompress_untouched_parts() {
+    let input = std::fs::read(FIXTURE).unwrap();
+    let package = Package::from_bytes(input).unwrap();
+    let fast = package.to_bytes_with_deflate_level(1).unwrap();
+    let dense = package.to_bytes_with_deflate_level(9).unwrap();
+    assert_ne!(entries(&fast), entries(&dense));
+    for bytes in [&fast, &dense] {
+        for (name, method, ..) in entries(bytes) {
+            if !name.ends_with('/') {
+                assert_eq!(method, zip::CompressionMethod::Deflated, "{name}");
+            }
+            assert_eq!(decompressed(bytes, &name), package.read_part(&name).unwrap(), "{name}");
+        }
+    }
+}
+
+#[test]
 fn parsing_for_inspection_does_not_change_output() {
     let input = std::fs::read(FIXTURE).unwrap();
     let mut pkg = Package::from_bytes(input.clone()).unwrap();

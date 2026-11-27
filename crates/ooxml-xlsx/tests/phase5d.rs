@@ -8,7 +8,7 @@ use common::p1::{SML, book, cell_spans, synthetic, with_part};
 use common::{assert_l1_except, entries, part, read};
 use ooxml_core::{Package, PartNameRequest, QName, RawNode, XmlDocument};
 use ooxml_xlsx::{
-    __formula_parses, CellIndex, Error, SparklineGroup, SparklineType, Workbook, Worksheet,
+    __formula_parses, CellIndex, CellRange, CellValue, Error, SparklineGroup, SparklineType, Workbook, Worksheet,
 };
 
 const SHEET: &str = "xl/worksheets/sheet1.xml";
@@ -841,4 +841,62 @@ fn corpus_sweep() {
     for (result, count) in results {
         eprintln!("{result}: {count}");
     }
+}
+
+
+#[test]
+fn static_array_write_and_range_guard() {
+    let input = synthetic("o1_arrays.xlsx");
+    let mut wb = Workbook::from_bytes(input).unwrap();
+    let range = CellRange::parse("H2:I3").unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    ws.cell_mut(range.first.row, range.first.col).unwrap()
+        .set_array_formula("1+2", range, false).unwrap();
+    assert!(ws.array_formulas().contains(&(range.first, range, "1+2".into(), false)));
+    let written = wb.to_bytes().unwrap();
+    let mut reopened = Workbook::from_bytes(written.clone()).unwrap();
+    let mut ws = reopened.worksheet().unwrap();
+    assert!(ws.array_formulas().contains(&(range.first, range, "1+2".into(), false)));
+    let overlap = CellRange::parse("G1:H2").unwrap();
+    assert_matches!(ws.cell_mut(overlap.first.row, overlap.first.col).unwrap()
+        .set_array_formula("2+3", overlap, false), Err(Error::ArrayResultCell { .. }));
+    assert_eq!(reopened.to_bytes().unwrap(), written);
+}
+
+
+#[test]
+fn ordinary_formula_cache_is_validated_and_invalidated() {
+    let mut book = Workbook::new_at(std::time::UNIX_EPOCH).unwrap();
+    let original = book.to_bytes().unwrap();
+    let mut sheet = book.worksheet().unwrap();
+    assert_matches!(sheet.cell_mut(0, 1).unwrap().set_formula_with_result("A1+2", CellValue::Number(f64::NAN)),
+        Err(Error::InvalidNumber(_)));
+    assert_eq!(book.to_bytes().unwrap(), original);
+    let mut sheet = book.worksheet().unwrap();
+    sheet.cell_mut(0, 1).unwrap().set_formula_with_result("A1+2", CellValue::Number(3.0)).unwrap();
+    assert_eq!(sheet.cell(0, 1).unwrap().unwrap().value().unwrap(), CellValue::Number(3.0));
+    sheet.cell_mut(0, 0).unwrap().set_number(2.0).unwrap();
+    assert_eq!(sheet.cell(0, 1).unwrap().unwrap().value().unwrap(), CellValue::Empty);
+}
+
+#[test]
+fn array_anchor_cache_is_validated_and_invalidated() {
+    let input = synthetic("o1_arrays.xlsx");
+    let mut wb = Workbook::from_bytes(input.clone()).unwrap();
+    let range = CellRange::parse("H2:I3").unwrap();
+    let mut ws = wb.worksheet().unwrap();
+    assert_matches!(
+        ws.cell_mut(1, 7).unwrap()
+            .set_array_formula_with_result("Z1+2", range, false, CellValue::Number(f64::INFINITY)),
+        Err(Error::InvalidNumber(_))
+    );
+    assert_eq!(wb.to_bytes().unwrap(), input);
+
+    let mut ws = wb.worksheet().unwrap();
+    ws.cell_mut(1, 7).unwrap()
+        .set_array_formula_with_result("Z1+2", range, false, CellValue::Number(3.0))
+        .unwrap();
+    assert_eq!(ws.cell(1, 7).unwrap().unwrap().value().unwrap(), CellValue::Number(3.0));
+    ws.cell_mut(0, 25).unwrap().set_number(9.0).unwrap();
+    assert_eq!(ws.cell(1, 7).unwrap().unwrap().value().unwrap(), CellValue::Empty);
 }

@@ -1,0 +1,72 @@
+# Standalone spike for ADR-0024 (xlsx Edit Journal), J0/J1 keyed-op slice. Its
+# own workspace, so the main workspace never builds it; depends on ooxml-xlsx
+# by path through its public API only and changes no crate.
+[workspace]
+
+[package]
+name = "xlsx-edit-journal-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[features]
+# ADR-0024 §7.1 placement taken literally (a folded full entry at the first
+# content op of its segment, conditional ops included): README feedback F1.
+adr_literal_placement = []
+# Hand-written mutants (ADR-0024 oracle 9). Each must make `cargo test` fail.
+mutant_noop_missing = []      # round 5 M1: an entry on a missing cell may be a no-op
+mutant_merge_missing = []     # round 2 M3: merge content + patch on a cell the content creates
+mutant_style_last_wins = []   # B3: style patches folded last-wins
+mutant_cond_last_wins = []    # round 2 M2: a conditional content op drops earlier content
+mutant_keep_shadow = []       # round 2 M4: shadow kept after a part-way refusal
+mutant_fold_at_append = []    # B2: fold the log at append
+# Commit = shadow serialization (README): each remedy removed
+mutant_no_noop = []           # remedy 1: no no-op judgment at append
+mutant_no_revert = []         # remedy 2: a reverted cell is not restored
+mutant_no_defer = []          # remedy 3: the shadow strips caches at each write
+mutant_no_gc = []             # remedy 4: every session sst/xf item is kept, in shadow order
+# Revision 8 verification (README): rules as written in ADR-0024 rev 8 and
+# the earlier wordings they replaced. Each must make a test fail.
+mutant_half_cache_predicate = []  # oracle 1 cache predicate with its first half only (harness)
+mutant_no_structural_clause = []  # harness: oracle 1 without the structural direction (round 8 M6)
+mutant_no_probe_clause = []       # harness: oracle 1 without the probe clause (round 9 M1)
+mutant_r3_subtract_changed = []   # R3 as in the spike before rev 8: subtract the changed set (round 7 B1)
+mutant_r3_subtract_content = []   # R3 as fixed in round 7: subtract the content-changed cells (round 9 M2)
+# R1 judged before validation (the spike before revision 8; F13). Off by
+# default: ADR-0024 §4.5 keeps R1 off until C1 (plan without apply) lands.
+r1_unvalidated = []
+# R3 as written in rev 8: strip only cells holding `f` (array result cells keep stale caches)
+adr_r3_formula_only = []
+# R3 as written in rev 8: seed the strip set from §4.4's raw content change (a hand-off's new master seeds its dependents)
+adr_r3_seed_raw = []
+# rev 8 read literally: a cell created by a style patch (missing -> empty c) counts as content-changed for R3
+adr_missing_is_content = []
+# rev 8 as written: a carried mark dies with its id, and its formula-set change with it (calcChain kept)
+adr_dead_mark_drops_fx = []
+mutant_r1_skip_group = []         # R1 judged by P: a group cell's own text written back is skipped (round 8 M1)
+mutant_r1_group_cells = []        # with r1_unvalidated: R1 (b) dropped (a group cell may be skipped)
+mutant_r2_no_derived = []         # R3 reads the shadow's node, not the restored state (round 8 M2 analogue)
+mutant_drop_marks = []          # a carried mark does not seed R3 (round 8 M3)
+mutant_drop_records = []        # structural strip records dropped (round 7 M3, round 8 M6)
+mutant_close_own_sheet = []     # a structural op closes only its own sheet's snapshots (round 9 M1)
+mutant_restore_clears_mark = []  # R2 restore clears the carried mark (round 8 M3)
+mutant_no_sst_removed = []       # sst/@count not decremented by a structural delete (round 7 m2)
+mutant_c7_created_keeps_s0 = []   # C7: a created cell keeps the shadow's s="0" (rev 8 n1 not applied)
+mutant_no_rebase = []             # restores read the first Base after a save (no C6; round 7 M1)
+mutant_tf_from_mark = []          # truncate_fast re-applies from the commit mark, not the snapshot (round 7 M4)
+mutant_tf_no_restore = []         # truncate_fast re-applies the kept ops without restoring first
+mutant_no_handoff_target = []     # snapshots for the op's own cells only, not a hand-off's new master (round 7 M2)
+
+[dependencies]
+ooxml-xlsx = { path = "../../crates/ooxml-xlsx" }
+ooxml-core = { path = "../../crates/ooxml-core" }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+proptest = "1"
+# shadow-poison test of oracle 3 (ADR-0003 §7.3 hook)
+ooxml-xlsx = { path = "../../crates/ooxml-xlsx", features = ["fault-injection"] }
+
+[profile.release]
+debug = "line-tables-only"

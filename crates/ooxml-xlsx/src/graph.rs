@@ -13,7 +13,7 @@ const BUCKET_ROWS: u32 = 64;
 /// Rectangles spanning more buckets than this go to the `wide` list.
 const MAX_BUCKETS: u32 = 64;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Graph {
     /// The closure of the `Everything` formulas: the same for every edit, so
     /// it is computed once and reused until a formula is added (review
@@ -93,6 +93,12 @@ impl Graph {
             g.add(fid, p);
         }
         g
+    }
+
+    /// Drops the cached closure of the `Everything` formulas, which a removed
+    /// formula may have been part of.
+    pub(crate) fn forget_everything_closure(&mut self) {
+        self.everything_closure = std::cell::OnceCell::new();
     }
 
     pub(crate) fn add(&mut self, fid: usize, p: Prec) {

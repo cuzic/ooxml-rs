@@ -18,6 +18,8 @@ fault-injection = []
 ooxml-core = { workspace = true }
 ooxml-schema = { workspace = true, features = ["sml", "props"] }
 quick-xml = { workspace = true }
+codepage = "0.1.3"
+encoding_rs = "0.8.44"
 regex = "1"
 sha2 = "0.11"
 thiserror = { workspace = true }
@@ -27,6 +29,7 @@ getrandom = { workspace = true }
 calamine = { version = "0.38", features = ["picture"] }
 rust_xlsxwriter = { version = "0.102", default-features = false }
 zip = { workspace = true }
+proptest = "1"
 
 [[example]]
 # Unique across the workspace: three crates have a manual check and cargo warns

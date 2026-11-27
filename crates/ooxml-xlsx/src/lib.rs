@@ -56,7 +56,12 @@
 //! See `README.md` for the full contract.
 
 mod census;
+mod biff_properties;
+mod biff_strings;
+pub use biff_strings::{biff_shared_strings, encode_biff_shared_strings};
+pub use biff_properties::{biff_document_properties, encode_biff_document_properties};
 mod core_props;
+pub use core_props::{encode_document_properties, package_document_properties};
 mod edit;
 mod dynamic;
 mod error;
@@ -67,10 +72,12 @@ mod condfmt;
 mod hyperlink;
 mod images;
 mod comments;
-pub use comments::{Comment, Note, Person, PersonId};
+pub use comments::{Comment, Note, NoteBox, NoteEditAs, NoteSource, Person, PersonId};
 pub use images::{Anchor, CellImage, EditAs, Image, ImageInfo, ImageMedia, Marker, Size};
 mod index;
+mod journal;
 mod layout;
+pub mod xlsb;
 mod locations;
 mod protect;
 mod range;
@@ -83,10 +90,16 @@ mod reference;
 mod sheet_ops;
 mod registry;
 mod setters;
+mod canonical;
+mod cell_state;
+mod snapshot;
 mod workbook;
 mod worksheet;
+pub mod streaming;
+mod streaming_rows;
+mod streaming_manifest;
 mod tables;
-pub use tables::{Col, Table, TableStyle, Total};
+pub use tables::{Col, ColumnTotal, Table, TableStyle, Total};
 
 pub use error::{Error, Result};
 pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
@@ -95,16 +108,19 @@ pub use workbook::ApplyStep;
 pub use sheet_ops::{RewrittenLocation, SheetState};
 pub use sheet_ops::grid::{RemovedItem, StructuralEditReport};
 pub use registry::dates::ExcelDateTime;
-pub use registry::read::FormatRead;
-pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
+pub use registry::read::{DECLARED_FONT_CONDENSE, DECLARED_FONT_EXTEND, DECLARED_FONT_NAME, DECLARED_FONT_OUTLINE, DECLARED_FONT_SHADOW, DECLARED_FONT_SIZE, DeclaredFont, FormatRead};
+pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, Gradient, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
-pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
-pub use condfmt::{CfOperator, CfRemoval, Cfvo, IconSetValues, Rule, RuleKind};
-pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
-pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
+pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationRuleAttributes, ValidationType};
+pub use condfmt::{CfOperator, CfRemoval, Cfvo, ExtendedDataBar, ExtendedDataBarThreshold, ExtendedIconRule, IconSetValues, Rule, RuleKind};
+pub use hyperlink::{HyperlinkInfo, Link, LinkOptions, hyperlink_address};
+pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions, RowPageBreak};
 pub use formula::future::add_future_prefixes;
+/// Text and optional font for one rich-text run.
+pub type RichTextRun = (String, Option<Font>);
+
 pub use worksheet::{CellMut, CellRef, CellValue, CellWrite, Worksheet};
-pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, WorkbookProtection};
+pub use protect::{Allow, DEFAULT_SPIN_COUNT, MAX_SPIN_COUNT, SheetProtection, SheetProtectionModel, WorkbookProtection};
 
 /// Test hook (not API): does `text` lex and parse, and does translating it
 /// by one row and column either succeed or fail cleanly? Never panics.

@@ -7,6 +7,7 @@ use ooxml_core::name::MC_ALTERNATE_CONTENT;
 use ooxml_core::{ElementSpec, Package, QName, RawNode, XmlDocument};
 use ooxml_schema::sml;
 
+use super::{NoteBox, NoteEditAs};
 use super::xml::{self, Patch, RID, attr, child};
 use crate::images::{OFFICE, REL_VML, internal_target, part_error, walk};
 use crate::reference::{MAX_COLS, MAX_ROWS};
@@ -157,6 +158,107 @@ fn note_type(namespaces: &str) -> String {
     )
 }
 
+fn inset_mode(settings: &NoteBox) -> &'static str {
+    if settings.custom_inset { "custom" } else { "auto" }
+}
+
+fn inset_value(settings: &NoteBox) -> String {
+    settings.inset.map(|value| format!("{}mm", value * 10.0)).join(",")
+}
+
+const BOX_FIELDS: [&str; 4] = ["MoveWithCells", "SizeWithCells", "Locked", "LockText"];
+
+fn box_children(settings: Option<&NoteBox>, namespace: &str) -> String {
+    let flag = |value| if value { "True" } else { "False" };
+    let values = settings.map_or([Some(""), Some(""), None, None], |settings| [
+        (settings.edit_as == NoteEditAs::Absolute).then_some(""),
+        (settings.edit_as != NoteEditAs::TwoCells).then_some(""),
+        Some(flag(settings.locked)),
+        Some(flag(settings.lock_text)),
+    ]);
+    BOX_FIELDS.into_iter().zip(values).filter_map(|(field, value)| {
+        value.map(|value| {
+            if value.is_empty() {
+                format!("<x:{field}{namespace}/>")
+            } else {
+                format!("<x:{field}{namespace}>{value}</x:{field}>")
+            }
+        })
+    }).collect()
+}
+
+/// Change a single opening tag while retaining the element's children and namespaces.
+fn box_attribute(node: &RawNode, name: QName, value: &str, office_prefix: &str) -> Patch {
+    use std::fmt::Write as _;
+
+    let span = node.span().expect("parsed node");
+    let mut markup = String::from("<");
+    if let Some(prefix) = node.name().prefix() {
+        let _ = write!(markup, "{prefix}:");
+    }
+    markup.push_str(node.name().local());
+    let mut found = false;
+    for attribute in node.attrs() {
+        let key = attribute.name();
+        let matches = key.is(name);
+        found |= matches;
+        markup.push(' ');
+        if let Some(prefix) = key.prefix() {
+            let _ = write!(markup, "{prefix}:");
+        }
+        let value = if matches { value } else { attribute.value() };
+        let _ = write!(markup, "{}=\"{}\"", key.local(), xml::attribute(value));
+    }
+    if !found {
+        if name.ns == OFFICE {
+            // Bind a fresh prefix on this shape without changing inherited bindings.
+            let prefix = office_prefix;
+            let _ = write!(markup, " xmlns:{prefix}=\"{OFFICE}\" {prefix}:{}=\"{value}\"", name.local);
+        } else {
+            let _ = write!(markup, " {}=\"{value}\"", name.local);
+        }
+    }
+    markup.push_str(if span.is_self_closing() { "/>" } else { ">" });
+    (span.start..span.open_end, markup)
+}
+
+pub(super) fn update_note_box(
+    part: &str,
+    doc: &XmlDocument,
+    at: CellIndex,
+    settings: &NoteBox,
+) -> Result<Vec<Patch>> {
+    let shape = note_shape(part, doc, at)?
+        .ok_or_else(|| part_error(part, "missing VML note shape"))?;
+    let textbox = unique_child(shape, QName::new(V, "textbox"), part)?
+        .ok_or_else(|| part_error(part, "missing VML note textbox"))?;
+    let client = unique_child(shape, QName::new(X, "ClientData"), part)?
+        .ok_or_else(|| part_error(part, "missing VML note client data"))?;
+    let mode = QName::new(OFFICE, "insetmode");
+    let mut prefix = String::from("noteOffice");
+    while shape.attr(mode).is_none() && walk(doc.root()).any(|node| {
+        node.name().prefix() == Some(prefix.as_str()) || node.attrs().iter().any(|attribute| {
+            let name = attribute.name();
+            name.prefix() == Some(prefix.as_str())
+                || (name.prefix() == Some("xmlns") && name.local() == prefix)
+        })
+    }) {
+        prefix.push('_');
+    }
+    let namespace = format!(" xmlns:x=\"{X}\"");
+    let mut edits = vec![
+        box_attribute(shape, mode, inset_mode(settings), &prefix),
+        box_attribute(textbox, attr("inset"), &inset_value(settings), &prefix),
+        xml::insert(client, client.elements().next(), box_children(Some(settings), &namespace)),
+    ];
+    for field in BOX_FIELDS {
+        if let Some(node) = unique_child(client, QName::new(X, field), part)? {
+            edits.push(xml::replace(node, String::new()));
+        }
+    }
+    Ok(edits)
+}
+
 fn shape(
     at: CellIndex,
     id: u32,
@@ -164,6 +266,7 @@ fn shape(
     visible: bool,
     namespaces: &str,
     z_index: i64,
+    settings: Option<&NoteBox>,
 ) -> String {
     let CellIndex { row, col } = at;
     let (left, x_offset) = if col >= MAX_COLS - 3 {
@@ -192,14 +295,19 @@ fn shape(
         ("hidden", "")
     };
     let shape_type = xml::attribute(shape_type);
+    let insetmode = settings.map_or("auto", inset_mode);
+    let inset = settings.map_or_else(String::new, |settings| {
+        format!(" inset=\"{}\"", inset_value(settings))
+    });
+    let box_children = box_children(settings, "");
     format!(
         concat!(
             "<v:shape{namespaces} id=\"_x0000_s{id}\" o:spid=\"_x0000_s{id}\" type=\"#{shape_type}\"",
             " style=\"position:absolute;margin-left:{margin_left}pt;margin-top:{margin_top}pt;width:96pt;height:55.5pt;z-index:{z_index};visibility:{visibility}\"",
-            " fillcolor=\"#ffffe1\" o:insetmode=\"auto\"><v:fill color2=\"#ffffe1\"/>",
+            " fillcolor=\"#ffffe1\" o:insetmode=\"{insetmode}\"><v:fill color2=\"#ffffe1\"/>",
             "<v:shadow on=\"t\" color=\"black\" obscured=\"t\"/><v:path o:connecttype=\"none\"/>",
-            "<v:textbox style=\"mso-direction-alt:auto\"><div style=\"text-align:left\"></div></v:textbox>",
-            "<x:ClientData ObjectType=\"Note\"><x:MoveWithCells/><x:SizeWithCells/><x:Anchor>{anchor}</x:Anchor>",
+            "<v:textbox style=\"mso-direction-alt:auto\"{inset}><div style=\"text-align:left\"></div></v:textbox>",
+            "<x:ClientData ObjectType=\"Note\">{box_children}<x:Anchor>{anchor}</x:Anchor>",
             "<x:AutoFill>False</x:AutoFill><x:Row>{row}</x:Row><x:Column>{col}</x:Column>{marker}</x:ClientData></v:shape>"
         ),
         namespaces = namespaces,
@@ -211,6 +319,9 @@ fn shape(
         row = row,
         col = col,
         marker = marker,
+        insetmode = insetmode,
+        inset = inset,
+        box_children = box_children,
         margin_left = margin_left,
         margin_top = margin_top
     )
@@ -233,6 +344,7 @@ pub(super) fn append(
     existing: Option<&(String, XmlDocument)>,
     at: CellIndex,
     visible: bool,
+    settings: Option<&NoteBox>,
 ) -> Result<AddShape> {
     let (high, used) = crate::images::note_shape_numbers(wb, sheet)?;
     let mut edits = Vec::new();
@@ -362,7 +474,7 @@ pub(super) fn append(
         prefix.push_str(&note_type(child_vo));
         "_x0000_t202"
     };
-    prefix.push_str(&shape(at, id, shape_type, visible, child_vox, z_index));
+    prefix.push_str(&shape(at, id, shape_type, visible, child_vox, z_index, settings));
     let addition = if let Some(root) = root {
         edits.push(xml::insert(root, None, prefix));
         Addition::Existing(edits)
@@ -399,6 +511,56 @@ pub(super) fn note_shape<'a>(
         return Err(part_error(part, "multiple VML note shapes match the cell"));
     }
     Ok(first)
+}
+
+/// `(cell, visible)` for each note shape with a numeric row and column.
+pub(super) fn note_visibility(doc: &XmlDocument) -> Vec<(CellIndex, bool)> {
+    walk(doc.root()).filter(|shape| shape.is(QName::new(V, "shape"))).filter_map(|shape| {
+        let client = shape.elements().find(|node| node.is(QName::new(X, "ClientData"))
+            && node.attr(attr("ObjectType")) == Some("Note"))?;
+        let coord = |local| child(client, QName::new(X, local))
+            .and_then(|value| value.text().trim().parse::<u32>().ok());
+        let at = CellIndex::new(coord("Row")?, coord("Column")?).ok()?;
+        Some((at, child(client, QName::new(X, "Visible")).is_some()))
+    }).collect()
+}
+
+pub(super) fn note_box_fields(shape: &RawNode) -> Vec<String> {
+    let textbox = child(shape, QName::new(V, "textbox"));
+    let inset = textbox.and_then(|node| node.attr(attr("inset")));
+    let client = shape.elements().find(|node| node.is(QName::new(X, "ClientData"))
+        && node.attr(attr("ObjectType")) == Some("Note"));
+    let setting = |name| client.and_then(|node| child(node, QName::new(X, name)));
+    let locked = setting("Locked");
+    let lock_text = setting("LockText");
+    let position = match (setting("MoveWithCells").is_some(), setting("SizeWithCells").is_some()) {
+        (true, true) => "absolute",
+        (false, false) => "twoCells",
+        _ => "oneCells",
+    };
+    let flag = |node: Option<&RawNode>| node.map(|node| match node.text().trim().to_ascii_lowercase().as_str() {
+        "false" | "f" | "0" => "False",
+        _ => "True",
+    }).unwrap_or("");
+    let mut values = vec![
+        shape.attr(QName::new(OFFICE, "insetmode")).unwrap_or("").into(),
+        flag(locked).into(), flag(lock_text).into(), position.into(),
+    ];
+    if let Some(inset) = inset {
+        for value in inset.split(',') {
+            let value = value.trim();
+            let (number, factor) = ["mm", "cm", "in", "pt", "px"].into_iter()
+                .zip([0.1, 1.0, 2.54, 2.54 / 72.0, 2.54 / 96.0])
+                .find_map(|(unit, factor)| value.strip_suffix(unit).map(|number| (number, factor)))
+                .unwrap_or((value, 0.1));
+            let Some(number) = number.trim().parse::<f64>().ok().filter(|value| value.is_finite()) else {
+                values.truncate(4);
+                return values;
+            };
+            values.push(format!("{:.2}", number * factor));
+        }
+    }
+    values
 }
 
 #[cfg(test)]

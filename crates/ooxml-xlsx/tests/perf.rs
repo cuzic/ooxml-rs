@@ -189,3 +189,44 @@ fn wide_row_and_descending_rows() {
     }
     println!("40k rows descending: {:?}", t.elapsed());
 }
+
+#[test]
+#[ignore = "timing (run with --release --ignored --nocapture)"]
+fn open_workbook_phases() {
+    use ooxml_core::Package;
+    use std::sync::Arc;
+
+    let bytes: Arc<[u8]> = std::env::var_os("OOXML_PERF_WORKBOOK")
+        .map_or_else(|| sheet(10_000, 10), |path| std::fs::read(path).unwrap())
+        .into();
+    let mut samples = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+    for trial in 0..7 {
+        let start = Instant::now();
+        let opened = Workbook::from_bytes(bytes.clone()).unwrap();
+        let total = start.elapsed();
+
+        let start = Instant::now();
+        let mut package = Package::from_bytes(bytes.clone()).unwrap();
+        let opc = start.elapsed();
+        let start = Instant::now();
+        package.xml_part(opened.worksheet_part()).unwrap();
+        let worksheet_xml = start.elapsed();
+
+        let start = Instant::now();
+        let pre_parsed = Workbook::from_package(package).unwrap();
+        let derive_workbook = start.elapsed();
+        assert!(opened.worksheet_names().eq(pre_parsed.worksheet_names()));
+        if trial >= 2 {
+            for (sample, duration) in samples.iter_mut().zip([total, opc, worksheet_xml, derive_workbook]) {
+                sample.push(duration);
+            }
+        }
+    }
+    for (label, sample) in ["normal open", "OPC open", "first visible worksheet unzip and XML parse", "workbook from pre-parsed package"]
+        .into_iter()
+        .zip(&mut samples)
+    {
+        sample.sort_unstable();
+        println!("{label}: {:?}", sample[sample.len() / 2]);
+    }
+}

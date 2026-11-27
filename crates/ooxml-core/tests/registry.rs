@@ -505,6 +505,25 @@ fn stale_plans_are_refused() {
 }
 
 #[test]
+fn fork_preserves_edits_but_keeps_registry_plans_local() {
+    let mut original = Package::from_bytes(synthetic()).unwrap();
+    original.add_part(
+        PartNameRequest::Exact("xl/previous.xml".into()), WS_CT, SHEET_XML,
+    ).unwrap();
+    let baseline = original.to_bytes().unwrap();
+    let mut candidate = original.fork();
+    assert_eq!(candidate.to_bytes().unwrap(), baseline);
+    let mut plan = RegistryPlan::new(&original);
+    plan.add_part(&original, PartNameRequest::Exact("xl/unrelated.xml".into()), WS_CT, SHEET_XML).unwrap();
+    assert_matches!(refusal(candidate.apply(plan).unwrap_err()), RegistryRefusal::StalePlan);
+    candidate.add_part(
+        PartNameRequest::Exact("xl/local.xml".into()), WS_CT, SHEET_XML,
+    ).unwrap();
+    assert!(candidate.contains("xl/local.xml"));
+    assert_eq!(original.to_bytes().unwrap(), baseline);
+}
+
+#[test]
 fn package_relationships_cache_and_new_xml_parts_stay_editable() {
     let input = synthetic();
     let mut pkg = Package::from_bytes(input).unwrap();

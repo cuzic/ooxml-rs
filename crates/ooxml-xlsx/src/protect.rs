@@ -171,15 +171,59 @@ impl SheetProtection {
         out.push(("sheet", "1".into()));
         // `1` = the action is protected (forbidden); written only when it
         // differs from the schema default.
-        let a = &self.allow;
-        for (name, allowed, default_protected) in FLAGS.iter().map(|(n, get, d)| (*n, get(a), *d)) {
-            let protected = !allowed;
-            if protected != default_protected {
-                out.push((name, if protected { "1" } else { "0" }.into()));
-            }
-        }
+        out.extend(permission_attributes(&self.allow, true));
         Ok(out)
     }
+}
+
+/// Worksheet protection copied from an existing spreadsheet model.
+#[derive(Default)]
+pub struct SheetProtectionModel<'a> {
+    /// Whether the sheet itself is locked.
+    pub sheet: bool,
+    /// Permissions represented by the worksheet model.
+    pub allow: Allow,
+    /// Stored hash algorithm.
+    pub algorithm_name: Option<&'a str>,
+    /// Stored password hash.
+    pub hash_value: Option<&'a str>,
+    /// Stored password salt.
+    pub salt_value: Option<&'a str>,
+    /// Stored number of hash iterations.
+    pub spin_count: Option<u32>,
+}
+
+impl SheetProtectionModel<'_> {
+    pub(crate) fn attributes(&self) -> Vec<(&'static str, String)> {
+        let mut attrs = Vec::new();
+        if self.sheet {
+            for (name, value) in [
+                ("algorithmName", self.algorithm_name),
+                ("hashValue", self.hash_value),
+                ("saltValue", self.salt_value),
+            ] {
+                if let Some(value) = value {
+                    attrs.push((name, value.to_owned()));
+                }
+            }
+            if let Some(count) = self.spin_count {
+                attrs.push(("spinCount", count.to_string()));
+            }
+            attrs.push(("sheet", "1".into()));
+        }
+        attrs.extend(permission_attributes(&self.allow, self.sheet));
+        attrs
+    }
+}
+
+fn permission_attributes(allow: &Allow, sheet: bool) -> impl Iterator<Item = (&'static str, String)> {
+    FLAGS.iter().filter_map(move |&(name, get, default_protected)| {
+        let protected = !get(allow);
+        if protected == default_protected || (!sheet && matches!(name, "objects" | "scenarios")) {
+            return None;
+        }
+        Some((name, if protected { "1" } else { "0" }.into()))
+    })
 }
 
 type Getter = fn(&Allow) -> bool;

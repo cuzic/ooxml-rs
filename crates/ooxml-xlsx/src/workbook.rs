@@ -20,6 +20,12 @@ use crate::core_props;
 
 pub(crate) const REL_WORKSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 const REL_CHARTSHEET: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
+const XML_WORKBOOK_TYPES: &[(&str, &str)] = &[
+    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"),
+    ("xlsm", "application/vnd.ms-excel.sheet.macroEnabled.main+xml"),
+    ("xlam", "application/vnd.ms-excel.addin.macroEnabled.main+xml"),
+];
+
 pub(crate) const REL_SHARED_STRINGS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 pub(crate) const REL_CALC_CHAIN: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
 pub(crate) const REL_TABLE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
@@ -53,7 +59,7 @@ pub(crate) struct TableHeader {
 
 /// What a worksheet's guards need besides its tree, loaded when the sheet is
 /// first opened for editing.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct SheetContext {
     /// The sheet's merged ranges; Phase4's `merge`/`unmerge` keep it up to
     /// date in the same apply step as the sheet edit (ADR-0014 §3).
@@ -183,8 +189,13 @@ pub struct Workbook {
     #[cfg(test)]
     pub(crate) comment_random: Option<fn() -> [u8; 16]>,
     pub(crate) sheets: Vec<SheetEntry>,
-    first_visible: usize,
+    first_visible: Option<usize>,
     pub(crate) shared_strings: Option<Vec<String>>,
+    /// Positions of the shared-string items in the table part, for reading
+    /// an item's tree by index in O(1). Keyed by [`Package::generation`], so
+    /// any package change (a registry append included) rebuilds it on the
+    /// next read. See [`Self::shared_string_items`].
+    shared_string_index: std::sync::Mutex<Option<SharedStringIndex>>,
     pub(crate) contexts: HashMap<usize, SheetContext>,
     /// Row/cell position index per worksheet (built once, kept valid by
     /// every structural write; see `index.rs`).
@@ -195,6 +206,15 @@ pub struct Workbook {
     pub(crate) calc: CalcState,
     pub(crate) calc_chain: Option<String>,
     pub(crate) policy: CalcPolicy,
+    /// Under `KeepStaleCaches`, still run the strip plan (and drop it), so
+    /// the refusals the strip can raise match `StripDependentCaches`. Only
+    /// the Journal's shadow sets it; the public policy is unchanged.
+    pub(crate) validate_strips: bool,
+    /// Cell writes leave `dimension` alone (ADR-0024 C5): the Journal grows it
+    /// once at save ([`Workbook::grow_dimension`]). A malformed `dimension/@ref`
+    /// is still refused, so the shadow refuses when the sequential workbook
+    /// does. Structural ops rewrite it regardless.
+    pub(crate) freeze_dimension: bool,
     pub(crate) poisoned: Option<String>,
     /// Phase2 registries (ADR-0006), activated by the first write that
     /// needs them.
@@ -215,6 +235,45 @@ pub struct Workbook {
 }
 
 impl Workbook {
+    /// Copies the current editing state without reopening the ZIP archive.
+    pub fn fork(&self) -> Self {
+        Self {
+            pkg: self.pkg.fork(),
+            workbook_part: self.workbook_part.clone(),
+            comment_guids: self.comment_guids.clone(),
+            comment_guids_scanned: self.comment_guids_scanned,
+            vml_block_high: self.vml_block_high,
+            #[cfg(test)]
+            comment_random: self.comment_random,
+            sheets: self.sheets.clone(),
+            first_visible: self.first_visible,
+            shared_strings: self.shared_strings.clone(),
+            shared_string_index: Default::default(),
+            contexts: self.contexts.clone(),
+            indexes: self.indexes.clone(),
+            census: self.census.clone(),
+            env: self.env.clone(),
+            graph: self.graph.clone(),
+            calc: self.calc,
+            calc_chain: self.calc_chain.clone(),
+            policy: self.policy,
+            validate_strips: self.validate_strips,
+            freeze_dimension: self.freeze_dimension,
+            poisoned: self.poisoned.clone(),
+            registries: self.registries.clone(),
+            style_sensitive: self.style_sensitive,
+            from_template: self.from_template,
+            template_sheet_taken: self.template_sheet_taken,
+            removed_sheet_ids: self.removed_sheet_ids.clone(),
+            table_high_water: self.table_high_water,
+            table_names: self.table_names.clone(),
+            objects: self.objects.clone(),
+            #[cfg(feature = "fault-injection")]
+            fault: self.fault,
+        }
+    }
+
+
     /// Opens a file. The whole file is read into memory first, so saving to
     /// the same path is safe.
     ///
@@ -236,15 +295,79 @@ impl Workbook {
     /// current time (installed with `Package::set_part`). Use
     /// [`Self::add_worksheet`] to get the sheet.
     pub fn new() -> Result<Self> {
+        Self::new_at(std::time::SystemTime::now())
+    }
+
+    /// Creates a template workbook with a caller-supplied creation time.
+    pub fn new_at(time: std::time::SystemTime) -> Result<Self> {
         let mut wb = Self::from_bytes(TEMPLATE)?;
-        wb.pkg.set_part("docProps/core.xml", core_props::generate(std::time::SystemTime::now()))?;
+        wb.pkg.set_part("docProps/core.xml", core_props::generate(time))?;
         wb.from_template = true;
         Ok(wb)
     }
 
+    /// Creates an editable, zero-sheet template workbook for adapters that allow empty XLSX files.
+    pub fn new_empty_at(time: std::time::SystemTime) -> Result<Self> {
+        let package = Self::new_at(time)?.package_without_initial_sheet()?;
+        let mut workbook = Self::load_package(package, true)?;
+        workbook.from_template = true;
+        Ok(workbook)
+    }
+
+    /// Removes the empty shared string table from a template-based workbook.
+    /// Returns false if the template's table has already been removed or used.
+    pub fn prune_empty_template_shared_strings(&mut self) -> Result<bool> {
+        self.check_editable()?;
+        if !self.from_template || !self.shared_strings_active()? {
+            return Ok(false);
+        }
+        let registry = self.registries.strings.as_ref().expect("activated");
+        if !registry.is_empty() {
+            return Ok(false);
+        }
+        let part = registry.part.clone();
+        let mut plan = ooxml_core::RegistryPlan::new(&self.pkg);
+        plan.remove_parts(&self.pkg, &[part.as_str()], &[REL_SHARED_STRINGS])?;
+        self.apply_registry_edit(plan, |wb| {
+            wb.registries.strings = None;
+            wb.shared_strings = None;
+            Ok(())
+        })?;
+        Ok(true)
+    }
+
+    /// Returns the XML-based workbook format declared by the package.
+    pub fn xml_workbook_type(&self) -> Option<&'static str> {
+        let content_type = self.pkg.content_type(&self.workbook_part)?;
+        XML_WORKBOOK_TYPES.iter().find(|(_, mime)| *mime == content_type).map(|(name, _)| *name)
+    }
+
+    /// Selects an XML-based workbook type for a new template-based workbook.
+    pub fn set_template_workbook_type(&mut self, format: &str) -> Result<()> {
+        self.check_editable()?;
+        if !self.from_template {
+            return Err(Error::Malformed("workbook format change requires a new workbook".into()));
+        }
+        let (_, content_type) = XML_WORKBOOK_TYPES.iter().find(|(name, _)| *name == format)
+            .ok_or_else(|| Error::Malformed(format!("unknown XML workbook type {format:?}")))?;
+        if self.pkg.content_type(&self.workbook_part) != Some(content_type) {
+            self.pkg.set_content_type(&self.workbook_part, content_type)?;
+        }
+        Ok(())
+    }
+
     /// Wraps an opened package.
-    pub fn from_package(mut pkg: Package) -> Result<Self> {
-        let l = Loaded::load(&mut pkg)?;
+    pub fn from_package(pkg: Package) -> Result<Self> {
+        Self::load_package(pkg, false)
+    }
+
+    /// Opens an XLSX that may have no sheets. A nonempty workbook still needs a visible worksheet.
+    pub fn from_bytes_allow_empty(bytes: impl Into<std::sync::Arc<[u8]>>) -> Result<Self> {
+        Self::load_package(Package::from_bytes(bytes)?, true)
+    }
+
+    fn load_package(mut pkg: Package, allow_empty: bool) -> Result<Self> {
+        let l = Loaded::load(&mut pkg, allow_empty)?;
         let mut wb = Self {
             pkg,
             workbook_part: l.workbook_part,
@@ -256,6 +379,7 @@ impl Workbook {
             sheets: l.sheets,
             first_visible: l.first_visible,
             shared_strings: l.shared_strings,
+            shared_string_index: Default::default(),
             contexts: HashMap::new(),
             indexes: HashMap::new(),
             census: l.census,
@@ -264,6 +388,8 @@ impl Workbook {
             calc: l.calc,
             calc_chain: l.calc_chain,
             policy: CalcPolicy::default(),
+            validate_strips: false,
+            freeze_dimension: false,
             poisoned: None,
             registries: Default::default(),
             style_sensitive: None,
@@ -276,7 +402,9 @@ impl Workbook {
             #[cfg(feature = "fault-injection")]
             fault: None,
         };
-        wb.load_context(wb.first_visible)?;
+        if let Some(index) = wb.first_visible {
+            wb.load_context(index)?;
+        }
         Ok(wb)
     }
 
@@ -287,7 +415,11 @@ impl Workbook {
     /// package and the indexes may then disagree, so nothing more may be
     /// edited or saved (ADR-0003 §3.1).
     pub(crate) fn rebuild(&mut self) -> Result<()> {
-        let r = Loaded::load(&mut self.pkg).and_then(|l| {
+        self.rebuild_with_empty(self.sheets.is_empty())
+    }
+
+    pub(crate) fn rebuild_with_empty(&mut self, allow_empty: bool) -> Result<()> {
+        let r = Loaded::load(&mut self.pkg, allow_empty).and_then(|l| {
             self.fault_point(ApplyStep::StructuralReindex)?;
             self.workbook_part = l.workbook_part;
             self.sheets = l.sheets;
@@ -302,7 +434,7 @@ impl Workbook {
             self.graph = None;
             self.registries = Default::default();
             self.style_sensitive = None;
-            self.load_context(self.first_visible)
+            self.first_visible.map_or(Ok(()), |index| self.load_context(index))
         });
         if let Err(e) = &r {
             self.poisoned = Some(format!("re-indexing after a structural edit failed: {e}"));
@@ -352,7 +484,7 @@ impl Workbook {
 
     /// "sheet1": the first visible worksheet in workbook order.
     pub fn worksheet(&mut self) -> Result<Worksheet<'_>> {
-        let i = self.first_visible;
+        let i = self.first_visible.ok_or(Error::NoVisibleWorksheet)?;
         self.worksheet_at(i)
     }
 
@@ -422,14 +554,14 @@ impl Workbook {
         Err(Error::SheetNamingUnsupported)
     }
 
-    /// Name of "sheet1" (the `name` attribute of its `<sheet>`).
+    /// Name of the first visible worksheet, or an empty string for a zero-sheet workbook.
     pub fn sheet_name(&self) -> &str {
-        &self.sheets[self.first_visible].name
+        self.first_visible.map_or("", |index| &self.sheets[index].name)
     }
 
-    /// Part name of "sheet1" (e.g. `xl/worksheets/sheet1.xml`).
+    /// Part name of the first visible worksheet, or an empty string for a zero-sheet workbook.
     pub fn worksheet_part(&self) -> &str {
-        self.sheets[self.first_visible].part.as_deref().expect("worksheet")
+        self.first_visible.and_then(|index| self.sheets[index].part.as_deref()).unwrap_or("")
     }
 
     /// Part name of the workbook (e.g. `xl/workbook.xml`).
@@ -489,6 +621,60 @@ impl Workbook {
         &self.pkg
     }
 
+    /// The stored XML inside each requested shared-string item (`si`), with
+    /// outer whitespace removed, as SheetJS reports it in a cell's `r`.
+    /// An entry is `None` when the index is out of range, the item is empty,
+    /// or the table was edited since it was read (its source no longer
+    /// matches the tree). Uses the cached item positions of
+    /// the crate-internal `shared_string_items` (no scan when they are current).
+    pub fn shared_string_items_xml(&self, indices: &[u32]) -> Result<Vec<Option<String>>> {
+        let items = self.shared_string_items()?.filter(|items| !items.document.is_dirty());
+        let Some(items) = items else { return Ok(vec![None; indices.len()]) };
+        let source = items.document.source();
+        Ok(indices.iter().map(|&index| {
+            let span = items.get(index)?.span()?;
+            let (close, _) = span.close?;
+            Some(source.get(span.open_end..close)?.trim()).filter(|xml| !xml.is_empty()).map(str::to_owned)
+        }).collect())
+    }
+
+    /// The parsed shared-string table and O(1) access to its items by index,
+    /// or `None` when the workbook has no parsed table part.
+    ///
+    /// The item positions are collected once per [`Package::generation`]
+    /// and reused by every later read, so a sheet read resolves the
+    /// relationship and scans the table once instead of once per cell
+    /// (the per-cell scan made shared-string reads quadratic). Every package
+    /// change bumps the generation (registry appends go through
+    /// [`Package::xml_part_mut`]), which drops the positions. A missing
+    /// table is not cached, so a part parsed later is still found.
+    pub(crate) fn shared_string_items(&self) -> Result<Option<SharedStringItems<'_>>> {
+        use ooxml_core::ElementSpec as _;
+        let generation = self.pkg.generation();
+        let mut cache = self.shared_string_index.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(index) = cache.as_ref().filter(|index| index.generation == generation)
+            && let Some(document) = self.pkg.parsed_part(&index.part)
+        {
+            return Ok(Some(SharedStringItems { document, positions: index.positions.clone() }));
+        }
+        *cache = None;
+        let relationships = self.pkg.relationships(&self.workbook_part)?;
+        let Some(part) = relationships
+            .by_type(REL_SHARED_STRINGS)
+            .next()
+            .and_then(|relationship| relationships.resolve(relationship))
+        else {
+            return Ok(None);
+        };
+        let Some(document) = self.pkg.parsed_part(&part) else { return Ok(None) };
+        let positions: std::sync::Arc<[u32]> = document.root().indexed_elements()
+            .filter(|(_, item)| item.is(sml::SharedStringItem::QNAME))
+            .map(|(position, _)| position as u32)
+            .collect();
+        *cache = Some(SharedStringIndex { generation, part, positions: positions.clone() });
+        Ok(Some(SharedStringItems { document, positions }))
+    }
+
     /// Writes the workbook to `path` atomically (temporary file + rename).
     /// [`Error::Poisoned`] after a failed apply.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
@@ -500,6 +686,60 @@ impl Workbook {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.check_poisoned()?;
         Ok(self.pkg.to_bytes()?)
+    }
+
+    /// Serializes with an explicit ZIP compression policy, refusing poisoned workbooks.
+    pub fn to_bytes_with_compression(&self, compressed: bool) -> Result<Vec<u8>> {
+        self.check_poisoned()?;
+        Ok(self.pkg.to_bytes_with_compression(compressed)?)
+    }
+
+    /// Recompresses the workbook using the specified DEFLATE level.
+    pub fn to_bytes_with_deflate_level(&self, level: u8) -> Result<Vec<u8>> {
+        self.check_poisoned()?;
+        Ok(self.pkg.to_bytes_with_deflate_level(level)?)
+    }
+
+    /// Changes the string storage for this export without changing the open workbook.
+    pub fn to_bytes_with_string_storage(
+        &self, shared: bool, plain_as_value: bool, compression: Option<bool>, level: Option<u8>,
+    ) -> Result<Vec<u8>> {
+        self.check_poisoned()?;
+        self.export_string_storage(&self.pkg, shared, plain_as_value, compression, level)
+    }
+
+    fn export_string_storage(
+        &self, package: &Package, shared: bool, plain_as_value: bool, compression: Option<bool>, level: Option<u8>,
+    ) -> Result<Vec<u8>> {
+        let rewritten = if shared {
+            crate::registry::strings::share(self, package)?
+        } else {
+            crate::registry::strings::unshare(self, package, plain_as_value)?
+        };
+        Self::serialize_export(rewritten.as_ref().unwrap_or(package), compression, level)
+    }
+
+    /// Exports cells without ordinary display styles, retaining date formats.
+    pub fn to_bytes_without_cell_styles(
+        &self, use_shared_strings: Option<bool>, compression: Option<bool>, level: Option<u8>,
+    ) -> Result<Vec<u8>> {
+        self.check_poisoned()?;
+        let rewritten = crate::registry::styles::without_cell_styles(self)?;
+        if let Some(shared) = use_shared_strings {
+            return self.export_string_storage(
+                rewritten.as_ref().unwrap_or(&self.pkg), shared, true, compression, level,
+            );
+        }
+        Self::serialize_export(rewritten.as_ref().unwrap_or(&self.pkg), compression, level)
+    }
+
+    fn serialize_export(package: &Package, compression: Option<bool>, level: Option<u8>) -> Result<Vec<u8>> {
+        Ok(match (compression, level) {
+            (Some(false), _) => package.to_bytes_with_compression(false)?,
+            (_, Some(level)) => package.to_bytes_with_deflate_level(level)?,
+            (Some(true), _) => package.to_bytes_with_compression(true)?,
+            (None, _) => package.to_bytes()?,
+        })
     }
 
     pub(crate) fn check_editable(&self) -> Result<()> {
@@ -520,7 +760,7 @@ impl Workbook {
     pub fn __index_fingerprint(&self) -> String {
         use std::fmt::Write as _;
         let mut out = String::new();
-        let _ = writeln!(out, "workbook {} first_visible {} calc_chain {:?}", self.workbook_part, self.first_visible, self.calc_chain);
+        let _ = writeln!(out, "workbook {} first_visible {} calc_chain {:?}", self.workbook_part, self.first_visible.map_or_else(|| "none".to_owned(), |index| index.to_string()), self.calc_chain);
         let _ = writeln!(out, "calc manual={} iterate={} full={}", self.calc.manual, self.calc.iterate, self.calc.full_calc_on_load);
         for s in &self.sheets {
             let _ = writeln!(out, "sheet {:?} {:?} {:?} visible={}", s.name, s.part, s.kind, s.visible);
@@ -565,7 +805,7 @@ impl Workbook {
 struct Loaded {
     workbook_part: String,
     sheets: Vec<SheetEntry>,
-    first_visible: usize,
+    first_visible: Option<usize>,
     shared_strings: Option<Vec<String>>,
     census: Census,
     env: Env,
@@ -574,14 +814,16 @@ struct Loaded {
 }
 
 impl Loaded {
-    fn load(pkg: &mut Package) -> Result<Loaded> {
+    fn load(pkg: &mut Package, allow_empty: bool) -> Result<Loaded> {
         let workbook_part = pkg.main_document_part().ok_or(Error::NoWorkbook)?;
         let wb_rels = pkg.relationships(&workbook_part)?;
-        let (sheets, names, calc) = read_workbook(pkg, &workbook_part, &wb_rels)?;
+        let (sheets, names, calc) = read_workbook(pkg, &workbook_part, &wb_rels, allow_empty)?;
         let first_visible = sheets
             .iter()
-            .position(|s| s.visible && s.kind == SheetKind::Worksheet)
-            .ok_or(Error::NoVisibleWorksheet)?;
+            .position(|s| s.visible && s.kind == SheetKind::Worksheet);
+        if first_visible.is_none() && !(allow_empty && sheets.is_empty()) {
+            return Err(Error::NoVisibleWorksheet);
+        }
         let calc_chain = wb_rels
             .by_type(REL_CALC_CHAIN)
             .next()
@@ -622,25 +864,37 @@ pub(crate) fn strict_or(e: ooxml_core::Error, part: &str) -> Error {
     }
 }
 
+pub(crate) fn is_sheet_relationship(kind: &str) -> bool {
+    matches!(kind, REL_WORKSHEET | REL_CHARTSHEET | REL_DIALOGSHEET) || REL_MACROSHEETS.contains(&kind)
+}
+
 type Names = Vec<(String, Option<u32>, String)>;
 
 /// `<sheets>` (with each sheet's kind, ADR-0002 §6 + owner decision of
 /// 2026-11-16 for "first visible"), defined names and `calcPr`.
-fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships) -> Result<(Vec<SheetEntry>, Names, CalcState)> {
+fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships, allow_empty: bool) -> Result<(Vec<SheetEntry>, Names, CalcState)> {
     let mut raw = Vec::new();
     let mut names = Vec::new();
     let mut calc = CalcState::default();
     {
         let doc = pkg.xml_part(workbook_part)?;
         let wb = sml::WorkbookView(doc.lens::<sml::Workbook>().map_err(|e| strict_or(e, workbook_part))?);
-        let sheets = wb.sheets().ok_or_else(|| Error::Malformed(format!("{workbook_part} has no <sheets>")))?;
-        for s in sheets.sheet_iter() {
+        let sheets = wb.sheets();
+        if sheets.is_none() && !allow_empty {
+            return Err(Error::Malformed(format!("{workbook_part} has no <sheets>")));
+        }
+        let mut listed = sheets.iter().flat_map(|sheets| sheets.sheet_iter()).peekable();
+        if allow_empty && listed.peek().is_none() && rels.iter().any(|rel| is_sheet_relationship(&rel.rel_type)) {
+            return Err(Error::Malformed(format!("{workbook_part} has sheet relationships but no listed sheets")));
+        }
+        for s in listed {
             let (Some(name), Some(id)) = (s.name(), s.id()) else {
                 return Err(Error::Malformed(format!("{workbook_part}: <sheet> without name or r:id")));
             };
             let visible = matches!(s.state(), EnumValue::Known(SheetStateValues::Visible));
             // ST_Xstring: the name as Excel shows it (PR #53 review R2-m4)
-            raw.push((crate::escape::decode(name).into_owned(), id.to_owned(), visible));
+            let sheet_id = s.sheet_id().ok().flatten();
+            raw.push((crate::escape::decode(name).into_owned(), id.to_owned(), sheet_id, visible));
         }
         if let Some(dn) = wb.defined_names() {
             for d in dn.defined_name_iter() {
@@ -656,7 +910,7 @@ fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships) -
         }
     }
     let mut sheets = Vec::new();
-    for (name, id, visible) in raw {
+    for (name, id, sheet_id, visible) in raw {
         let rel = rels.by_id(&id).ok_or_else(|| Error::Malformed(format!("sheet {name:?}: relationship {id} not found")))?;
         let part = rels.resolve(rel).filter(|p| pkg.contains(p));
         let ct = part.as_deref().and_then(|p| pkg.content_type(p));
@@ -669,7 +923,7 @@ fn read_workbook(pkg: &mut Package, workbook_part: &str, rels: &Relationships) -
             (REL_DIALOGSHEET, _) | (_, Some(CT_DIALOGSHEET)) => SheetKind::DialogSheet,
             _ => SheetKind::Other,
         };
-        sheets.push(SheetEntry { name, part, kind, visible });
+        sheets.push(SheetEntry { name, sheet_id, part, kind, visible });
     }
     Ok((sheets, names, calc))
 }
@@ -740,6 +994,30 @@ fn formula_census(pkg: &Package, wb_rels: &Relationships, sheets: &[SheetEntry])
     Ok(census)
 }
 
+/// The cached item positions behind [`Workbook::shared_string_items`].
+#[derive(Debug)]
+struct SharedStringIndex {
+    generation: u64,
+    part: String,
+    /// Child position (in the root's `children()`) of each `si`, in order.
+    positions: std::sync::Arc<[u32]>,
+}
+
+/// The shared-string table of one package generation (see
+/// [`Workbook::shared_string_items`]).
+pub(crate) struct SharedStringItems<'a> {
+    pub(crate) document: &'a XmlDocument,
+    positions: std::sync::Arc<[u32]>,
+}
+
+impl<'a> SharedStringItems<'a> {
+    /// The `index`-th `si` element, `None` when out of range.
+    pub(crate) fn get(&self, index: u32) -> Option<&'a ooxml_core::RawNode> {
+        let position = *self.positions.get(index as usize)?;
+        self.document.root().children().get(position as usize)?.as_element()
+    }
+}
+
 fn load_shared_strings(pkg: &mut Package, wb_rels: &Relationships) -> Result<Option<Vec<String>>> {
     let Some(part) = wb_rels.by_type(REL_SHARED_STRINGS).next().and_then(|r| wb_rels.resolve(r)) else {
         return Ok(None);
@@ -778,3 +1056,199 @@ fn load_tables(pkg: &mut Package, sheet_part: &str, rels: &Relationships, ids: &
     Ok(out)
 }
 
+
+impl Workbook {
+    /// Names of grid worksheets in workbook order, including hidden worksheets.
+    pub fn worksheet_names(&self) -> impl Iterator<Item = &str> {
+        self.worksheet_identities().map(|(name, _)| name)
+    }
+
+    /// Grid worksheet names and their declared OOXML IDs in workbook order.
+    pub fn worksheet_identities(&self) -> impl Iterator<Item = (&str, Option<u32>)> {
+        self.sheets
+            .iter()
+            .filter(|sheet| sheet.kind == SheetKind::Worksheet)
+            .map(|sheet| (sheet.name.as_str(), sheet.sheet_id))
+    }
+}
+
+#[cfg(test)]
+mod open_performance {
+    use super::*;
+    use std::{sync::Arc, time::Instant};
+
+    #[test]
+    #[ignore = "timing (set OOXML_PERF_WORKBOOK to an XLSX fixture)"]
+    fn formula_census_and_sheet_index() {
+        let path = std::env::var_os("OOXML_PERF_WORKBOOK").expect("set OOXML_PERF_WORKBOOK");
+        let bytes: Arc<[u8]> = std::fs::read(path).unwrap().into();
+        let mut census_times = Vec::new();
+        let mut index_times = Vec::new();
+        for trial in 0..7 {
+            let mut pkg = Package::from_bytes(bytes.clone()).unwrap();
+            let workbook = pkg.main_document_part().unwrap();
+            let relationships = pkg.relationships(&workbook).unwrap();
+            let (sheets, _, _) = read_workbook(&mut pkg, &workbook, &relationships, false).unwrap();
+            let start = Instant::now();
+            let census = formula_census(&pkg, &relationships, &sheets).unwrap();
+            let census_elapsed = start.elapsed();
+            std::hint::black_box(census);
+
+            let visible = sheets.iter().find(|sheet| sheet.visible && sheet.kind == SheetKind::Worksheet).unwrap();
+            let doc = pkg.xml_part(visible.part.as_deref().unwrap()).unwrap();
+            let start = Instant::now();
+            let index = SheetIndex::build(doc);
+            let index_elapsed = start.elapsed();
+            std::hint::black_box(index);
+            if trial >= 2 {
+                census_times.push(census_elapsed);
+                index_times.push(index_elapsed);
+            }
+        }
+        for (label, times) in [("formula census", &mut census_times), ("first visible worksheet index", &mut index_times)] {
+            times.sort_unstable();
+            println!("{label}: {:?}", times[times.len() / 2]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_string_markup {
+    use super::*;
+
+    #[test]
+    fn items_keep_stored_markup_and_cells_report_their_index() {
+        let template = Workbook::new().unwrap();
+        let sheet_part = template.worksheet_part().to_owned();
+        let mut pkg = Package::from_bytes(template.to_bytes().unwrap()).unwrap();
+        let ns = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
+        let items = concat!(
+            "<si><t>a &amp; b</t></si>",
+            "<si>\n <t>p</t><rPh sb=\"0\" eb=\"1\"><t>ピ</t></rPh><phoneticPr fontId=\"1\"/>\n</si>",
+            "<si></si>",
+            "<si><r><rPr><b/></rPr><t>R</t></r></si>",
+        );
+        pkg.set_part("xl/sharedStrings.xml", format!("<sst {ns}>{items}</sst>").into_bytes()).unwrap();
+        let cells = r#"<row r="1"><c r="A1" t="s"><v>1</v></c><c r="B1" t="inlineStr"><is><t>i</t></is></c><c r="C1"><v>2</v></c></row>"#;
+        pkg.set_part(&sheet_part, format!("<worksheet {ns}><sheetData>{cells}</sheetData></worksheet>").into_bytes()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        assert_eq!(wb.shared_string_items_xml(&[0, 1, 2, 3, 9]).unwrap(), vec![
+            Some("<t>a &amp; b</t>".to_owned()),
+            Some("<t>p</t><rPh sb=\"0\" eb=\"1\"><t>ピ</t></rPh><phoneticPr fontId=\"1\"/>".to_owned()),
+            None,
+            Some("<r><rPr><b/></rPr><t>R</t></r>".to_owned()),
+            None,
+        ]);
+        let sheet = wb.worksheet().unwrap();
+        let index = |column| sheet.cell(0, column).unwrap().unwrap().shared_string_index();
+        assert_eq!((index(0), index(1), index(2)), (Some(1), None, None));
+    }
+
+    /// The item positions are built once per package generation, reused by
+    /// later reads, and rebuilt after an edit appends shared-string items
+    /// (a stale index would miss the new items or misreport their runs).
+    #[test]
+    fn item_index_is_reused_and_rebuilt_after_shared_string_edits() {
+        use std::sync::Arc;
+        let template = Workbook::new().unwrap();
+        let sheet_part = template.worksheet_part().to_owned();
+        let mut pkg = Package::from_bytes(template.to_bytes().unwrap()).unwrap();
+        let ns = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
+        let items = "<si><t>a</t></si>\n<si><r><rPr><b/></rPr><t>R</t></r></si>";
+        pkg.set_part("xl/sharedStrings.xml", format!("<sst {ns}>{items}</sst>").into_bytes()).unwrap();
+        let cells = r#"<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>"#;
+        pkg.set_part(&sheet_part, format!("<worksheet {ns}><sheetData>{cells}</sheetData></worksheet>").into_bytes()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+
+        let first = wb.shared_string_items().unwrap().unwrap().positions;
+        // Text between items is not an item: positions are child positions.
+        assert_eq!(&*first, &[0, 2]);
+        assert!(Arc::ptr_eq(&first, &wb.shared_string_items().unwrap().unwrap().positions));
+        {
+            let sheet = wb.worksheet().unwrap();
+            let complex = |column| sheet.cell(0, column).unwrap().unwrap().has_non_scalar_content().unwrap();
+            assert_eq!((complex(0), complex(1)), (false, true));
+        }
+        assert!(Arc::ptr_eq(&first, &wb.shared_string_items().unwrap().unwrap().positions));
+
+        let bold = crate::Font { bold: true, ..crate::Font::default() };
+        {
+            let mut sheet = wb.worksheet().unwrap();
+            sheet.cell_mut(1, 0).unwrap().set_rich_text(&[(Some(&bold), "X"), (None, "y")]).unwrap();
+            sheet.cell_mut(1, 1).unwrap().set_string("new").unwrap();
+            sheet.cell_mut(0, 1).unwrap().set_string("a").unwrap();
+        }
+        let rebuilt = wb.shared_string_items().unwrap().unwrap().positions;
+        assert!(!Arc::ptr_eq(&first, &rebuilt));
+        assert_eq!(rebuilt.len(), wb.shared_strings.as_ref().unwrap().len());
+        let check = |wb: &mut Workbook| {
+            let sheet = wb.worksheet().unwrap();
+            let cell = |row, column| sheet.cell(row, column).unwrap().unwrap();
+            assert_eq!(cell(1, 0).shared_string_index(), Some(2));
+            assert!(cell(1, 0).has_non_scalar_content().unwrap());
+            assert_eq!(cell(1, 0).rich_text().unwrap().iter().map(|run| run.0.as_str()).collect::<String>(), "Xy");
+            assert_eq!(cell(1, 1).shared_string_index(), Some(3));
+            assert!(!cell(1, 1).has_non_scalar_content().unwrap());
+            assert_eq!(cell(1, 1).value().unwrap(), crate::CellValue::String("new".into()));
+            // B1 now reuses the plain item 0 instead of the rich item 1.
+            assert_eq!(cell(0, 1).shared_string_index(), Some(0));
+            assert!(!cell(0, 1).has_non_scalar_content().unwrap());
+        };
+        check(&mut wb);
+        // An edited table no longer matches its source: no stored markup.
+        assert_eq!(wb.shared_string_items_xml(&[1, 2]).unwrap(), vec![None, None]);
+        let mut reloaded = Workbook::from_bytes(wb.to_bytes().unwrap()).unwrap();
+        check(&mut reloaded);
+        assert_eq!(reloaded.shared_string_items_xml(&[1, 3]).unwrap(), vec![
+            Some("<r><rPr><b/></rPr><t>R</t></r>".to_owned()),
+            Some("<t>new</t>".to_owned()),
+        ]);
+    }
+    /// Phonetic guide data (`rPh`, `phoneticPr`) on a string without rich
+    /// runs does not make the value complex (ExcelJS 4.4.0 reads the base
+    /// text); rich runs still do, and the SheetJS view still sees the markup.
+    /// Editing a neighbour, or overwriting the cell, keeps the phonetic item.
+    #[test]
+    fn phonetic_strings_read_as_their_base_text() {
+        let template = Workbook::new().unwrap();
+        let sheet_part = template.worksheet_part().to_owned();
+        let mut pkg = Package::from_bytes(template.to_bytes().unwrap()).unwrap();
+        let ns = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
+        let plain = r#"<si><t>漢字</t><rPh sb="0" eb="2"><t>カンジ</t></rPh><phoneticPr fontId="1"/></si>"#;
+        let items = format!(
+            "{plain}<si><t>abc</t><phoneticPr fontId=\"1\"/></si><si><r><t>太</t></r><rPh sb=\"0\" eb=\"1\"><t>フト</t></rPh></si><si><t>p</t></si>"
+        );
+        pkg.set_part("xl/sharedStrings.xml", format!("<sst {ns}>{items}</sst>").into_bytes()).unwrap();
+        let cells = concat!(
+            r#"<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c>"#,
+            r#"<c r="E1" t="inlineStr"><is><t>漢字</t><rPh sb="0" eb="2"><t>カンジ</t></rPh></is></c>"#,
+            r#"<c r="F1" t="inlineStr"><is><r><t>x</t></r><phoneticPr fontId="1"/></is></c><c r="G1" t="s"><f>A1</f><v>0</v></c></row>"#,
+        );
+        pkg.set_part(&sheet_part, format!("<worksheet {ns}><sheetData>{cells}</sheetData></worksheet>").into_bytes()).unwrap();
+        let mut wb = Workbook::from_bytes(pkg.to_bytes().unwrap()).unwrap();
+        {
+            let sheet = wb.worksheet().unwrap();
+            let cell = |column| sheet.cell(0, column).unwrap().unwrap();
+            assert_eq!((0..7).map(|column| cell(column).has_complex_value(false).unwrap()).collect::<Vec<_>>(),
+                [false, false, true, false, false, true, true]);
+            // The SheetJS and structural classification is unchanged.
+            assert_eq!((0..7).map(|column| cell(column).has_non_scalar_content().unwrap()).collect::<Vec<_>>(),
+                [true, true, true, false, true, true, true]);
+            assert_eq!(cell(0).value().unwrap(), crate::CellValue::String("漢字".into()));
+            assert_eq!(cell(4).value().unwrap(), crate::CellValue::String("漢字".into()));
+            assert_eq!(cell(2).rich_text().unwrap().len(), 1);
+        }
+        {
+            let mut sheet = wb.worksheet().unwrap();
+            sheet.cell_mut(1, 0).unwrap().set_number(1.0).unwrap();
+            sheet.cell_mut(0, 1).unwrap().set_string("y").unwrap();
+        }
+        let bytes = wb.to_bytes().unwrap();
+        let sst = String::from_utf8(Package::from_bytes(bytes.clone()).unwrap().read_part("xl/sharedStrings.xml").unwrap()).unwrap();
+        assert!(sst.contains(plain), "{sst}");
+        let mut saved = Workbook::from_bytes(bytes).unwrap();
+        let sheet = saved.worksheet().unwrap();
+        assert_eq!(sheet.cell(0, 0).unwrap().unwrap().shared_string_index(), Some(0));
+        assert_eq!(sheet.cell(0, 1).unwrap().unwrap().value().unwrap(), crate::CellValue::String("y".into()));
+    }
+}

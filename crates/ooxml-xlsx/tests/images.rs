@@ -36,6 +36,31 @@ fn unchanged_except(before: &Package, after: &Package, allowed: &[&str]) {
 }
 
 #[test]
+fn replacing_image_bytes_preserves_drawings_and_reindexes_media() {
+    let mut wb = Workbook::new().unwrap();
+    put(&mut wb).unwrap();
+    let original = wb.to_bytes().unwrap();
+    let part = "xl/media/image1.png";
+    assert!(wb.replace_image_part(part, b"invalid".to_vec()).is_err());
+    assert!(wb.replace_image_part(DRAWING, ORANGE.to_vec()).is_err());
+    assert_eq!(wb.to_bytes().unwrap(), original);
+
+    wb.replace_image_part(part, ORANGE.to_vec()).unwrap();
+    let before = Package::from_bytes(original).unwrap();
+    let after = Package::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    unchanged_except(&before, &after, &[part]);
+    assert_eq!(after.read_part(part).unwrap(), ORANGE);
+
+    wb.worksheet().unwrap().insert_image(
+        Anchor::one_cell(at(4, 2), Size::Natural),
+        &Image::from_bytes(ORANGE).unwrap(),
+    ).unwrap();
+    let images = wb.worksheet().unwrap().images().unwrap();
+    assert_eq!(images.len(), 2);
+    assert_eq!(images[0].media.as_ref().unwrap().part, images[1].media.as_ref().unwrap().part);
+}
+
+#[test]
 fn drawing_registries_locality_and_independent_readback() {
     let mut wb = Workbook::new().unwrap();
     wb.worksheet()
@@ -610,4 +635,44 @@ fn content_type_conflict_uses_an_override() {
             .iter()
             .any(|(name, _)| name.ends_with("image1.png"))
     );
+}
+
+#[test]
+fn removing_background_preserves_shared_drawing_media() {
+    let mut wb = Workbook::new().unwrap();
+    put(&mut wb).unwrap();
+    let mut sheet = wb.worksheet().unwrap();
+    let shared = sheet.set_background_image(&Image::from_bytes(BLUE).unwrap()).unwrap();
+    assert_eq!(sheet.images().unwrap()[0].media.as_ref().unwrap().part, shared);
+    assert!(sheet.remove_background_image().unwrap());
+    assert!(sheet.background_image().unwrap().is_none());
+    assert_eq!(sheet.images().unwrap()[0].media.as_ref().unwrap().bytes, BLUE);
+
+    let dedicated = sheet.set_background_image(&Image::from_bytes(ORANGE).unwrap()).unwrap();
+    assert!(sheet.remove_background_image().unwrap());
+    let after = wb.to_bytes().unwrap();
+    assert!(!wb.worksheet().unwrap().remove_background_image().unwrap());
+    assert_eq!(wb.to_bytes().unwrap(), after);
+    let package = Package::from_bytes(after).unwrap();
+    assert!(package.part_names().any(|part| part == shared));
+    assert!(!package.part_names().any(|part| part == dedicated));
+}
+
+#[test]
+fn removing_background_with_invalid_relationship_refuses_atomically() {
+    let mut wb = Workbook::new().unwrap();
+    wb.worksheet().unwrap().set_background_image(&Image::from_bytes(BLUE).unwrap()).unwrap();
+    let mut package = Package::from_bytes(wb.to_bytes().unwrap()).unwrap();
+    let sheet = String::from_utf8(package.read_part(SHEET).unwrap()).unwrap();
+    let (prefix, picture) = sheet.split_once("<picture ").unwrap();
+    let (picture, suffix) = picture.split_once("/>").unwrap();
+    let (attributes, _) = picture.split_once("id=\"").unwrap();
+    package.set_part(SHEET, format!("{prefix}<picture {attributes}id=\"missing\"/>{suffix}").into_bytes()).unwrap();
+    let original = package.to_bytes().unwrap();
+    let mut wb = Workbook::from_bytes(original.clone()).unwrap();
+    std::assert_matches!(
+        wb.worksheet().unwrap().remove_background_image(),
+        Err(Error::PartNotEditable { .. })
+    );
+    assert_eq!(wb.to_bytes().unwrap(), original);
 }

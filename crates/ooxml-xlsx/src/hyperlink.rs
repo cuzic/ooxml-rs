@@ -8,7 +8,7 @@
 //! package as it is now, and applied; then the `hyperlink` element. A
 //! failure after the first change is a bug and poisons the workbook.
 
-use ooxml_core::{ElementSpec, NsDecl, Package, QName, RegistryPlan, Target};
+use ooxml_core::{ElementSpec, NsDecl, Package, QName, RegistryPlan, Target, XmlDocument};
 use ooxml_schema::sml;
 
 use crate::edit::CellOp;
@@ -17,7 +17,7 @@ use crate::escape;
 use crate::formula::lexer::Prefix;
 use crate::formula::parse::{Expr, parse};
 use crate::formula::precedents::fold;
-use crate::reference::CellRange;
+use crate::reference::{CellIndex, CellRange};
 use crate::workbook::Workbook;
 use crate::worksheet::Worksheet;
 
@@ -70,6 +70,26 @@ pub struct HyperlinkInfo {
     pub display: Option<String>,
     /// `tooltip`.
     pub tooltip: Option<String>,
+}
+
+impl HyperlinkInfo {
+    /// The link as one address; see [`hyperlink_address`].
+    pub fn address(&self) -> String {
+        hyperlink_address(self.target.as_deref(), self.location.as_deref())
+    }
+}
+
+/// Joins a resolved `r:id` target and a `location` as `target#location`.
+///
+/// Some writers (ExcelJS among them) store an in-document link such as
+/// `Sheet2!B2` both as the relationship target and as `location`; when the
+/// two are the same string the link is that string, not a doubled one.
+pub fn hyperlink_address(target: Option<&str>, location: Option<&str>) -> String {
+    let target = target.unwrap_or_default();
+    match location {
+        Some(location) if location != target => format!("{target}#{location}"),
+        _ => target.to_owned(),
+    }
 }
 
 /// rust_xlsxwriter's escaping: space, `%`, `"`, `<`, `>`, `[`, `]`, `^`,
@@ -244,35 +264,27 @@ impl Workbook {
 
     fn remove_hyperlink(&mut self, sheet: usize, range: &str) -> Result<()> {
         self.check_editable()?;
-        let r = CellRange::parse(range)?;
-        let part = self.sheets[sheet].part.clone().expect("worksheet");
-        let (items, total) = {
-            let doc = self.pkg.xml_part(&part)?;
-            match doc.root().elements().find(|e| e.is(sml::Hyperlinks::QNAME)) {
-                None => (Vec::new(), 0),
-                Some(h) => (
-                    h.indexed_elements().filter(|(_, e)| e.is(sml::Hyperlink::QNAME) && e.attr(q("ref")).and_then(|v| CellRange::parse(v).ok()) == Some(r)).map(|(i, _)| i).collect::<Vec<_>>(),
-                    h.elements().filter(|e| e.is(sml::Hyperlink::QNAME)).count(),
-                ),
-            }
-        };
-        if items.is_empty() {
-            return Err(Error::NoSuchRule { what: "hyperlink", sqref: r.to_string() });
+        let range = CellRange::parse(range)?;
+        if !self.remove_matching_hyperlinks(sheet, |reference| reference == range)? {
+            return Err(Error::NoSuchRule { what: "hyperlink", sqref: range.to_string() });
         }
-        self.poisoning(|wb| {
-            let doc = wb.pkg.xml_part_mut(&part)?;
-            let mut ws = doc.lens_mut::<sml::Worksheet>()?;
-            if items.len() == total {
-                ws.remove::<sml::Hyperlinks>(); // an empty one is repaired by Excel
-            } else {
-                let mut h = ws.child_mut::<sml::Hyperlinks>().expect("planned");
-                for &i in items.iter().rev() {
-                    h.remove_at(i);
-                }
-            }
-            // the relationship is kept (§4: shared ids; Excel drops unused ones)
-            Ok(())
-        })
+        Ok(())
+    }
+
+    fn remove_matching_hyperlinks(
+        &mut self,
+        sheet: usize,
+        matches: impl Fn(CellRange) -> bool,
+    ) -> Result<bool> {
+        let part = self.sheets[sheet].part.clone().expect("worksheet");
+        let (items, total) = hyperlink_deletions(self.pkg.xml_part(&part)?, |_, range| {
+            Ok(range.is_some_and(&matches))
+        })?;
+        if items.is_empty() {
+            return Ok(false);
+        }
+        self.poisoning(|wb| apply_hyperlink_deletions(wb.pkg.xml_part_mut(&part)?, &items, total))?;
+        Ok(true)
     }
 
     fn hyperlinks(&mut self, sheet: usize) -> Result<Vec<HyperlinkInfo>> {
@@ -291,6 +303,147 @@ impl Workbook {
             })
             .collect())
     }
+}
+
+fn hyperlink_deletions(
+    document: &XmlDocument,
+    mut matches: impl FnMut(usize, Option<CellRange>) -> Result<bool>,
+) -> Result<(Vec<usize>, usize)> {
+    let mut items = Vec::new();
+    let mut total = 0;
+    if let Some(group) = document.root().elements().find(|node| node.is(sml::Hyperlinks::QNAME)) {
+        for (index, element) in group.indexed_elements().filter(|(_, node)| node.is(sml::Hyperlink::QNAME)) {
+            total += 1;
+            let range = element.attr(q("ref")).and_then(|value| CellRange::parse(value).ok());
+            if matches(index, range)? {
+                items.push(index);
+            }
+        }
+    }
+    Ok((items, total))
+}
+
+fn apply_hyperlink_deletions(document: &mut XmlDocument, items: &[usize], total: usize) -> Result<()> {
+    let mut worksheet = document.lens_mut::<sml::Worksheet>()?;
+    if items.len() == total {
+        worksheet.remove::<sml::Hyperlinks>(); // Excel repairs an empty group
+    } else {
+        let mut links = worksheet.child_mut::<sml::Hyperlinks>().expect("planned");
+        for &index in items.iter().rev() {
+            links.remove_at(index);
+        }
+    }
+    // Keep the relationships: multiple links may share an ID.
+    Ok(())
+}
+
+pub(crate) enum TableLinks {
+    Insert { moved: CellRange, added: CellRange },
+    InsertColumn { moved: CellRange, added: CellRange },
+    Remove { deleted: CellRange, moved: Option<CellRange> },
+    RemoveColumns { deleted: CellRange, moved: Option<CellRange> },
+    ReplaceTotals(std::collections::HashSet<CellIndex>),
+}
+
+pub(crate) fn table_edit_hyperlinks(
+    document: &XmlDocument,
+    edit: TableLinks,
+) -> Result<Option<XmlDocument>> {
+    let mut rewritten = Vec::new();
+    let (items, total) = hyperlink_deletions(document, |index, range| {
+        let Some(mut range) = range else {
+            return Err(Error::TableRange { reason: "table row edit encountered an unlocated hyperlink" });
+        };
+        let (moved, row_offset, column_offset, removed) = match edit {
+            TableLinks::Insert { moved, added } => {
+                if added.intersects(&range) {
+                    return Err(Error::TableRange { reason: "inserted table rows would overwrite an existing hyperlink" });
+                }
+                (Some(moved), (added.last.row - added.first.row + 1) as i32, 0, None)
+            }
+            TableLinks::InsertColumn { moved, added } => {
+                if added.intersects(&range) {
+                    return Err(Error::TableRange { reason: "inserted table column would overwrite an existing hyperlink" });
+                }
+                (Some(moved), 0, 1, None)
+            }
+            TableLinks::Remove { deleted, moved } => {
+                (moved, -((deleted.last.row - deleted.first.row + 1) as i32), 0, Some(deleted))
+            }
+            TableLinks::RemoveColumns { deleted, moved } => {
+                (moved, 0, -((deleted.last.col - deleted.first.col + 1) as i32), Some(deleted))
+            }
+            TableLinks::ReplaceTotals(ref targets) => {
+                if targets.len() == 1 {
+                    let at = *targets.iter().next().expect("one totals cell");
+                    (None, 0, 0, Some(CellRange { first: at, last: at }))
+                } else if range.first == range.last {
+                    return Ok(targets.contains(&range.first));
+                } else if targets.iter().any(|at| range.contains(*at)) {
+                    return Err(Error::TableRange { reason: "replacing totals would split a hyperlink range" });
+                } else {
+                    return Ok(false);
+                }
+            }
+        };
+        if let Some(moved) = moved.filter(|moved| moved.intersects(&range)) {
+            if !moved.contains(range.first) || !moved.contains(range.last) {
+                return Err(Error::TableRange { reason: "moving table rows would split a hyperlink range" });
+            }
+            for corner in [&mut range.first, &mut range.last] {
+                corner.row = corner.row.checked_add_signed(row_offset).expect("validated table shift");
+                corner.col = corner.col.checked_add_signed(column_offset).expect("validated table shift");
+            }
+            rewritten.push((index, range));
+            return Ok(false);
+        }
+        let Some(removed) = removed else { return Ok(false) };
+        if !removed.intersects(&range) {
+            return Ok(false);
+        }
+        if removed.contains(range.first) && removed.contains(range.last) {
+            return Ok(true);
+        }
+        if removed.first.col <= range.first.col && removed.last.col >= range.last.col {
+            if range.first.row < removed.first.row && range.last.row <= removed.last.row {
+                range.last.row = removed.first.row - 1;
+                rewritten.push((index, range));
+                return Ok(false);
+            }
+            if range.first.row >= removed.first.row && range.last.row > removed.last.row {
+                range.first.row = removed.last.row + 1;
+                rewritten.push((index, range));
+                return Ok(false);
+            }
+        }
+        if removed.first.row <= range.first.row && removed.last.row >= range.last.row {
+            if range.first.col < removed.first.col && range.last.col <= removed.last.col {
+                range.last.col = removed.first.col - 1;
+                rewritten.push((index, range));
+                return Ok(false);
+            }
+            if range.first.col >= removed.first.col && range.last.col > removed.last.col {
+                range.first.col = removed.last.col + 1;
+                rewritten.push((index, range));
+                return Ok(false);
+            }
+        }
+        Err(Error::TableRange { reason: "removed table rows would split a hyperlink range" })
+    })?;
+    if items.is_empty() && rewritten.is_empty() {
+        return Ok(None);
+    }
+    let mut edited = document.clone();
+    for (index, range) in rewritten {
+        let mut worksheet = edited.lens_mut::<sml::Worksheet>()?;
+        let mut link = worksheet.child_mut::<sml::Hyperlinks>().expect("planned")
+            .into_child_at::<sml::Hyperlink>(index).expect("planned");
+        link.set_attr(q("ref"), &range.to_string())?;
+    }
+    if !items.is_empty() {
+        apply_hyperlink_deletions(&mut edited, &items, total)?;
+    }
+    Ok(Some(edited))
 }
 
 /// One registry plan with the sheet's new external relationship, applied.
@@ -314,14 +467,93 @@ impl Worksheet<'_> {
         self.wb.set_hyperlink(self.sheet, range, link, opts)
     }
 
+    /// Updates the tooltip of one existing hyperlink without changing its target.
+    pub fn set_hyperlink_tooltip(&mut self, reference: &str, tooltip: Option<&str>) -> Result<()> {
+        self.wb.check_editable()?;
+        let range = CellRange::parse(reference)?;
+        if let Some(tooltip) = tooltip {
+            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(tooltip) {
+                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+            }
+            if tooltip.encode_utf16().count() > 255 {
+                return Err(Error::InvalidSetting { what: "tooltip".into(), reason: "over 255 characters".into() });
+            }
+        }
+        let part = self.part_name().to_owned();
+        let index = {
+            let document = self.wb.pkg.xml_part(&part)?;
+            let mut matches = document.root().elements()
+                .find(|node| node.is(sml::Hyperlinks::QNAME))
+                .into_iter().flat_map(|group| group.elements())
+                .filter(|node| node.is(sml::Hyperlink::QNAME))
+                .enumerate().filter(|(_, node)| {
+                    node.attr(q("ref")).and_then(|value| CellRange::parse(value).ok()) == Some(range)
+                });
+            let (index, _) = matches.next().ok_or_else(|| Error::NoSuchRule {
+                what: "hyperlink", sqref: range.to_string(),
+            })?;
+            if matches.next().is_some() {
+                return Err(Error::HyperlinkOverlap { range: range.to_string(), existing: range.to_string() });
+            }
+            index
+        };
+        self.wb.poisoning(|wb| {
+            let mut sheet = wb.pkg.xml_part_mut(&part)?.lens_mut::<sml::Worksheet>()?;
+            let mut links = sheet.child_mut::<sml::Hyperlinks>().expect("planned group");
+            let mut link = links.nth_child_mut::<sml::Hyperlink>(index).expect("planned hyperlink");
+            if let Some(value) = tooltip {
+                link.set_attr(q("tooltip"), value)?;
+            } else {
+                link.remove_attr(q("tooltip"))?;
+            }
+            Ok(())
+        })
+    }
+
     /// Removes the hyperlinks whose `ref` equals `range`; the relationship
     /// stays (several links may share it). [`Error::NoSuchRule`] if none.
     pub fn remove_hyperlink(&mut self, range: &str) -> Result<()> {
         self.wb.remove_hyperlink(self.sheet, range)
     }
 
+    /// Removes individual cell links in the range, leaving multi-cell links intact.
+    pub fn remove_cell_hyperlinks(&mut self, range: CellRange) -> Result<()> {
+        self.wb.check_editable()?;
+        self.wb.remove_matching_hyperlinks(self.sheet, |reference| {
+            reference.first == reference.last && range.contains(reference.first)
+        }).map(drop)
+    }
+
+    /// Removes individual links at the given cells, preserving multi-cell links.
+    pub fn remove_cell_hyperlinks_at(&mut self, cells: &std::collections::HashSet<CellIndex>) -> Result<()> {
+        if cells.is_empty() {
+            return Ok(());
+        }
+        self.wb.check_editable()?;
+        self.wb.remove_matching_hyperlinks(self.sheet, |reference| {
+            reference.first == reference.last && cells.contains(&reference.first)
+        }).map(drop)
+    }
+
     /// The sheet's hyperlinks.
     pub fn hyperlinks(&mut self) -> Result<Vec<HyperlinkInfo>> {
         self.wb.hyperlinks(self.sheet)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hyperlink_address;
+
+    #[test]
+    fn address_joins_target_and_location_once() {
+        assert_eq!(hyperlink_address(Some("https://e.com/a"), None), "https://e.com/a");
+        assert_eq!(hyperlink_address(Some("https://e.com/a"), Some("frag")), "https://e.com/a#frag");
+        assert_eq!(hyperlink_address(None, Some("Sheet2!B2")), "#Sheet2!B2");
+        assert_eq!(hyperlink_address(None, None), "");
+        // A location that repeats the relationship target is one link.
+        assert_eq!(hyperlink_address(Some("Sheet2!B2"), Some("Sheet2!B2")), "Sheet2!B2");
+        assert_eq!(hyperlink_address(Some("#Sheet2!B2"), Some("#Sheet2!B2")), "#Sheet2!B2");
+        assert_eq!(hyperlink_address(Some("#Sheet2!B2"), Some("Sheet2!B2")), "#Sheet2!B2#Sheet2!B2");
     }
 }

@@ -258,3 +258,71 @@ fn open_with_reads_from_a_path() {
     pkg.xml_part("deep.xml").unwrap();
     std::fs::remove_file(&path).unwrap();
 }
+
+#[test]
+fn depth_limit_is_checked_inside_a_deferred_subtree() {
+    let opts = ParseOptions::default().with_defer(&[A::QNAME]);
+    for depth in [DEFAULT_MAX_DEPTH + 1, 10_000, 40_000] {
+        for empty_leaf in [false, true] {
+            let xml = nested(depth, empty_leaf);
+            assert_matches!(
+                XmlDocument::parse_with(&xml, &opts),
+                Err(Error::TooDeep { limit: DEFAULT_MAX_DEPTH, position }) if position == DEFAULT_MAX_DEPTH * 9
+            );
+        }
+    }
+    let xml = nested(DEFAULT_MAX_DEPTH, true);
+    let doc = XmlDocument::parse_with(&xml, &opts).unwrap();
+    let mut node = doc.root();
+    for _ in 1..DEFAULT_MAX_DEPTH {
+        assert!(node.is_deferred());
+        node = node.elements().next().unwrap();
+    }
+    assert!(node.children().is_empty());
+}
+
+#[test]
+fn per_part_parse_options_are_cached_and_keep_the_metadata_floor() {
+    let bytes = package_with(b"<a><a/></a>");
+    let opts = ParseOptions::default().with_defer(&[A::QNAME]).with_count(&[A::QNAME]);
+    let mut pkg = Package::from_bytes(bytes.clone()).unwrap();
+    pkg.xml_part("deep.xml").unwrap();
+    let d = pkg.xml_part_with("deep.xml", &opts).unwrap();
+    assert!(!d.root().is_deferred());
+    assert_eq!(d.census(A::QNAME), None);
+
+    let mut pkg = Package::from_bytes(bytes).unwrap();
+    let before = pkg.to_bytes().unwrap();
+    assert_matches!(
+        pkg.xml_part_with("deep.xml", &opts.with_max_depth(1)),
+        Err(Error::TooDeep { limit: 1, position: 3 })
+    );
+    assert_matches!(
+        pkg.xml_part_with("deep.xml", &opts.with_max_part_bytes(1)),
+        Err(Error::PartTooLarge { limit: 1, .. })
+    );
+    assert!(pkg.parsed_part("deep.xml").is_none());
+    assert_eq!(pkg.to_bytes().unwrap(), before);
+    let d = pkg.xml_part_with("deep.xml", &opts).unwrap();
+    assert_eq!(d.census(A::QNAME), Some(2));
+    assert!(pkg.xml_part("deep.xml").unwrap().root().is_deferred());
+    assert!(pkg.xml_part_mut("deep.xml").unwrap().root().is_deferred());
+    let types = "[Content_Types].xml";
+    assert_eq!(pkg.xml_part_with(types, &opts.with_max_depth(1)).unwrap().max_depth(), DEFAULT_MAX_DEPTH);
+    assert_eq!(pkg.to_bytes().unwrap(), before);
+}
+
+#[test]
+fn per_part_depth_cannot_relax_the_package_limit() {
+    let bytes = package_with(b"<a><a/></a>");
+    let package_options = ParseOptions::default().with_max_depth(1);
+    let part_options = ParseOptions::default().with_defer(&[A::QNAME]);
+    let mut pkg = Package::from_bytes_with(bytes, package_options).unwrap();
+    let before = pkg.to_bytes().unwrap();
+    assert_matches!(
+        pkg.xml_part_with("deep.xml", &part_options),
+        Err(Error::TooDeep { limit: 1, position: 3 })
+    );
+    assert!(pkg.parsed_part("deep.xml").is_none());
+    assert_eq!(pkg.to_bytes().unwrap(), before);
+}

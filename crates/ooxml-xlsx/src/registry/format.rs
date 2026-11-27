@@ -228,9 +228,34 @@ impl Default for Font {
     }
 }
 
+/// Geometry of a cell gradient.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Gradient {
+    /// A linear gradient, in degrees clockwise.
+    Angle(u16),
+    /// A path gradient with fractional offsets from each edge.
+    Path {
+        /// Left offset.
+        left: Tint,
+        /// Top offset.
+        top: Tint,
+        /// Right offset.
+        right: Tint,
+        /// Bottom offset.
+        bottom: Tint,
+    },
+}
+
 /// A fill.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Fill {
+    /// A gradient and its ordered color stops.
+    Gradient {
+        /// Gradient geometry.
+        geometry: Gradient,
+        /// Fractional stop positions and their colors.
+        stops: Vec<(Tint, Color)>,
+    },
     /// `patternType="none"`.
     NoFill,
     /// A pattern (`solid`, `gray125`, `darkGray`, …) with optional
@@ -525,6 +550,21 @@ impl Format {
             color(fg)?;
             color(bg)?;
         }
+        if let Some(Fill::Gradient { geometry, stops }) = &self.fill {
+            let valid_geometry = match geometry {
+                Gradient::Angle(degree) => *degree < 360,
+                Gradient::Path { left, top, right, bottom } => [left, top, right, bottom].iter().all(|v| v.get() >= 0.0),
+            };
+            if !valid_geometry || stops.len() < 2 || stops.first().is_none_or(|s| s.0.get() != 0.0)
+                || stops.last().is_none_or(|s| s.0.get() != 1.0)
+                || stops.windows(2).any(|pair| pair[0].0.get() > pair[1].0.get())
+            {
+                return bad("invalid gradient geometry or stop positions".into());
+            }
+            for (_, stop_color) in stops {
+                color(&Some(*stop_color))?;
+            }
+        }
         if let Some(b) = &self.border {
             for s in [&b.left, &b.right, &b.top, &b.bottom, &b.diagonal].into_iter().flatten() {
                 one_of::<BorderStyleValues>("border style", &s.style)?;
@@ -576,6 +616,14 @@ pub struct DxfFont {
     pub size: Option<FontSize>,
     /// `<name/>`.
     pub name: Option<String>,
+    /// Font-relative vertical alignment override.
+    pub vert_align: Option<VertAlign>,
+    /// Theme font scheme override.
+    pub scheme: Option<String>,
+    /// Font family number override.
+    pub family: Option<u8>,
+    /// Font character set override.
+    pub charset: Option<u8>,
 }
 
 /// A differential format (`dxf`), as conditional formats and table styles
@@ -657,7 +705,13 @@ impl DxfFormat {
         as_format.validate()?;
         if let Some(f) = &self.font {
             // the font checks of `Format::validate`, on a stand-in font
-            let probe = Font { name: f.name.clone().unwrap_or_else(|| "x".into()), color: f.color, ..Font::default() };
+            let probe = Font {
+                name: f.name.clone().unwrap_or_else(|| "x".into()),
+                color: f.color,
+                scheme: f.scheme.clone(),
+                family: f.family,
+                ..Font::default()
+            };
             Format::with_font(probe).validate()?;
         }
         Ok(())

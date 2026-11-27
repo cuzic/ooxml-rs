@@ -22,7 +22,7 @@ use ooxml_core::{ElementSpec, LensMut, ParseOptions, QName, RawNode, XmlDocument
 use crate::error::{Error, Result};
 
 /// The registries of one workbook (each `None` until activated).
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Registries {
     pub(crate) strings: Option<strings::SharedStrings>,
     pub(crate) styles: Option<styles::Styles>,

@@ -92,12 +92,11 @@ impl Position {
             write_xstring_attribute(&mut xml, "descr", text);
         }
         if let Some(link) = hyperlink {
-            write!(
-                xml,
-                "><a:hlinkClick r:id=\"{}\"/></xdr:cNvPr>",
-                quick_xml::escape::escape(link)
-            )
-            .unwrap();
+            write!(xml, "><a:hlinkClick r:id=\"{}\"", quick_xml::escape::escape(link)).unwrap();
+            if let Some(tooltip) = &image.hyperlink_tooltip {
+                write_xstring_attribute(&mut xml, "tooltip", tooltip);
+            }
+            xml.push_str("/></xdr:cNvPr>");
         } else {
             xml.push_str("/>");
         }
@@ -245,6 +244,11 @@ pub(super) fn list(pkg: &Package, rels: &Relationships, root: &RawNode) -> Vec<I
             let blip =
                 child(node, xdr("blipFill")).and_then(|fill| child(fill, QName::new(A, "blip")));
             let media = |node: &RawNode| read_media(pkg, rels, node.attr(QName::new(R, "embed"))?);
+            let click = props.and_then(|props| child(props, QName::new(A, "hlinkClick")));
+            let hyperlink = click.and_then(|click| click.attr(QName::new(R, "id")))
+                .and_then(|id| rels.by_id(id))
+                .filter(|rel| rel.rel_type == REL_HYPERLINK && rel.target_mode == ooxml_core::opc::TargetMode::External)
+                .map(|rel| rel.target.clone());
             output.push(ImageInfo {
                 anchor,
                 id: props.and_then(shape_id),
@@ -253,6 +257,9 @@ pub(super) fn list(pkg: &Package, rels: &Relationships, root: &RawNode) -> Vec<I
                     .map(|text| crate::escape::decode(text).into_owned()),
                 alt_text: props
                     .and_then(|props| props.attr(attr("descr")))
+                    .map(|text| crate::escape::decode(text).into_owned()),
+                hyperlink,
+                hyperlink_tooltip: click.and_then(|click| click.attr(attr("tooltip")))
                     .map(|text| crate::escape::decode(text).into_owned()),
                 media: blip.and_then(media),
                 svg: blip

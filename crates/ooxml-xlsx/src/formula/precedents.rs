@@ -49,7 +49,7 @@ pub(crate) enum Scope {
 }
 
 /// A defined name, parsed once.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct NameDef {
     pub(crate) name_lc: String,
     pub(crate) scope: Scope,
@@ -73,7 +73,7 @@ pub(crate) fn fold(s: &str) -> String {
 }
 
 /// What the analysis needs to know about the workbook.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Env {
     /// Folded ([`fold`]) sheet names in `<sheets>` order.
     pub(crate) sheets_lc: Vec<String>,

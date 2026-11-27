@@ -884,3 +884,13 @@ check; CF priority `max + 1`; a salt option with the OS CSPRNG by default and sp
 - Review: `docs/adr/0014-opus-review-round1.md`, probes `probe/p.py` and `probe/h.py`.
 - ADR-0009 rev 2 (PR #27, `plan/xlsx-phase3` `94f8783`); core `RegistryPlan` (PR #38,
   `core/add-part`); Phase1 implementation `crates/ooxml-xlsx/src/edit.rs` (PR #20).
+
+### Post-acceptance note on exporting ExcelJS cell merges
+
+ExcelJS can store a parent reference on individual cells and emit the
+bounding rectangle when it writes a workbook. Other cells in that
+rectangle can still have their own serialized values. The ExcelJS
+adapter uses `Worksheet::merge_preserving_covered_values` on a fork for
+export so those values and formulas are retained. The merge still
+guards covered cells against subsequent value edits. The existing
+`merge` and `merge_clearing` APIs retain their edit policies.

@@ -1,0 +1,25 @@
+[package]
+name = "ooxml-xlsx-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+fault-injection = ["ooxml-xlsx/fault-injection"]
+transaction-spike = []
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ooxml-core = { path = "../ooxml-core" }
+ooxml-xlsx = { path = "../ooxml-xlsx" }
+crc32fast = "1.5"
+flate2 = "1.1"
+getrandom = { workspace = true, features = ["wasm_js"] }
+js-sys = "=0.3.107"
+wasm-bindgen = "=0.2.130"
+zip.workspace = true

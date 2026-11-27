@@ -399,3 +399,63 @@ d</t></is></c>"#), "{xml}");
     let ws = again.worksheet().unwrap();
     assert_eq!(ws.cell(1, 1).unwrap().unwrap().value().unwrap(), CellValue::String("a\u{1}b _x0041_ c\r\nd".into()));
 }
+
+/// `declared_bound` only trusts `dimension/@ref` written as `first:last`
+/// (single-cell, reversed, absolute or missing ones are not bounds), and
+/// `stored_extent` covers every `row` element and stored cell. Edits keep the
+/// existing rule: a `dimension` grows, a missing one is not created, and a
+/// workbook saved without edits is byte-identical.
+#[test]
+fn declared_bound_and_stored_extent() {
+    let input = read("minimal");
+    let name = "xl/worksheets/sheet1.xml";
+    let dim = r#"<dimension ref="A1:D2"/>"#;
+    // An empty `row 9` (no cells) widens the stored rows; an empty `D2` counts.
+    let with_dim = |to: &str| {
+        let xml = String::from_utf8(patched(&input, name, dim, to)).unwrap()
+            .replacen("</row>\n</sheetData>", "</row>\n<row r=\"9\" ht=\"30\" customHeight=\"1\"/>\n</sheetData>", 1);
+        rebuild(&input, &[(name, xml.into_bytes())])
+    };
+    let bound = |bytes: &[u8]| {
+        let mut wb = Workbook::from_bytes(bytes.to_vec()).unwrap();
+        let ws = wb.worksheet().unwrap();
+        (ws.declared_bound().map(|r| r.to_string()), ws.stored_extent().unwrap().map(|r| r.to_string()))
+    };
+    let cases = [
+        (dim, Some("A1:D2")),
+        ("", None),
+        (r#"<dimension ref="A1"/>"#, None),
+        (r#"<dimension ref="A1:A1"/>"#, Some("A1")),
+        (r#"<dimension ref="B1:Z99"/>"#, Some("B1:Z99")),
+        (r#"<dimension ref="D2:A1"/>"#, None),
+        (r#"<dimension ref="$A$1:$D$2"/>"#, None),
+        (r#"<dimension ref="A1:"/>"#, None),
+        (r#"<dimension ref="a1:d2"/>"#, None),
+    ];
+    for (to, expected) in cases {
+        let bytes = with_dim(to);
+        assert_eq!(bound(&bytes), (expected.map(str::to_owned), Some("A1:D9".to_owned())), "{to}");
+        let wb = Workbook::from_bytes(bytes.clone()).unwrap();
+        assert_eq!(wb.to_bytes().unwrap(), bytes, "{to}: no-edit save is byte-identical");
+    }
+    // A sheet whose rows hold no cells has no stored extent.
+    let empty = String::from_utf8(patched(&input, name, dim, "")).unwrap();
+    let start = empty.find("<sheetData>").unwrap() + "<sheetData>".len();
+    let end = empty.find("</sheetData>").unwrap();
+    let empty = format!("{}<row r=\"3\"/>{}", &empty[..start], &empty[end..]);
+    assert_eq!(bound(&rebuild(&input, &[(name, empty.into_bytes())])), (None, None));
+    // Edits: a single-cell dimension that must grow covers the stored rows
+    // and cells as well as the write (from the write alone, `A1:F5` would
+    // hide row 9 from readers); a write inside it leaves it alone; a range
+    // dimension grows by the write only; no dimension stays absent.
+    let out = check_edit("minimal-a1", &with_dim(r#"<dimension ref="A1"/>"#), a1("F5"), &W::Num(5.0));
+    assert!(sheet_xml(&out).contains(r#"<dimension ref="A1:F9"/>"#), "{}", sheet_xml(&out));
+    assert_eq!(bound(&out).0.as_deref(), Some("A1:F9"));
+    let out = check_edit("minimal-a1", &with_dim(r#"<dimension ref="A1"/>"#), a1("A1"), &W::Num(5.0));
+    assert!(sheet_xml(&out).contains(r#"<dimension ref="A1"/>"#));
+    let out = check_edit("minimal-range", &with_dim(r#"<dimension ref="A1:B2"/>"#), a1("F5"), &W::Num(5.0));
+    assert!(sheet_xml(&out).contains(r#"<dimension ref="A1:F5"/>"#));
+    let out = check_edit("minimal-nodim", &with_dim(""), a1("F5"), &W::Num(5.0));
+    assert!(!sheet_xml(&out).contains("<dimension"));
+    assert_eq!(bound(&out), (None, Some("A1:F9".to_owned())));
+}

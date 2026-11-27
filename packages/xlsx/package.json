@@ -1,0 +1,37 @@
+{
+  "name": "@ooxml-rs/xlsx",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "exports": {
+    "./exceljs": {
+      "import": {
+        "node": {
+          "types": "./src/exceljs-node.d.ts",
+          "default": "./src/exceljs-node.js"
+        },
+        "types": "./src/exceljs.d.ts",
+        "default": "./src/exceljs.js"
+      }
+    },
+    "./sheetjs": {
+      "import": {
+        "node": {
+          "types": "./src/sheetjs-node.d.ts",
+          "default": "./src/sheetjs-node.js"
+        },
+        "types": "./src/sheetjs-browser.d.ts",
+        "default": "./src/sheetjs-browser.js"
+      }
+    }
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "0.9.12",
+    "cfb": "1.2.2",
+    "dayjs": "1.11.23",
+    "fast-csv": "4.3.6",
+    "parse5": "7.3.0"
+  },
+  "files": ["src", "wasm", "LICENSE-MIT", "LICENSE-APACHE"],
+  "sideEffects": ["./src/runtime.js", "./src/runtime-node.js", "./src/sheetjs-node.js"]
+}

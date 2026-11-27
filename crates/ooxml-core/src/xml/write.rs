@@ -8,6 +8,7 @@ use super::{RawAttr, RawItem, RawNode, XmlDocument};
 use crate::name::XName;
 
 pub(super) fn serialize(doc: &XmlDocument) -> String {
+    debug_assert!(doc.root.dirty_counts_consistent(), "a dirty-child count is out of step with the tree");
     let src = doc.source();
     let mut out = String::with_capacity(src.len() + 64);
     let root = &doc.root;
@@ -26,47 +27,57 @@ fn write_node(out: &mut String, src: &str, node: &RawNode) {
         }
         other => other,
     };
+    let deferred = node.deferred_content(src);
+    let empty = || deferred.map_or_else(|| node.children().is_empty(), str::is_empty);
     // An originally self-closing element with children must be re-rendered
     // even if a caller bypassed the duty that marks it `own_dirty`.
     let rerender = node.own_dirty()
         || match span {
             None => true,
-            Some(s) => s.close.is_none() && !node.children().is_empty(),
+            Some(s) => s.close.is_none() && !empty(),
         };
     let preserved = rerender
         && node.preserves_attribute_spelling()
         && span
-            .is_some_and(|s| render_preserved_tag(out, &src[s.start..s.open_end], node).is_some());
+            .is_some_and(|s| render_preserved_tag(out, &src[s.start..s.open_end], node, empty).is_some());
     if rerender {
         if !preserved {
-            render_open_tag(out, node, node.children().is_empty());
+            render_open_tag(out, node, empty());
         }
     } else {
         let s = span.expect("checked above");
         out.push_str(&src[s.start..s.open_end]);
     }
-    for child in node.children() {
-        match child {
-            RawItem::Element(n) => write_node(out, src, n),
-            RawItem::Text(t) => match t.span() {
-                Some(r) => out.push_str(&src[r]),
-                None if t.cdata => {
-                    // `]]>` cannot occur inside a CDATA section: split it.
-                    out.push_str("<![CDATA[");
-                    out.push_str(&t.value.replace("]]>", "]]]]><![CDATA[>"));
-                    out.push_str("]]>");
-                }
-                None => escape_text(out, &t.value),
-            },
-            RawItem::Markup(m) => out.push_str(&m.raw),
+    if let Some(content) = deferred {
+        out.push_str(content);
+    } else {
+        for child in node.children() {
+            write_child(out, src, child);
         }
     }
     match span.and_then(|s| s.close) {
         Some((start, end)) if preserved || !rerender => out.push_str(&src[start..end]),
-        _ if rerender && !node.children().is_empty() => {
+        _ if rerender && !empty() => {
             let _ = write!(out, "</{}>", node.name.display());
         }
         _ => {}
+    }
+}
+
+fn write_child(out: &mut String, src: &str, child: &RawItem) {
+    match child {
+        RawItem::Element(n) => write_node(out, src, n),
+        RawItem::Text(t) => match t.span() {
+            Some(r) => out.push_str(&src[r]),
+            None if t.cdata => {
+                // `]]>` cannot occur inside a CDATA section: split it.
+                out.push_str("<![CDATA[");
+                out.push_str(&t.value.replace("]]>", "]]]]><![CDATA[>"));
+                out.push_str("]]>");
+            }
+            None => escape_text(out, &t.value),
+        },
+        RawItem::Markup(m) => out.push_str(&m.raw),
     }
 }
 
@@ -84,7 +95,7 @@ fn render_attr(out: &mut String, attr: &RawAttr) {
     out.push('"');
 }
 
-fn render_preserved_tag(out: &mut String, original: &str, node: &RawNode) -> Option<()> {
+fn render_preserved_tag(out: &mut String, original: &str, node: &RawNode, empty: impl FnOnce() -> bool) -> Option<()> {
     let tag = original.strip_prefix('<')?.strip_suffix('>')?;
     let self_closing = tag.ends_with('/');
     let body = tag.strip_suffix('/').unwrap_or(tag);
@@ -116,7 +127,7 @@ fn render_preserved_tag(out: &mut String, original: &str, node: &RawNode) -> Opt
         }
     }
     out.push_str(&body[previous_end..]);
-    out.push_str(if self_closing && node.children().is_empty() {
+    out.push_str(if self_closing && empty() {
         "/>"
     } else {
         ">"

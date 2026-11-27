@@ -40,7 +40,7 @@ pub(crate) enum RowErr {
     CellsOutOfOrder,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct RowEntry {
     /// 1-based row number.
     pub(crate) row: u32,
@@ -59,7 +59,7 @@ pub(crate) struct RowEntry {
     pub(crate) cells: std::result::Result<Vec<(u32, usize)>, RowErr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct SheetIndex {
     /// `sheetData` exists.
     pub(crate) sheet_data: bool,
@@ -277,6 +277,42 @@ impl SheetIndex {
             }
             let k = rows.partition_point(|e| e.row < row_no);
             rows.insert(k, RowEntry { row: row_no, item, alternate: false, cells_end: 0, misordered: false, cells: Ok(Vec::new()) });
+        }
+    }
+
+    /// The row at item `item` of `sheetData` was removed (the inverse of
+    /// [`Self::row_inserted`]).
+    pub(crate) fn row_removed(&mut self, row_no: u32, item: usize) {
+        self.sd_len -= 1;
+        if let Ok(rows) = &mut self.rows {
+            if let Ok(k) = rows.binary_search_by_key(&row_no, |e| e.row) {
+                rows.remove(k);
+            }
+            let from = rows.partition_point(|e| e.item < item);
+            for e in &mut rows[from..] {
+                e.item -= 1;
+            }
+        }
+    }
+
+    /// The cell at item `item` of the row `row_no` was removed (the inverse
+    /// of [`Self::cell_inserted`]).
+    pub(crate) fn cell_removed(&mut self, row_no: u32, col: u32, item: usize) {
+        if let Ok(rows) = &mut self.rows
+            && let Ok(k) = rows.binary_search_by_key(&row_no, |e| e.row)
+        {
+            let e = &mut rows[k];
+            if e.cells_end > item {
+                e.cells_end -= 1;
+            }
+            let Ok(cells) = &mut e.cells else { return };
+            if let Ok(j) = cells.binary_search_by_key(&col, |c| c.0) {
+                cells.remove(j);
+            }
+            let from = cells.partition_point(|c| c.1 < item);
+            for c in &mut cells[from..] {
+                c.1 -= 1;
+            }
         }
     }
 

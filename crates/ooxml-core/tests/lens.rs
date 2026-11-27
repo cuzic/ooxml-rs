@@ -780,3 +780,22 @@ fn removing_alternate_content_restores_local_unlimited_slot_checks() {
     p.insert_at::<Item>(3).unwrap();
     assert_eq!(d.serialize(), format!("{AC_OPEN}<ext/><head/><item/><item/></p>"));
 }
+
+#[test]
+fn deferred_alternate_content_governs_positional_insert_before_and_after_release() {
+    let source = r#"<p xmlns="urn:t" xmlns:t="urn:t" xmlns:m="http://schemas.openxmlformats.org/markup-compatibility/2006"><head/><item/><m:AlternateContent><m:Choice Requires="t"><item/></m:Choice></m:AlternateContent></p>"#;
+    let options = ooxml_core::ParseOptions::default().with_defer(&[P::QNAME]);
+    let mut d = XmlDocument::parse_with(source.as_bytes(), &options).unwrap();
+    assert!(d.root().is_deferred());
+    for _ in 0..2 {
+        let mut p = d.lens_mut::<P>().unwrap();
+        assert_matches!(p.insert_at::<Item>(0), Err(Error::UnresolvedSibling(_)));
+        assert!(p.release_children());
+        assert!(d.root().is_deferred());
+        assert_eq!(d.serialize(), source);
+    }
+    let mut full = doc(source);
+    full.lens_mut::<P>().unwrap().insert::<Ext>().unwrap();
+    d.lens_mut::<P>().unwrap().insert::<Ext>().unwrap();
+    assert_eq!(d.serialize(), full.serialize());
+}
