@@ -72,7 +72,7 @@ mod condfmt;
 mod hyperlink;
 mod images;
 mod comments;
-pub use comments::{Comment, Note, Person, PersonId};
+pub use comments::{Comment, Note, NoteBox, NoteEditAs, NoteSource, Person, PersonId};
 pub use images::{Anchor, CellImage, EditAs, Image, ImageInfo, ImageMedia, Marker, Size};
 mod index;
 mod layout;

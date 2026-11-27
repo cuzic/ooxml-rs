@@ -65,6 +65,124 @@ fn workbook_with_note() -> Workbook {
 }
 
 #[test]
+fn legacy_notes_share_shape_and_reuse_authors() {
+    let mut wb = workbook_with_note();
+    let at = cell("D1");
+    let notes = [
+        Note::new("First").author("Ana"),
+        Note::new("Second").author("Bob"),
+        Note::new("Third").author("Bob"),
+    ];
+    let mut sheet = wb.worksheet().unwrap();
+    sheet.add_legacy_notes(at, &notes).unwrap();
+    assert_eq!(
+        sheet.cell_notes().unwrap().into_iter().filter(|entry| entry.0 == at).collect::<Vec<_>>(),
+        vec![
+            (at, "Ana".into(), "First".into()),
+            (at, "Bob".into(), "Second".into()),
+            (at, "Bob".into(), "Third".into()),
+        ],
+    );
+    assert!(sheet.add_legacy_notes(at, &notes).is_err());
+    let xml = part(wb.package(), COMMENTS);
+    assert_eq!(xml.matches(">Ana</author>").count(), 1);
+    assert_eq!(xml.matches(">Bob</author>").count(), 1);
+    let drawing = part(wb.package(), VML);
+    assert_eq!(drawing.matches("<x:Row>0</x:Row><x:Column>3</x:Column>").count(), 1, "{drawing}");
+    let mut sheet = wb.worksheet().unwrap();
+    sheet.replace_legacy_notes(at, &[Note::new("Edited").author("Bob")]).unwrap();
+    assert_eq!(sheet.note_text(at).unwrap().as_deref(), Some("Edited"));
+    assert_eq!(part(wb.package(), VML), drawing);
+    wb.worksheet().unwrap().replace_legacy_notes(at, &[]).unwrap();
+    assert!(!part(wb.package(), VML).contains("<x:Row>0</x:Row><x:Column>3</x:Column>"));
+
+}
+
+#[test]
+fn note_sources_report_stored_markup_runs_and_visibility() {
+    let mut wb = deterministic();
+    let mut sheet = wb.worksheet().unwrap();
+    sheet.add_note(cell("C3"), Note::new("plain & <x>").author("Ana").visible(true)).unwrap();
+    sheet.add_note(cell("A1"), Note::new("second").author("Bo")).unwrap();
+    let comments = part(wb.package(), COMMENTS);
+    let start = comments.find("<comment ref=\"A1\"").unwrap();
+    let start = start + comments[start..].find("<text>").unwrap();
+    let end = start + comments[start..].find("</text>").unwrap() + "</text>".len();
+    let rich = r#"<text><r><rPr><b/><outline/></rPr><t>B</t></r><r><t xml:space="preserve"> &amp;r</t></r></text>"#;
+    let mut wb = with_part(&wb, COMMENTS, format!("{}{rich}{}", &comments[..start], &comments[end..]));
+    let mut sheet = wb.worksheet().unwrap();
+    let sources = sheet.note_sources().unwrap();
+    let plain = sources.iter().find(|source| source.at == cell("C3")).unwrap();
+    assert_eq!((plain.author.as_str(), plain.text.as_str()), ("Ana", "plain & <x>"));
+    let stored = plain.text_xml.as_deref().unwrap();
+    assert!(stored.contains("plain &amp; &lt;x&gt;") && !stored.starts_with("<text"), "{stored}");
+    // This crate writes note text as one run without properties.
+    assert_eq!(plain.runs, Some(vec![("plain & <x>".into(), None)]));
+    let rich = sources.iter().find(|source| source.at == cell("A1")).unwrap();
+    assert_eq!(rich.text, "B &r");
+    assert_eq!(rich.text_xml.as_deref(),
+        Some(r#"<r><rPr><b/><outline/></rPr><t>B</t></r><r><t xml:space="preserve"> &amp;r</t></r>"#));
+    let runs = rich.runs.as_ref().unwrap();
+    assert_eq!(runs.len(), 2);
+    assert_eq!(runs[0].1.as_ref().unwrap().fields & crate::DECLARED_FONT_OUTLINE, crate::DECLARED_FONT_OUTLINE);
+    assert_eq!(runs[1], (" &r".into(), None));
+    let mut visibility = sheet.note_visibility().unwrap();
+    visibility.sort();
+    assert_eq!(visibility, vec![(cell("A1"), false), (cell("C3"), true)]);
+    assert_eq!(Workbook::new().unwrap().worksheet().unwrap().note_visibility().unwrap(), vec![]);
+}
+
+#[test]
+fn declared_note_runs_keep_fonts_as_written() {
+    let wb = workbook_with_note();
+    let comments = part(wb.package(), COMMENTS);
+    let start = comments.find("<text>").unwrap();
+    let end = comments.find("</text>").unwrap() + "</text>".len();
+    let text = concat!(
+        r#"<text><r><rPr><b/><sz val="9"/></rPr><t xml:space="preserve">rich </t></r>"#,
+        r#"<r><rPr><outline/><rFont val="Arial"/></rPr><t>o</t></r><r><t>note</t></r></text>"#,
+    );
+    let mut wb = with_part(&wb, COMMENTS, format!("{}{text}{}", &comments[..start], &comments[end..]));
+    let sheet = wb.worksheet().unwrap();
+    let runs = sheet.declared_note_runs(cell("C3")).unwrap().unwrap();
+    assert_eq!(runs.len(), 3);
+    let (text, font) = &runs[0];
+    let font = font.as_ref().unwrap();
+    assert_eq!((text.as_str(), font.fields), ("rich ", crate::DECLARED_FONT_SIZE));
+    assert!(font.font.bold);
+    assert_eq!(font.font.size.get(), 9.0);
+    let font = runs[1].1.as_ref().unwrap();
+    assert_eq!(font.fields, crate::DECLARED_FONT_NAME | crate::DECLARED_FONT_OUTLINE);
+    assert_eq!(font.font.name, "Arial");
+    assert_eq!(runs[2], ("note".into(), None));
+    // The plain run reader cannot express the outline run and falls back to text.
+    assert_eq!(sheet.note_runs(cell("C3")).unwrap(), Some(vec![("rich onote".into(), None)]));
+}
+
+#[test]
+fn reordered_legacy_notes_keep_unchanged_rich_markup() {
+    let mut wb = workbook_with_note();
+    let at = cell("D1");
+    let rich = crate::Font { bold: true, ..Default::default() };
+    let runs = vec![("First".into(), Some(rich))];
+    let mut sheet = wb.worksheet().unwrap();
+    sheet.add_legacy_notes(at, &[
+        Note::rich_text(runs.clone()).author("Alice"),
+        Note::new("Second").author("Bob"),
+    ]).unwrap();
+    sheet.replace_legacy_notes(at, &[
+        Note::new("Revised").author("Bob"),
+        Note::new("First").author("Alice"),
+    ]).unwrap();
+    let comments = part(wb.package(), COMMENTS);
+    assert!(comments.find("Revised").unwrap() < comments.find("First").unwrap());
+    assert!(comments.contains("<rPr>"), "{comments}");
+    let mut sheet = wb.worksheet().unwrap();
+    sheet.replace_legacy_notes(at, &[Note::new("First").author("Alice")]).unwrap();
+    assert_eq!(sheet.note_runs(at).unwrap(), Some(runs));
+}
+
+#[test]
 fn notes_sorted_authors_reused_and_text_encoded() {
     let mut wb = workbook_with_note();
     let before = part(wb.package(), VML);
