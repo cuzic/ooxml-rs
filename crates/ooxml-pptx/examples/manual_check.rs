@@ -10,6 +10,9 @@
 //! Inputs are the fixtures in `reference/fixtures/pptx/`; the
 //! outputs are for local inspection only and are not redistributed.
 
+#[path = "../tests/oracle/comments_case.rs"]
+mod comments_case;
+
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -919,6 +922,21 @@ fn main() -> R {
                 "The title text points to https://example.com/slides?x=1&y=2.",
                 "In Slide Show, clicking the title shape outside the linked text jumps to slide 2.",
                 "In Slide Show, clicking the body shape runs the Last Slide action.",
+            ],
+        });
+    }
+
+    for (case, (name, source, edit)) in comments_case::CASES.into_iter().enumerate() {
+        let mut deck = Presentation::open(fixture(source))?;
+        comments_case::prepare(&mut deck, case)?;
+        comments_case::edit(&mut deck, case)?;
+        items.push(Item {
+            file: save(&out, name, &deck)?,
+            source,
+            edit: edit.into(),
+            observe: vec![
+                "PowerPoint opens without repair and shows the new comment in the Comments pane.",
+                "After saving and reopening, the comment remains attached to its target.",
             ],
         });
     }

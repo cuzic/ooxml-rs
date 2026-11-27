@@ -246,6 +246,11 @@
       ["word/document.xml", ".//w:t[.='1']", 1]
     ]
   },
+  "pptx/M1-slide-comment.pptx": {"text": []},
+  "pptx/M2-title-comment.pptx": {"text": []},
+  "pptx/M3-shape-without-creation-id.pptx": {"text": []},
+  "pptx/M9-new-slide-comment.pptx": {"text": []},
+  "pptx/M11-nested-picture-comment.pptx": {"text": []},
   "pptx/01-title-and-body.pptx": {"text": ["Edited title — 編集済み", "Third line"]},
   "pptx/02-autofit-stale.pptx": {"text": ["Considerably longer replacement text"]},
   "pptx/03-empty-placeholder-fill.pptx": {"text": ["空のプレースホルダーに入力 (filled)"]},

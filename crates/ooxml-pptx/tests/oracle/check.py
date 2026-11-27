@@ -26,8 +26,10 @@ import copy
 import json
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import comments  # noqa: E402
 import readback  # noqa: E402
 
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
@@ -627,6 +629,7 @@ def main():
     check_links(outdir)
     check_notes_creation(outdir)
     check_styles_and_theme(outdir)
+    comments.main(Path(outdir), Path(fixtures))
     check_alternate_table_style(outdir)
     sys.exit(1 if failures else 0)
 

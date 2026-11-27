@@ -72,3 +72,5 @@ pub use write::{
     StyleId, TablePartStyle, TableStyleBorders, TableStyleCell, TableStyleDef, TableStyleParts,
     TableStyleText, ThemeColor, ThemeColorSlot, ThemeFonts, ThemeMut, ThemeOptions,
 };
+
+pub use slides::comments::{AuthorIdentity, CommentAnchor, CommentAuthor, CommentId, NewComment};

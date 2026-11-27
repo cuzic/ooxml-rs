@@ -21,6 +21,9 @@ mod links_case;
 #[path = "../tests/oracle/styles_theme_case.rs"]
 mod styles_theme_case;
 
+#[path = "../tests/oracle/comments_case.rs"]
+mod comments_case;
+
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -57,6 +60,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         edit(&mut deck)?;
         deck.save(out.join(format!("{name}.pptx")))?;
     }
+    let mut comments = Vec::new();
+    for (case, (name, fixture, _)) in comments_case::CASES.into_iter().enumerate() {
+        let mut deck = ooxml_pptx::Presentation::from_bytes(cases::read_fixture(fixture))?;
+        comments_case::prepare(&mut deck, case)?;
+        let prepared = matches!(case, 3 | 4);
+        if prepared {
+            deck.save(out.join(format!("{name}.input.pptx")))?;
+        }
+        comments_case::edit(&mut deck, case)?;
+        deck.save(out.join(format!("{name}.pptx")))?;
+        comments.push((name, fixture, prepared));
+    }
+    std::fs::write(out.join("comments.json"), serde_json::to_vec(&comments)?)?;
     alternate_table_style_case(&out)?;
     let edits: usize = cases.iter().map(|c| c.edits.len()).sum();
     println!("{} cases, {edits} edits written to {}", cases.len(), out.display());

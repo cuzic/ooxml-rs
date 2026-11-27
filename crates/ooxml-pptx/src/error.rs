@@ -7,6 +7,25 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    #[error("legacy comments exist in this presentation")]
+    LegacyCommentsInDeck,
+    #[error("unsupported comment anchor: {0}")]
+    UnsupportedCommentAnchor(String),
+    #[error("comment part {part}: {reason}")]
+    CommentPartNotEditable { part: String, reason: String },
+    #[error("authors part {part}: {reason}")]
+    AuthorsPartNotEditable { part: String, reason: String },
+    #[error("invalid comment author: {reason}")]
+    InvalidCommentAuthor { reason: String },
+    #[error("empty comment text")]
+    EmptyCommentText,
+    #[error("invalid comment language")]
+    InvalidCommentLang,
+    #[error("comment time is outside years 1970–9999 UTC")]
+    InvalidCommentTime,
+    #[error("comment GUID allocation failed: {0}")]
+    Random(String),
+
     /// The target uses a script or data scheme.
     #[error("unsafe hyperlink scheme")]
     UnsafeLinkScheme,

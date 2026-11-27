@@ -640,7 +640,8 @@ New variants. Every one of them is raised before `apply`, so each has an
 | `Random(String)` | `getrandom` failure, or 32 colliding draws (§5) |
 
 Reused: `UnsupportedContent` (§3.2: a `p14:creationId` outside its place,
-or not a u32), `SlideIndexOutOfRange`, `ShapeNotFound`, `AmbiguousShapeId`,
+or not a u32; also missing when appending to an existing comment part, see the
+P4a-1 note below), `SlideIndexOutOfRange`, `ShapeNotFound`, `AmbiguousShapeId`,
 `InvalidShapeId`, `InsideAlternateContent`, `InvalidXmlChar`,
 `CreationIdsExhausted`, `StrictConformance`, and `Core(…)`
 (`RegistryRefused`, `UnresolvedSibling`, `TooDeep`, `NamespaceNotInScope`).
@@ -802,7 +803,7 @@ impl Presentation {
    is an independent reader, not PowerPoint. The tool does not exist yet:
    `tools/lo-check/check.py`'s `comments` key reads `.docx` through
    python-docx (L280–282), and cannot be used for pptx.
-   - **New key `odp_annotations`** (implemented in P4a-1). It converts the
+   - **Proposed key `odp_annotations`** (see the P4a-1 note below). It converts the
      case to ODP and compares, for each slide, `officeooo:annotation` (the element Impress writes) in
      `content.xml`: the count, `dc:creator` and the text, against
      `expected.json`.
@@ -923,7 +924,7 @@ Three PRs, in order, each reviewed until converged:
 1. **P4a-1: allowlist, ids, authors, add.** §2–§4, §5 (ids, timestamps,
    new text), and `add_comment` for the slide anchor and the moniker kinds
    P4a-0 confirmed.
-   - Includes the `odp_annotations` key in `tools/lo-check` (§11.5).
+   - Uses the LibreOffice fallback recorded in the post-acceptance note (§11.5).
    - **Acceptance:** AGENTS.md's definition of done; oracles 1–7 (add
      only); the python job runs `comments.py`; manual cases M1–M3, M9, M11;
      generated names unchanged.
@@ -1270,6 +1271,19 @@ Per §11.5's fallback, the LibreOffice oracle for P4a-1/P4a-2 is reduced to
 for modern comments. If a later pinned LibreOffice imports `p188`, the key
 can be revisited.
 
+### P4a-1 implementation notes (PR #144, round 1)
+
+- `add_comment` fails closed with `UnsupportedContent` when a slide has an
+  existing modern comment part but lacks `p14:creationId`. PowerPoint writes
+  this form when it converts legacy comments, with `cId="0"` in the slide
+  moniker (items 10 and 11 above). The refusal preserves the input bytes.
+- If an existing slide-level `p:extLst` rebinds `r` to another namespace, the
+  lens declares the relationships namespace on `p188:commentRel` as
+  `xmlns:r1` and writes `r1:id`. This is valid XML with the same expanded
+  attribute name as `r:id`. No such binding was observed in the corpus.
+- The LibreOffice checker uses the open-and-resave fallback. The unused
+  `odp_annotations` implementation was removed after the baseline above.
+
 ### Still open
 
 - **F7** (a comment made with the zone at UTC+9) was not made. The shared VM
@@ -1282,6 +1296,9 @@ can be revisited.
   `Local` default (`userId` = name, `providerId="None"`) stays until then.
   The legacy conversion's `userId="Anonymous_<name>"` (item 10) is another
   PowerPoint-written `providerId="None"` form for F8 to compare.
+- **Owner decision pending**: should `add_comment` write `cId="0"` when
+  appending to a PowerPoint-converted legacy comment part on a slide without
+  `p14:creationId`?
 - **M10** (item 5): whether a random author id is recognised as the account.
 - The `ac:context@hash` and author-id algorithms (items 4 and 5).
 - Mention and link markup in `txBody` (§5), and why
