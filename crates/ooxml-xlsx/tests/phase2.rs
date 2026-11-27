@@ -669,6 +669,35 @@ fn rich_or_phonetic_si_is_never_reused() {
 }
 
 #[test]
+fn explicit_iso_date_validation_is_atomic() {
+    let mut book = Workbook::new_at(std::time::UNIX_EPOCH).unwrap();
+    let original = book.to_bytes().unwrap();
+    let mut sheet = book.worksheet().unwrap();
+    assert!(sheet.cell_mut(0, 0).unwrap().set_iso_date("2023-02-29T00:00:00.000Z").is_err());
+    assert_eq!(book.to_bytes().unwrap(), original);
+    let mut sheet = book.worksheet().unwrap();
+    sheet.cell_mut(0, 0).unwrap().set_iso_date("2024-02-29T00:00:00.123Z").unwrap();
+    assert_eq!(sheet.cell(0, 0).unwrap().unwrap().value().unwrap(),
+        ooxml_xlsx::CellValue::Date("2024-02-29T00:00:00.123Z".into()));
+    sheet.cell_mut(0, 1).unwrap().set_iso_date("13:30:00.000").unwrap();
+    assert_eq!(sheet.cell(0, 1).unwrap().unwrap().value().unwrap(),
+        ooxml_xlsx::CellValue::Date("13:30:00.000".into()));
+
+}
+
+#[test]
+fn pruning_template_sst_keeps_used_tables() {
+    let mut book = Workbook::new_at(std::time::UNIX_EPOCH).unwrap();
+    assert!(book.prune_empty_template_shared_strings().unwrap());
+    assert!(!book.prune_empty_template_shared_strings().unwrap());
+    assert!(!book.shared_strings_available().unwrap());
+    let mut used = Workbook::new_at(std::time::UNIX_EPOCH).unwrap();
+    used.worksheet().unwrap().cell_mut(0, 0).unwrap().set_string("text").unwrap();
+    assert!(!used.prune_empty_template_shared_strings().unwrap());
+    assert!(used.shared_strings_available().unwrap());
+}
+
+#[test]
 fn template_has_an_empty_sst_and_inline_fallback() {
     let mut wb = Workbook::new().unwrap();
     assert!(wb.shared_strings_available().unwrap());
