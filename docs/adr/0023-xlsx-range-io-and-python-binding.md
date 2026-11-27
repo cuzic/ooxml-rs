@@ -1,6 +1,6 @@
 # ADR-0023: xlsx range reads and writes at workbook scope, and the Python binding policy
 
-- Status: **Proposed** (revision 5)
+- Status: **Proposed** (revision 6)
 - Date: 2026-11-27
 - Repository baseline: `213e27a` (main after PR #170)
 - Depends on:
@@ -31,7 +31,7 @@
     round 2 (revision 3).
 - Roadmap: [`docs/roadmap/xlsx.md`](../roadmap/xlsx.md) (no phase number: this is an API
   layer over Phase0–Phase7, not a new format phase).
-- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4); [round 3](0023-opus-review-round3.md) (not converged: M1, M2, m1–m3); [round 4](0023-opus-review-round4.md) (not converged: M1, m1).
+- Review: [round 1](0023-opus-review-round1.md) (not converged: M1–M9, m1–m13); [round 2](0023-opus-review-round2.md) (not converged: M1, m1–m4); [round 3](0023-opus-review-round3.md) (not converged: M1, M2, m1–m3); [round 4](0023-opus-review-round4.md) (not converged: M1, m1); [round 5](0023-opus-review-round5.md) (converged: yes, m1 + n1 open).
 
 ## Revision history
 
@@ -81,7 +81,8 @@
   - **M2:** `formulas="formula"` returns `ooxml_rs.Formula` objects (round-trippable; Q8
     already requires explicit `Formula()` for writing); value-mode writes back against a
     formula cell drop on cache equality (a 0023-specific rule, sequential twin identical);
-    identical formula writes drop via the shared report. Oracle 3 pins formula preservation.
+    identical formula writes drop via the shared report (revision 5: replaced by
+    effective-formula equality). Oracle 3 pins formula preservation.
   - **m1:** `clear_range` uses `ClearValue`; U2 adds the missing `CellCall` payloads with
     sequential references into oracle 1.
   - **m2:** cross-reference fixed to ADR-0024 §10.3. **m3:** Sources updated.
@@ -92,6 +93,10 @@
     deliberately applies a member's own text). Unverifiable members never drop.
   - **m1:** in a session the drop predicate reads the normalized View (pending strips read
     cacheless), so it agrees with the sequential twin; oracle 3 pins the stale-cache case.
+- **Revision 6** (review round 5: m1, n1).
+  - **m1:** stale-cache write-back after an earlier input edit replaces the formula (intended);
+    documented with workarounds in §6.2 and §11.4.
+  - **n1:** superseded "shared report" wordings annotated.
 
 ## Context
 
@@ -528,7 +533,10 @@ impl Journal {
   (same serial/value with the write's kind rules; revision 4, M2): dropping keeps formula
   and cache byte-identical, while applying would silently destroy the formula on a no-op
   round-trip. This rule is 0023-specific (R1's report lacks it); the sequential twin applies
-  it identically. An explicit change still applies and replaces the formula, as the caller's
+  it identically. Note the two-step flow: values read, then an input edited (stripping the
+  cache), then the old values written back — the stale cache no longer equals, so the write
+  applies and replaces the formula. That is intended (the read is stale, not a no-op);
+  callers round-tripping across edits re-read first or use `formulas="formula"` (§11.4). An explicit change still applies and replaces the formula, as the caller's
   edit.
 - A formula write drops on **effective-formula equality** (revision 5, M1): the write's text
   against the cell's effective formula — a shared member's translated master text, an
@@ -948,6 +956,9 @@ first.
   dropped by effective-formula equality; anything else applies (an explicit change replaces
   the formula). A `formulas="formula"` read returns `ooxml_rs.Formula` objects (below), so it
   round-trips; a `str` starting with `=` stays text and never resurrects a formula (Q8).
+  A value-mode read held across an input edit goes stale: writing it back replaces formulas
+  whose caches were stripped. Round-trip across edits with `formulas="formula"`, or re-read
+  before writing back.
 
 ### 12. Python binding: minimal API (first release)
 
@@ -1333,7 +1344,7 @@ No finding is rebutted.
 | Finding | Response |
 |---|---|
 | M1 | Fixed: the drop predicate is a reads-only §4.4 state-equality extracted for sharing with R1 (not C1's post-validation report, which cannot see past the guards); the F13 relation is stated (no divergence: the new sequential twin drops identically); `write_changed_cells`/`clear_range` exist on both `Workbook` and `Journal` (§6.2, §6.3). |
-| M2 | Fixed: `formulas="formula"` returns `ooxml_rs.Formula` objects (round-trippable; Q8 keeps `str` as text); value-mode writes back against formula cells drop on cache equality (a 0023-specific rule, sequential twin identical); identical `Formula` writes drop via the shared report; oracle 3 pins formula preservation (§6.2, §11.4, §12). |
+| M2 | Fixed: `formulas="formula"` returns `ooxml_rs.Formula` objects (round-trippable; Q8 keeps `str` as text); value-mode writes back against formula cells drop on cache equality (a 0023-specific rule, sequential twin identical); identical `Formula` writes drop via the shared report (revision 5: replaced by effective-formula equality); oracle 3 pins formula preservation (§6.2, §11.4, §12). |
 | m1 | Fixed: `clear_range` uses `ClearValue`; U2 adds the missing `CellCall` payloads with sequential references into oracle 1 (§6.3, Delivery). |
 | m2 | Fixed: cross-reference is ADR-0024 §10.3 (§11.2). |
 | m3 | Fixed: Sources are current main plus ADR-0024 and the journal files. |
@@ -1344,3 +1355,10 @@ No finding is rebutted.
 |---|---|
 | M1 | Fixed with option (a): identical-`Formula` dropping uses a 0023-specific effective-formula equality (translated master text for shared members, own text for array anchors; kind and storage attributes not compared), explicitly not shared with R1 (which deliberately applies member text); unverifiable members never drop (§6.2). Oracle 3 pins partial/whole shared and array-anchor formula-mode round-trips. |
 | m1 | Fixed: the predicate reads the normalized View in a session (pending strips cacheless); oracle 3 pins the stale-cache twin-agreement case (§6.2). |
+
+## Review response (round 5)
+
+| Finding | Response |
+|---|---|
+| m1 | Fixed: stale-cache write-back replacing the formula is documented with workarounds (re-read or `formulas="formula"`) in §6.2 and §11.4. |
+| n1 | Fixed: superseded "shared report" wordings annotated. |
