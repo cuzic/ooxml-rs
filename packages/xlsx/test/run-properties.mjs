@@ -15,8 +15,11 @@ try {
   if (mode === 'mutation') {
     const source = await readFile(resolve(artifact, 'src/exceljs.js'), 'utf8');
     const mutation = source.replace(
-      'const bytes = candidate.to_bytes();\n            const old = state.document;\n            state.document = candidate;',
-      'const old = state.document;\n            state.document = candidate;\n            const bytes = candidate.to_bytes();',
+      '  let bytes;\n  try {\n    action(candidate);\n    bytes =',
+      '  let bytes;\n  try {\n    action(candidate);\n    const previous = state.document;\n    state.document = candidate;\n    bytes =',
+    ).replace(
+      '  } catch (error) {\n    candidate.free();\n    throw mapError ? mapError(error) : error;\n  }\n  const previous = state.document;\n  state.document = candidate;\n  state.bytes = bytes;\n  previous.free();',
+      '  } catch (error) {\n    throw mapError ? mapError(error) : error;\n  }\n  state.bytes = bytes;',
     );
     assert.notEqual(source, mutation);
     await page.route('**/src/exceljs.js', (route) => route.fulfill({
