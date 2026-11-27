@@ -109,7 +109,7 @@ pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, F
 pub use workbook::{CalcPolicy, Workbook};
 pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
 pub use condfmt::{CfOperator, CfRemoval, Cfvo, ExtendedDataBar, ExtendedDataBarThreshold, ExtendedIconRule, IconSetValues, Rule, RuleKind};
-pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
+pub use hyperlink::{HyperlinkInfo, Link, LinkOptions, hyperlink_address};
 pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions, RowPageBreak};
 pub use formula::future::add_future_prefixes;
 /// Text and optional font for one rich-text run.
