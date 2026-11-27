@@ -18,11 +18,13 @@ from ._errors import (
     RefusedError,
     UnsupportedFileError,
 )
+from ._native import Document, Presentation, Workbook
 from ._values import CLEAR, CellError, Formula
 
 __all__ = [
     "CLEAR",
     "CellError",
+    "Document",
     "Formula",
     "InvalidInputError",
     "MalformedFileError",
@@ -32,8 +34,10 @@ __all__ = [
     "OoxmlIOError",
     "OoxmlPermissionError",
     "PoisonedError",
+    "Presentation",
     "RefusedError",
     "UnsupportedFileError",
+    "Workbook",
 ]
 
 __version__ = "0.1.0"
