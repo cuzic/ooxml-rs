@@ -38,6 +38,17 @@ const REL_HYPERLINK: &str =
 const DRAWING_TYPE: &str = "application/vnd.openxmlformats-officedocument.drawing+xml";
 const REL_NS: [NsDecl<'static>; 1] = [NsDecl::new("r", R)];
 
+enum SheetPicture {}
+
+impl ElementSpec for SheetPicture {
+    const QNAME: QName = QName::new(SML, "picture");
+    const SDK_NAME: &'static str = "SheetPicture";
+    const ATTRS: &'static [ooxml_core::AttrSpec] = &[];
+    const CONTENT: ooxml_core::Content = ooxml_core::Content::Empty;
+}
+
+impl ooxml_core::ChildOf<sml::Worksheet> for SheetPicture {}
+
 const fn xdr(local: &'static str) -> QName {
     QName::new(XDR, local)
 }
@@ -119,6 +130,7 @@ pub struct Image {
     name: Option<String>,
     alt_text: Option<String>,
     hyperlink: Option<String>,
+    hyperlink_tooltip: Option<String>,
 }
 
 impl Image {
@@ -134,6 +146,7 @@ impl Image {
             name: None,
             alt_text: None,
             hyperlink: None,
+            hyperlink_tooltip: None,
         })
     }
 
@@ -168,6 +181,12 @@ impl Image {
     /// Sets an external hyperlink on the picture.
     pub fn hyperlink(mut self, target: impl Into<String>) -> Self {
         self.hyperlink = Some(target.into());
+        self
+    }
+
+    /// Sets the tooltip displayed for the image hyperlink.
+    pub fn hyperlink_tooltip(mut self, text: impl Into<String>) -> Self {
+        self.hyperlink_tooltip = Some(text.into());
         self
     }
 
@@ -310,6 +329,10 @@ pub struct ImageInfo {
     pub name: Option<String>,
     /// Decoded description.
     pub alt_text: Option<String>,
+    /// External hyperlink on the image.
+    pub hyperlink: Option<String>,
+    /// Tooltip supplied for the image hyperlink.
+    pub hyperlink_tooltip: Option<String>,
     /// Embedded raster or metafile (the PNG fallback for SVG).
     pub media: Option<ImageMedia>,
     /// Optional SVG part.
@@ -327,7 +350,7 @@ pub struct CellImage {
 
 type MediaIndex = HashMap<[u8; 32], Vec<String>>;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ObjectState {
     shape_high_water: HashMap<String, u32>,
     scanned_shapes: HashSet<String>,
@@ -630,6 +653,23 @@ pub(crate) fn record_shape(wb: &mut Workbook, sheet: &str, id: u32) {
     *high = (*high).max(id);
 }
 
+impl Workbook {
+    /// Replaces the binary contents of an existing image part with the same format.
+    /// Drawing anchors and relationships keep their original references.
+    pub fn replace_image_part(&mut self, part: &str, bytes: Vec<u8>) -> Result<()> {
+        self.check_editable()?;
+        let (format, _) = header::read(&bytes)?;
+        if !self.pkg.content_type(part)
+            .is_some_and(|content_type| content_type.eq_ignore_ascii_case(format.content_type()))
+        {
+            return Err(Error::ImageFormat);
+        }
+        self.pkg.set_part(part, bytes)?;
+        self.objects.media = None;
+        Ok(())
+    }
+}
+
 impl Worksheet<'_> {
     /// Inserts a picture above the existing drawing objects and returns its shape id.
     pub fn insert_image(&mut self, anchor: Anchor, image: &Image) -> Result<u32> {
@@ -742,6 +782,86 @@ impl Worksheet<'_> {
             Ok(())
         })?;
         Ok(id)
+    }
+
+    /// Reads the linked background picture, if present.
+    pub fn background_image(&mut self) -> Result<Option<ImageMedia>> {
+        let sheet = self.part_name().to_owned();
+        let wb = &mut *self.wb;
+        let id = wb.pkg.xml_part(&sheet)?.root().elements()
+            .find(|node| node.is(SheetPicture::QNAME))
+            .and_then(|node| node.attr(QName::new(R, "id"))).map(str::to_owned);
+        let Some(id) = id else { return Ok(None) };
+        let rels = wb.pkg.relationships(&sheet)?;
+        let part = internal_target(&rels, &id, REL_IMAGE)
+            .ok_or_else(|| part_error(&sheet, "invalid background picture relationship"))?;
+        let bytes = wb.pkg.read_part(&part)?;
+        Ok(Some(ImageMedia { part, bytes }))
+    }
+
+    /// Installs or replaces the worksheet background picture.
+    pub fn set_background_image(&mut self, image: &Image) -> Result<String> {
+        let sheet = self.part_name().to_owned();
+        let wb = &mut *self.wb;
+        wb.check_editable()?;
+        let rels = wb.pkg.relationships(&sheet)?;
+        let mut document = wb.pkg.xml_part(&sheet)?.clone();
+        let mut root = document.lens_mut::<sml::Worksheet>()?;
+        crate::worksheet::refuse_alternate_content(root.node(), SheetPicture::QNAME)?;
+        if wb.objects.media.is_none() {
+            wb.objects.media = Some(media_index(&mut wb.pkg, &wb.sheets));
+        }
+        let mut plan = RegistryPlan::new(&wb.pkg);
+        let (id, part) = add_media(&wb.pkg, &mut plan, wb.objects.media.as_ref().expect("initialized"),
+            &sheet, &rels, image.format, &image.bytes)?;
+        if let Some(mut picture) = root.child_mut::<SheetPicture>() {
+            picture.set_attr(QName::new(R, "id"), &id)?;
+        } else {
+            root.insert_with_ns::<SheetPicture>(&REL_NS)?.set_attr(QName::new(R, "id"), &id)?;
+        }
+        plan.stage_part(&wb.pkg, &sheet, document)?;
+        wb.apply_registry_edit(plan, |wb| {
+            let candidates = wb.objects.media.as_mut().expect("initialized")
+                .entry(Sha256::digest(&image.bytes).into()).or_default();
+            if !candidates.contains(&part) {
+                candidates.push(part.clone());
+            }
+            Ok(())
+        })?;
+        Ok(part)
+    }
+
+    /// Removes the worksheet background and any relationship and media used only by it.
+    pub fn remove_background_image(&mut self) -> Result<bool> {
+        let sheet = self.part_name().to_owned();
+        let wb = &mut *self.wb;
+        wb.check_editable()?;
+        let mut document = wb.pkg.xml_part(&sheet)?.clone();
+        let mut root = document.lens_mut::<sml::Worksheet>()?;
+        crate::worksheet::refuse_alternate_content(root.node(), SheetPicture::QNAME)?;
+        let Some(picture) = root.child_mut::<SheetPicture>() else {
+            return Ok(false);
+        };
+        let id = picture.node().attr(QName::new(R, "id")).map(str::to_owned)
+            .ok_or_else(|| part_error(&sheet, "missing background picture relationship"))?;
+        let rels = wb.pkg.relationships(&sheet)?;
+        let media = internal_target(&rels, &id, REL_IMAGE)
+            .ok_or_else(|| part_error(&sheet, "invalid background picture relationship"))?;
+
+        root.remove::<SheetPicture>();
+        let relationship_still_used = walk(document.root())
+            .flat_map(|node| node.attrs())
+            .any(|attribute| attribute.name().ns() == R && attribute.value() == id);
+        let mut plan = RegistryPlan::new(&wb.pkg);
+        plan.stage_part(&wb.pkg, &sheet, document)?;
+        if !relationship_still_used {
+            plan.remove_relationship(&wb.pkg, Some(&sheet), &id, &[REL_IMAGE])?;
+            if plan.incoming_relationships(&wb.pkg, &media)?.is_empty() {
+                plan.remove_parts(&wb.pkg, &[&media], &[REL_IMAGE])?;
+            }
+        }
+        wb.apply_registry_edit(plan, |_| Ok(()))?;
+        Ok(true)
     }
 
     /// Lists pictures in drawing order, including pictures inside groups and compatibility branches.
