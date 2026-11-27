@@ -502,3 +502,27 @@ pub fn __kinds() -> BTreeMap<&'static str, Vec<&'static str>> {
 pub fn __table_keys() -> Vec<(String, String)> {
     TABLE.iter().map(|((c, k), _)| ((*c).to_owned(), (*k).to_owned())).collect()
 }
+
+/// Raises the category exception for a `(crate, kind)` (test hook: pins the
+/// mapping behaviourally without fabricating Rust errors).
+#[pyfunction]
+pub fn __raise(py: Python<'_>, crate_name: &str, kind: &str) -> PyResult<()> {
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("crate", crate_name).expect("str");
+    kwargs.set_item("kind", kind).expect("str");
+    kwargs.set_item("cell", py.None()).expect("cell");
+    kwargs.set_item("sheet", py.None()).expect("sheet");
+    let class: &Bound<'_, PyType> = match categorize(crate_name, kind) {
+        Some(Category::Refused) => &RefusedError::type_object(py),
+        Some(Category::Poisoned) => &PoisonedError::type_object(py),
+        Some(Category::NotFound) => &NotFoundError::type_object(py),
+        Some(Category::InvalidInput) => &InvalidInputError::type_object(py),
+        Some(Category::UnsupportedFile) => &UnsupportedFileError::type_object(py),
+        Some(Category::MalformedFile) => &MalformedFileError::type_object(py),
+        Some(Category::Io) => &OoxmlIOError::type_object(py),
+        None => &OoxmlError::type_object(py),
+    };
+    Err(PyErr::from_value(
+        class.call((format!("{crate_name}::{kind} (raised by the test hook)"),), Some(&kwargs)).expect("exception __init__"),
+    ))
+}

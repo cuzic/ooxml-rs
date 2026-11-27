@@ -27,5 +27,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(native_version, m)?)?;
     m.add_function(wrap_pyfunction!(errors::__kinds, m)?)?;
     m.add_function(wrap_pyfunction!(errors::__table_keys, m)?)?;
+    m.add_function(wrap_pyfunction!(errors::__raise, m)?)?;
     Ok(())
 }
