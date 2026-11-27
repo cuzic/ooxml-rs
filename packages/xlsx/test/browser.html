@@ -2154,11 +2154,14 @@
     visualSheet.addConditionalFormatting({ ref: 'A1', rules: [
       { type: 'dataBar', color, cfvo: [{ type: 'min' }, { type: 'max' }] },
       { type: 'iconSet', cfvo: iconThresholds },
+      { type: 'dataBar', color, cfvo: [{ type: 'min' }, { type: 'max' }], minLength: 50, maxLength: 80, showValue: false },
     ] });
     const visualRules = (await new Workbook().xlsx.load(await visualBook.xlsx.writeBuffer()))
       .getWorksheet().conditionalFormattings[0].rules;
-    check(visualRules[0].minLength === 10 && visualRules[0].maxLength === 90 && visualRules[0].showValue &&
-      visualRules[1].iconSet === '3TrafficLights1' && visualRules[1].showValue && !visualRules[1].reverse,
+    // Like the reference, omitted dataBar lengths and showValue stay absent.
+    check(visualRules[0].minLength === undefined && visualRules[0].maxLength === undefined && visualRules[0].showValue === undefined &&
+      visualRules[1].iconSet === '3TrafficLights1' && visualRules[1].showValue && !visualRules[1].reverse &&
+      visualRules[2].minLength === 50 && visualRules[2].maxLength === 80 && visualRules[2].showValue === false,
       'Conditional formatting defaults did not survive a round trip');
     const beforeFailedConditionalBlock = await conditionalBook.xlsx.writeBuffer();
     mustThrow(() => conditionalSheet.addConditionalFormatting({ ref: 'A1', rules: [
@@ -3391,7 +3394,7 @@
       fitToPage: true, scale: 80, printArea: 'A1:E2', blackAndWhite: true };
     links.properties.tabColor = { argb: 'FFFF0000' };
     links.properties.defaultRowHeight = 21;
-    links.properties.outlineProperties.summaryBelow = false;
+    links.properties.outlineProperties = { summaryBelow: false };
     const projectionBytes = await linkBook.xlsx.writeBuffer();
     let streamed;
     let streamClosed = false;
@@ -3472,7 +3475,7 @@
     const projectedPropertiesBook = await new Workbook().xlsx.load(projectionBytes, { ignoreNodes: ['sheetPr', 'sheetFormatPr'] });
     const projectedProperties = projectedPropertiesBook.getWorksheet('Links');
     check(projectedProperties.properties.tabColor === undefined &&
-      projectedProperties.properties.outlineProperties.summaryBelow === undefined &&
+      projectedProperties.properties.outlineProperties?.summaryBelow === undefined &&
       projectedProperties.properties.defaultRowHeight === 15 && !projectedProperties.pageSetup.fitToPage &&
       projectedProperties.pageSetup.orientation === 'landscape' &&
       equalBytes(projectionBytes, await projectedPropertiesBook.xlsx.writeBuffer()),
