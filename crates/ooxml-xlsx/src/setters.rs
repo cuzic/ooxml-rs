@@ -16,7 +16,256 @@ use crate::registry::styles::StyleRequest;
 use crate::workbook::Workbook;
 use crate::worksheet::{CellMut, MAX_STRING_LEN};
 
+pub(crate) fn prepare_rich_text(at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<(Vec<crate::registry::strings::RichRun>, String)> {
+    use crate::registry::strings::RichRun;
+    let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
+    if runs.is_empty() {
+        return Err(bad("a rich string needs at least one run".into()));
+    }
+    let mut out = Vec::with_capacity(runs.len());
+    let mut decoded = String::new();
+    let mut units = 0;
+    for (i, (font, text)) in runs.iter().enumerate() {
+        // Excel refuses empty runs (rust_xlsxwriter does too)
+        if text.is_empty() {
+            return Err(bad(format!("run {i} is empty")));
+        }
+        if let Some(font) = font {
+            Format::with_font((*font).clone()).validate()?;
+        }
+        units += text.encode_utf16().count();
+        let escaped = escape::encode(text).into_owned();
+        if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&escaped) {
+            return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
+        }
+        decoded.push_str(text);
+        out.push(RichRun { font: font.cloned(), escaped });
+    }
+    if units > MAX_STRING_LEN {
+        return Err(Error::StringTooLong(units));
+    }
+    Ok((out, decoded))
+}
+
+pub(crate) fn project_alignment(node: &ooxml_core::RawNode) -> Vec<(String, String)> {
+    ["horizontal", "vertical", "textRotation", "wrapText", "indent", "shrinkToFit", "readingOrder"]
+        .into_iter().filter_map(|key| {
+            let value = node.attr(ooxml_core::QName::new("", key))?;
+            Some((key.into(), value.into()))
+        }).collect()
+}
+
+pub(crate) fn project_protection(node: &ooxml_core::RawNode) -> crate::Protection {
+    let read = |name| node.attr(ooxml_core::QName::new("", name)).and_then(ooxml_core::value::parse_bool);
+    crate::Protection { locked: read("locked").unwrap_or(true), hidden: read("hidden").unwrap_or(false) }
+}
+
+pub(crate) fn iso_date_op(at: CellIndex, value: &str) -> Result<CellOp> {
+    if parse_iso_date(value).is_none() {
+        return Err(Error::InvalidValue { cell: at.to_string(), message: "expected a UTC ISO date".into() });
+    }
+    Ok(CellOp::Date(value.into()))
+}
+
+pub(crate) fn parse_iso_date(value: &str) -> Option<ExcelDateTime> {
+    fn digits(text: &str) -> Option<u16> {
+        text.bytes().all(|b| b.is_ascii_digit()).then(|| text.parse().expect("bounded digits"))
+    }
+
+    if !value.is_ascii() {
+        return None;
+    }
+    let (date, time) = match value.len() {
+        12 => (None, value),
+        24 if [4, 7, 10, 23].map(|i| value.as_bytes()[i]) == *b"--TZ" =>
+            (Some(&value[..10]), &value[11..23]),
+        _ => return None,
+    };
+    if [2, 5, 8].map(|i| time.as_bytes()[i]) != *b"::." {
+        return None;
+    }
+    let hour = digits(&time[..2])? as u8;
+    let minute = digits(&time[3..5])? as u8;
+    let second = f64::from(digits(&time[6..8])?) + f64::from(digits(&time[9..12])?) / 1000.0;
+    if let Some(date) = date {
+        let year = digits(&date[..4])?;
+        if year == 0 {
+            return None;
+        }
+        ExcelDateTime::from_ymd_hms(year, digits(&date[5..7])? as u8, digits(&date[8..10])? as u8,
+            hour, minute, second)
+    } else {
+        ExcelDateTime::from_hms(hour, minute, second)
+    }
+}
+
+pub(crate) const CELL_ERRORS: &[&str] = &["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"];
+
+pub(crate) fn error_cell_op(at: CellIndex, value: &str) -> Result<CellOp> {
+    let Some(code) = CELL_ERRORS.iter().copied().find(|code| *code == value) else {
+        return Err(Error::InvalidValue { cell: at.to_string(), message: format!("{value:?} is not an error value") });
+    };
+    Ok(CellOp::Error(code))
+}
+
+fn number_format_code(id: Option<u32>, custom: Option<String>) -> Option<String> {
+    custom.or_else(|| {
+        crate::registry::format::BUILTIN.iter()
+            .find(|&&(number, _)| Some(u32::from(number)) == id && number != 0)
+            .map(|&(_, code)| code.to_owned())
+    })
+}
+
+fn number_format_with_override(
+    id: Option<u32>,
+    custom: Option<String>,
+    date_override: Option<&str>,
+) -> Option<String> {
+    if id == Some(14) && custom.is_none() && let Some(code) = date_override {
+        return Some(code.to_owned());
+    }
+    number_format_code(id, custom)
+}
+
 impl Workbook {
+    /// Registers a cell format derived from an existing style by changing its number format.
+    pub fn register_number_format_style(&mut self, style: u32, code: &str) -> Result<u32> {
+        self.register_derived_style(style, StyleRequest::NumFormatOnly(NumFormat::Code(code.to_owned())))
+    }
+
+    /// Registers a cell format derived by changing only the font.
+    pub fn register_font_style(&mut self, style: u32, font: Font) -> Result<u32> {
+        self.register_derived_style(style, StyleRequest::FontOnly(Box::new(font)))
+    }
+
+    /// Registers a cell format derived by changing only its alignment.
+    pub fn register_alignment_style(&mut self, style: u32, alignment: crate::Alignment) -> Result<u32> {
+        self.register_derived_style(style, StyleRequest::AlignmentOnly(alignment))
+    }
+
+    /// Registers a cell format derived by changing only its protection.
+    pub fn register_protection_style(&mut self, style: u32, protection: crate::Protection) -> Result<u32> {
+        self.register_derived_style(style, StyleRequest::ProtectionOnly(protection))
+    }
+
+    /// Registers a cell format derived by changing only its fill.
+    pub fn register_fill_style(&mut self, style: u32, fill: Fill) -> Result<u32> {
+        self.register_derived_style(style, StyleRequest::FillOnly(fill))
+    }
+
+    /// Registers a cell format derived by changing only its border.
+    pub fn register_border_style(&mut self, style: u32, border: Border) -> Result<u32> {
+        self.register_derived_style(style, StyleRequest::BorderOnly(Box::new(border)))
+    }
+
+    /// Registers a complete style for a streamed cell without creating the cell.
+    pub fn register_streaming_style(&mut self, format: Format) -> Result<u32> {
+        self.register_derived_style(0, StyleRequest::Format(Box::new(format)))
+    }
+
+    fn register_derived_style(&mut self, style: u32, request: StyleRequest) -> Result<u32> {
+        self.check_editable()?;
+        self.styles()?;
+        let registry = self.registries.styles.take().expect("activated");
+        let plan = registry.plan(self, &request, style, None);
+        self.registries.styles = Some(registry);
+        let plan = plan?;
+        let index = plan.s;
+        self.poisoning(|book| {
+            if let Some(doc) = plan.staged {
+                *book.pkg.xml_part_mut(&plan.next.part)? = doc;
+            }
+            book.registries.styles = Some(plan.next);
+            Ok(())
+        })?;
+        Ok(index)
+    }
+
+    /// Reads the protection flags referenced by a cell format index.
+    pub fn protection_of_style(&mut self, index: u32) -> Result<Option<crate::Protection>> {
+        let Some(part) = crate::registry::styles::styles_part(self)? else { return Ok(None) };
+        let doc = self.pkg.xml_part(&part)?;
+        let xf = doc.root().elements().find(|node| node.is(sml::CellFormats::QNAME))
+            .and_then(|table| table.elements().nth(index as usize));
+        let protection = xf.and_then(|node| node.elements().find(|child| child.is(sml::Protection::QNAME)));
+        Ok(protection.map(project_protection))
+    }
+
+    /// Reads the border referenced by a cell format index.
+    pub fn border_of_style(&mut self, index: u32) -> Result<Option<Border>> {
+        let Some(part) = crate::registry::styles::styles_part(self)? else { return Ok(None) };
+        let doc = self.pkg.xml_part(&part)?;
+        let border = doc.root().elements().find(|node| node.is(sml::CellFormats::QNAME))
+            .and_then(|table| table.elements().nth(index as usize))
+            .and_then(|xf| xf.attr(ooxml_core::QName::new("", "borderId")))
+            .and_then(|value| value.parse::<usize>().ok()).unwrap_or(0);
+        if border == 0 {
+            return Ok(None);
+        }
+        Ok(doc.root().elements().find(|node| node.is(sml::Borders::QNAME))
+            .and_then(|borders| borders.elements().nth(border))
+            .and_then(|node| crate::registry::read::border_from_node(node).ok()))
+    }
+
+    /// Reads the fill referenced by a cell format index.
+    pub fn fill_of_style(&mut self, index: u32) -> Result<Option<Fill>> {
+        self.read_style_fill(index, false)
+    }
+
+    /// Reads a cell format's fill, including the default fill at index zero.
+    pub fn fill_of_style_including_default(&mut self, index: u32) -> Result<Option<Fill>> {
+        self.read_style_fill(index, true)
+    }
+
+    fn read_style_fill(&mut self, index: u32, include_default: bool) -> Result<Option<Fill>> {
+        let Some(part) = crate::registry::styles::styles_part(self)? else { return Ok(None) };
+        let doc = self.pkg.xml_part(&part)?;
+        let fill = doc.root().elements().find(|node| node.is(sml::CellFormats::QNAME))
+            .and_then(|table| table.elements().nth(index as usize))
+            .and_then(|xf| xf.attr(ooxml_core::QName::new("", "fillId")))
+            .and_then(|value| value.parse::<usize>().ok()).unwrap_or(0);
+        if fill == 0 && !include_default {
+            return Ok(None);
+        }
+        Ok(doc.root().elements().find(|node| node.is(sml::Fills::QNAME))
+            .and_then(|fills| fills.elements().nth(fill))
+            .and_then(|node| crate::registry::read::fill_from_node(node).ok()))
+    }
+
+    /// Reads alignment attributes referenced by a cell format index.
+    pub fn alignment_of_style(&mut self, index: u32) -> Result<Vec<(String, String)>> {
+        let Some(part) = crate::registry::styles::styles_part(self)? else { return Ok(Vec::new()) };
+        let doc = self.pkg.xml_part(&part)?;
+        let alignment = doc.root().elements().find(|node| node.is(sml::CellFormats::QNAME))
+            .and_then(|table| table.elements().nth(index as usize))
+            .and_then(|xf| xf.elements().find(|node| node.is(sml::Alignment::QNAME)));
+        Ok(alignment.map(project_alignment).unwrap_or_default())
+    }
+
+    /// Reads the font referenced by a cell format index.
+    pub fn font_of_style(&mut self, index: u32) -> Result<Option<Font>> {
+        self.font_node_of_style(index, crate::registry::read::font_from_node)
+    }
+
+    /// Reads the font referenced by a cell format index as written: a font
+    /// without `name` or `sz` is still returned, with
+    /// [`crate::DeclaredFont::fields`] marking which of the two it declares.
+    pub fn declared_font_of_style(&mut self, index: u32) -> Result<Option<crate::DeclaredFont>> {
+        self.font_node_of_style(index, crate::registry::read::declared_font_from_node)
+    }
+
+    fn font_node_of_style<T>(&mut self, index: u32, read: impl FnOnce(&ooxml_core::RawNode) -> Option<T>) -> Result<Option<T>> {
+        let Some(part) = crate::registry::styles::styles_part(self)? else { return Ok(None) };
+        let doc = self.pkg.xml_part(&part)?;
+        let font = doc.root().elements().find(|node| node.is(sml::CellFormats::QNAME))
+            .and_then(|table| table.elements().nth(index as usize))
+            .and_then(|xf| xf.attr(ooxml_core::QName::new("", "fontId")))
+            .and_then(|value| value.parse::<usize>().ok()).unwrap_or(0);
+        Ok(doc.root().elements().find(|node| node.is(sml::Fonts::QNAME))
+            .and_then(|fonts| fonts.elements().nth(font))
+            .and_then(read))
+    }
+
     /// A string write: shared when the workbook has a shared-string table,
     /// else inline.
     pub(crate) fn write_string(&mut self, sheet: usize, at: CellIndex, value: &str, style: Option<StyleRequest>) -> Result<()> {
@@ -45,34 +294,9 @@ impl Workbook {
 
     /// A rich-string write (ADR-0006 §4.2): shared when the workbook has a
     /// shared-string table, else inline (`is/r`).
-    pub(crate) fn write_rich(&mut self, sheet: usize, at: CellIndex, runs: &[(&Font, &str)]) -> Result<()> {
-        use crate::registry::strings::{RichRun, SiContent};
-        let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
-        if runs.is_empty() {
-            return Err(bad("a rich string needs at least one run".into()));
-        }
-        let mut out = Vec::with_capacity(runs.len());
-        let mut decoded = String::new();
-        let mut units = 0;
-        for (i, (font, text)) in runs.iter().enumerate() {
-            // Excel refuses empty runs (rust_xlsxwriter does too)
-            if text.is_empty() {
-                return Err(bad(format!("run {i} is empty")));
-            }
-            Format::with_font((*font).clone()).validate()?;
-            units += text.encode_utf16().count();
-            let escaped = escape::encode(text).into_owned();
-            if let Some((offset, ch)) = ooxml_core::value::first_invalid_xml_char(&escaped) {
-                return Err(ooxml_core::Error::InvalidXmlChar { ch, offset }.into());
-            }
-            decoded.push_str(text);
-            // rust_xlsxwriter's form: a first run in the default font has no rPr
-            let plain_first = i == 0 && **font == Font::default();
-            out.push(RichRun { font: (!plain_first).then(|| (*font).clone()), escaped });
-        }
-        if units > MAX_STRING_LEN {
-            return Err(Error::StringTooLong(units));
-        }
+    pub(crate) fn write_rich(&mut self, sheet: usize, at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<()> {
+        use crate::registry::strings::SiContent;
+        let (out, decoded) = prepare_rich_text(at, runs)?;
         if self.shared_strings_active()? {
             let plan = self.registries.strings.as_ref().expect("active").plan_content(SiContent::Rich(out), &decoded)?;
             let index = plan.index;
@@ -92,6 +316,22 @@ impl Workbook {
             Some("1" | "true") => Ok(true),
             Some(v) => Err(Error::Malformed(format!("workbookPr/@date1904 = {v:?}"))),
         }
+    }
+
+    /// Changes the workbook's date system, keeping existing numeric serials.
+    pub fn set_date1904(&mut self, enabled: bool) -> Result<()> {
+        self.check_editable()?;
+        if self.date1904()? == enabled {
+            return Ok(());
+        }
+        let part = self.workbook_part.clone();
+        self.poisoning(|wb| {
+            let doc = wb.pkg.xml_part_mut(&part)?;
+            let mut root = doc.lens_mut::<sml::Workbook>()?;
+            let mut properties = root.get_or_insert::<sml::WorkbookProperties>()?;
+            properties.set_attr(sml::WorkbookProperties::ATTR_DATE1904, if enabled { "1" } else { "0" })?;
+            Ok(())
+        })
     }
 
     /// Number of entries in `cellXfs` (activates the style registry).
@@ -132,7 +372,7 @@ impl CellMut<'_, '_> {
     /// Writes a formula with a format; see [`Self::set_formula`].
     pub fn set_formula_with_format(self, text: &str, format: &Format) -> Result<()> {
         let text = text.strip_prefix('=').unwrap_or(text);
-        self.edit(CellOp::Formula(text.to_owned()), Some(StyleRequest::Format(Box::new(format.clone()))))
+        self.edit(CellOp::Formula(text.to_owned(), None), Some(StyleRequest::Format(Box::new(format.clone()))))
     }
 
     /// Writes an error value (`t="e"`): one of `#NULL!`, `#DIV/0!`,
@@ -140,11 +380,8 @@ impl CellMut<'_, '_> {
     /// (ECMA-376 §18.17.4.6 plus Excel's `#GETTING_DATA`), else
     /// [`Error::InvalidValue`]. A value write, as [`Self::set_number`].
     pub fn set_error(self, value: &str) -> Result<()> {
-        const ERRORS: &[&str] = &["#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"];
-        let Some(e) = ERRORS.iter().copied().find(|e| *e == value) else {
-            return Err(Error::InvalidValue { cell: self.at.to_string(), message: format!("{value:?} is not an error value") });
-        };
-        self.edit(CellOp::Error(e), None)
+        let op = error_cell_op(self.at, value)?;
+        self.edit(op, None)
     }
 
     /// Writes a rich string: runs of text, each in its own font (ADR-0006
@@ -160,7 +397,15 @@ impl CellMut<'_, '_> {
     /// ([`Error::InvalidFormat`]), and those of [`Self::set_string`].
     pub fn set_rich_string(self, runs: &[(&Font, &str)]) -> Result<()> {
         let ws = &mut *self.ws;
-        ws.wb.write_rich(ws.sheet, self.at, runs)
+        let runs: Vec<_> = runs.iter().enumerate().map(|(index, &(font, text))| {
+            ((index != 0 || *font != Font::default()).then_some(font), text)
+        }).collect();
+        ws.wb.write_rich(ws.sheet, self.at, &runs)
+    }
+
+    /// Writes rich text with optional formatting on each run.
+    pub fn set_rich_text(self, runs: &[(Option<&Font>, &str)]) -> Result<()> {
+        self.ws.wb.write_rich(self.ws.sheet, self.at, runs)
     }
 
     /// Writes a boolean (`t="b"`).
@@ -208,6 +453,16 @@ impl CellMut<'_, '_> {
         self.edit(CellOp::StyleOnly, Some(StyleRequest::BorderOnly(Box::new(border.clone()))))
     }
 
+    /// Changes the cell alignment, keeping the other style groups.
+    pub fn set_alignment(self, alignment: crate::Alignment) -> Result<()> {
+        self.edit(CellOp::StyleOnly, Some(StyleRequest::AlignmentOnly(alignment)))
+    }
+
+    /// Changes the cell protection settings, keeping the other style groups.
+    pub fn set_protection(self, protection: crate::Protection) -> Result<()> {
+        self.edit(CellOp::StyleOnly, Some(StyleRequest::ProtectionOnly(protection)))
+    }
+
     /// Applies an existing `cellXfs` entry by index ([`Error::StyleIndexOutOfRange`]).
     pub fn set_style_index(self, index: u32) -> Result<()> {
         self.edit(CellOp::StyleOnly, Some(StyleRequest::Index(index)))
@@ -219,6 +474,12 @@ impl CellMut<'_, '_> {
     /// [`Error::NoSuchStyle`], [`Error::AmbiguousStyleName`].
     pub fn set_named_style(self, name: &str) -> Result<()> {
         self.edit(CellOp::StyleOnly, Some(StyleRequest::Named(name.to_owned())))
+    }
+
+    /// Writes a UTC ISO date or a time-only cell with millisecond precision.
+    pub fn set_iso_date(self, value: &str) -> Result<()> {
+        let op = iso_date_op(self.at, value)?;
+        self.edit(op, None)
     }
 
     /// Writes a date/time as its serial in the workbook's date system
@@ -340,17 +601,92 @@ impl crate::worksheet::Worksheet<'_> {
     /// A read: it never activates the style registry (PR #50 review m5).
     /// A workbook without a styles part has no date formats (`false`).
     pub fn is_date(&mut self, row: u32, col: u32) -> Result<bool> {
-        let Some(s) = self.cell(row, col)?.map(|c| c.style_index()).transpose()? else { return Ok(false) };
+        let (id, custom) = self.number_format_parts(row, col)?;
+        Ok(crate::registry::format::is_date_format(id, custom.as_deref()))
+    }
+
+    /// Tests a style's number format with the same rule as a cell date read.
+    pub fn is_date_style(&mut self, style: u32) -> Result<bool> {
+        let (id, custom) = self.number_format_parts_for_style(style)?;
+        Ok(crate::registry::format::is_date_format(id, custom.as_deref()))
+    }
+
+    /// Returns the cell's custom or built-in number format code.
+    pub fn number_format(&mut self, row: u32, col: u32) -> Result<Option<String>> {
+        self.number_format_with_date_override(row, col, None)
+    }
+
+    /// Returns the number format with an optional display override for built-in format 14.
+    /// A custom format stored at that ID takes precedence.
+    pub fn number_format_with_date_override(
+        &mut self,
+        row: u32,
+        col: u32,
+        date_override: Option<&str>,
+    ) -> Result<Option<String>> {
+        let (id, custom) = self.number_format_parts(row, col)?;
+        Ok(number_format_with_override(id, custom, date_override))
+    }
+
+    /// Resolves a style's number format without looking up a worksheet cell.
+    pub fn number_format_for_style(
+        &mut self,
+        style: u32,
+        date_override: Option<&str>,
+    ) -> Result<Option<String>> {
+        let (id, custom) = self.number_format_parts_for_style(style)?;
+        Ok(number_format_with_override(id, custom, date_override))
+    }
+
+    /// Reads the configured column default number format.
+    pub fn column_number_format(&mut self, col: u32) -> Result<Option<String>> {
+        let style = self.column_style_index(col)?;
+        let (id, custom) = self.number_format_parts_for_style(style)?;
+        Ok(number_format_code(id, custom))
+    }
+
+    /// Reads the configured row default number format.
+    pub fn row_number_format(&mut self, row: u32) -> Result<Option<String>> {
+        let Some(style) = self.row_style_index(row)? else { return Ok(None) };
+        let (id, custom) = self.number_format_parts_for_style(style)?;
+        Ok(number_format_code(id, custom))
+    }
+
+    /// Returns the cell number format ID and custom code, when present.
+    pub fn number_format_parts(&mut self, row: u32, col: u32) -> Result<(Option<u32>, Option<String>)> {
+        let Some(style) = self.effective_cell_style_index(row, col)? else { return Ok((None, None)) };
+        self.number_format_parts_for_style(style)
+    }
+
+    /// Reads the explicit cell format, falling back to the row and column defaults.
+    pub fn effective_cell_style_index(&self, row: u32, col: u32) -> Result<Option<u32>> {
+        let Some(cell) = self.cell(row, col)? else { return Ok(None) };
+        self.effective_style_for_cell(&cell).map(Some)
+    }
+
+    /// Resolves the effective style using a cell view from this worksheet.
+    pub fn effective_style_for_cell(&self, cell: &crate::CellRef<'_>) -> Result<u32> {
+        if cell.raw().attr(sml::Cell::ATTR_S).is_some() {
+            return cell.style_index();
+        }
+        let at = cell.index();
+        match self.row_style_index(at.row)? {
+            Some(index) => Ok(index),
+            None => self.column_style_index(at.col),
+        }
+    }
+
+    fn number_format_parts_for_style(&mut self, s: u32) -> Result<(Option<u32>, Option<String>)> {
         if let Some(st) = self.wb.registries.styles.as_ref() {
             let (id, code) = st.num_format_of(s);
             let custom = id.filter(|i| st.codes.contains_key(i)).and(code);
-            return Ok(crate::registry::format::is_date_format(id, custom.as_deref()));
+            return Ok((id, custom));
         }
-        let Some(part) = crate::registry::styles::styles_part(self.wb)? else { return Ok(false) };
+        let Some(part) = crate::registry::styles::styles_part(self.wb)? else { return Ok((None, None)) };
         let doc = self.wb.pkg.xml_part(&part)?;
         let root = doc.root();
         if !root.is(sml::Stylesheet::QNAME) {
-            return Ok(false);
+            return Ok((None, None));
         }
         let table = |local: &str| root.elements().find(|e| e.name().ns() == crate::SML_NS && e.name().local() == local);
         let id = table("cellXfs")
@@ -365,7 +701,47 @@ impl crate::worksheet::Worksheet<'_> {
                 .find(|e| e.attr(ooxml_core::QName::new("", "numFmtId")).and_then(|v| v.trim().parse::<u32>().ok()) == Some(i))
                 .and_then(|e| e.attr(ooxml_core::QName::new("", "formatCode")).map(str::to_owned))
         });
-        Ok(crate::registry::format::is_date_format(id, custom.as_deref()))
+        Ok((id, custom))
+    }
+
+    /// Reads the border referenced by a cell's style.
+    pub fn cell_border(&mut self, row: u32, col: u32) -> Result<Option<crate::Border>> {
+        let Some(index) = self.effective_cell_style_index(row, col)? else {
+            return Ok(None);
+        };
+        self.wb.border_of_style(index)
+    }
+
+    /// Reads the pattern fill referenced by a cell's style.
+    pub fn cell_fill(&mut self, row: u32, col: u32) -> Result<Option<crate::Fill>> {
+        let Some(index) = self.effective_cell_style_index(row, col)? else {
+            return Ok(None);
+        };
+        self.wb.fill_of_style(index)
+    }
+
+    /// Reads the font referenced by a cell's style.
+    pub fn cell_font(&mut self, row: u32, col: u32) -> Result<Option<Font>> {
+        let Some(index) = self.effective_cell_style_index(row, col)? else {
+            return Ok(None);
+        };
+        self.wb.font_of_style(index)
+    }
+
+    /// Reads the alignment attributes represented by the cell's style.
+    pub fn cell_alignment(&mut self, row: u32, col: u32) -> Result<Vec<(String, String)>> {
+        let Some(index) = self.effective_cell_style_index(row, col)? else {
+            return Ok(Vec::new());
+        };
+        self.wb.alignment_of_style(index)
+    }
+
+    /// Reads the protection group stored in the cell's style.
+    pub fn cell_protection(&mut self, row: u32, col: u32) -> Result<Option<crate::Protection>> {
+        let Some(index) = self.effective_cell_style_index(row, col)? else {
+            return Ok(None);
+        };
+        self.wb.protection_of_style(index)
     }
 
     /// The cell's format read back as a [`Format`] (ADR-0006 §3
@@ -375,7 +751,7 @@ impl crate::worksheet::Worksheet<'_> {
     /// for a missing cell. A read: the style registry is not activated; a
     /// workbook without a styles part reads as `Format::new()`.
     pub fn format(&mut self, row: u32, col: u32) -> Result<Option<crate::FormatRead>> {
-        let Some(s) = self.cell(row, col)?.map(|c| c.style_index()).transpose()? else { return Ok(None) };
+        let Some(s) = self.effective_cell_style_index(row, col)? else { return Ok(None) };
         self.wb.format_of_style(s).map(Some)
     }
 
