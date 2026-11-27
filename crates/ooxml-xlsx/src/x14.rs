@@ -1,6 +1,6 @@
 //! Hand-written lenses for the x14 forms inside a worksheet's `extLst`
 //! (ADR-0014 §5, §6): data validations and conditional formatting are read
-//! and preserved, and only removed or renumbered by Phase4.
+//! and preserved. Standalone icon rules can also be written.
 
 use ooxml_core::{AttrSpec, ChildOf, Content, ElementSpec, LensMut, QName, RawNode, SimpleType, Slot, Wildcard};
 use ooxml_schema::sml;
@@ -37,6 +37,51 @@ impl ChildOf<sml::WorksheetExtension> for DataValidations {}
 impl ChildOf<sml::WorksheetExtension> for ConditionalFormattings {}
 impl ChildOf<ConditionalFormattings> for ConditionalFormatting {}
 impl ChildOf<ConditionalFormatting> for CfRule {}
+
+x14_spec!(IconSet, "iconSet", &[]);
+x14_spec!(Cfvo, "cfvo", &[]);
+x14_spec!(CfIcon, "cfIcon", &[]);
+x14_spec!(DataBar, "dataBar", &[]);
+x14_spec!(FillColor, "fillColor", &[]);
+x14_spec!(BorderColor, "borderColor", &[]);
+x14_spec!(NegativeFillColor, "negativeFillColor", &[]);
+x14_spec!(NegativeBorderColor, "negativeBorderColor", &[]);
+x14_spec!(AxisColor, "axisColor", &[]);
+impl ChildOf<CfRule> for DataBar {}
+impl ChildOf<DataBar> for Cfvo {}
+impl ChildOf<DataBar> for FillColor {}
+impl ChildOf<DataBar> for BorderColor {}
+impl ChildOf<DataBar> for NegativeFillColor {}
+impl ChildOf<DataBar> for NegativeBorderColor {}
+impl ChildOf<DataBar> for AxisColor {}
+impl ChildOf<CfRule> for IconSet {}
+impl ChildOf<IconSet> for Cfvo {}
+impl ChildOf<IconSet> for CfIcon {}
+
+macro_rules! xm_text_spec {
+    ($t:ident, $local:literal, $parent:ident) => {
+        pub(crate) enum $t {}
+        impl ElementSpec for $t {
+            const QNAME: QName = QName::new(NS_XM, $local);
+            const SDK_NAME: &'static str = concat!("xm:", $local);
+            const ATTRS: &'static [AttrSpec] = &[];
+            const CONTENT: Content = Content::Text(SimpleType::String);
+        }
+        impl ChildOf<$parent> for $t {}
+    };
+}
+
+pub(crate) enum RuleId {}
+impl ElementSpec for RuleId {
+    const QNAME: QName = QName::new(NS_X14, "id");
+    const SDK_NAME: &'static str = "x14:id";
+    const ATTRS: &'static [AttrSpec] = &[];
+    const CONTENT: Content = Content::Text(SimpleType::String);
+}
+impl ChildOf<sml::ConditionalFormattingRuleExtension> for RuleId {}
+
+xm_text_spec!(Formula, "f", Cfvo);
+xm_text_spec!(Sqref, "sqref", ConditionalFormatting);
 
 /// The worksheet's `ext` elements with `uri` (item indices in `extLst`).
 pub(crate) fn exts<'n>(ws: &'n RawNode, uri: &str) -> Vec<(usize, &'n RawNode)> {

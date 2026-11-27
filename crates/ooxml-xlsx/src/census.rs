@@ -29,6 +29,7 @@ pub(crate) enum SheetKind {
 #[derive(Clone, Debug)]
 pub(crate) struct SheetEntry {
     pub(crate) name: String,
+    pub(crate) sheet_id: Option<u32>,
     pub(crate) part: Option<String>,
     pub(crate) kind: SheetKind,
     pub(crate) visible: bool,
@@ -112,7 +113,7 @@ impl EditBlock {
 }
 
 /// The census: every formula cell of the workbook, indexed by position.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Census {
     /// By formula id; `None` once removed.
     pub(crate) cells: Vec<Option<FCell>>,
@@ -223,7 +224,7 @@ pub(crate) fn scan_sheet(
         return Err("UTF-16 parts are not supported".into());
     }
     let mut reader = NsReader::from_reader(xml);
-    let mut stack: Vec<String> = Vec::new(); // SML local names (others as "")
+    let mut stack = Vec::new();
     let mut scan = SheetScan::new(sheet, dynamic_cm);
     loop {
         let pos = reader.buffer_position();
@@ -235,19 +236,28 @@ pub(crate) fn scan_sheet(
             Event::Start(ref e) | Event::Empty(ref e) => {
                 let empty = matches!(ev, Event::Empty(_));
                 let local = if sml {
-                    e.local_name().into_inner().to_owned()
+                    // Keep only the names interpreted by SheetScan.
+                    match e.local_name().into_inner().as_bytes() {
+                        b"sheetData" => "sheetData",
+                        b"row" => "row",
+                        b"c" => "c",
+                        b"f" => "f",
+                        b"v" => "v",
+                        b"is" => "is",
+                        _ => "",
+                    }
                 } else {
-                    String::new()
+                    ""
                 };
-                let parent = stack.last().map(String::as_str);
-                scan.start(&local, parent, ScanElement::Stream(e), empty)?;
+                let parent = stack.last().copied();
+                scan.start(local, parent, ScanElement::Stream(e), empty)?;
                 if !empty {
                     stack.push(local);
                 }
             }
             Event::End(_) => {
                 let local = stack.pop().unwrap_or_default();
-                scan.end(&local, stack.last().map(String::as_str))?;
+                scan.end(local, stack.last().copied())?;
             }
             Event::Text(t) => {
                 let s = t.xml_content(XmlVersion::Implicit1_0);
@@ -305,6 +315,39 @@ impl ScanElement<'_, '_> {
             Self::Stream(element) => attr(element, local),
             Self::Tree(node) => Ok(node.attr(QName::new("", local)).map(str::to_owned)),
         }
+    }
+
+    fn cell(&self) -> Result<CellScan, String> {
+        let mut cell = CellScan::default();
+        match self {
+            Self::Stream(element) => {
+                let mut vm = None;
+                for attribute in element.attributes().with_checks(true) {
+                    let attribute = attribute.map_err(|error| error.to_string())?;
+                    let field = match attribute.key.into_inner() {
+                        "r" => &mut cell.r,
+                        "t" => &mut cell.t,
+                        "cm" => &mut cell.cm,
+                        "vm" => &mut vm,
+                        _ => continue,
+                    };
+                    *field = Some(attribute.normalized_value(XmlVersion::Implicit1_0)
+                        .map_err(|error| error.to_string())?.into_owned());
+                    if vm.is_some() && cell.r.is_some() && cell.t.is_some() && cell.cm.is_some() {
+                        break;
+                    }
+                }
+                cell.vm = vm.is_some();
+            }
+            Self::Tree(_) => {
+                cell.r = self.attr("r")?;
+                cell.t = self.attr("t")?;
+                cell.cm = self.attr("cm")?;
+                cell.vm = self.attr("vm")?.is_some();
+            }
+        }
+        cell.at = cell.r.as_deref().map(CellIndex::parse);
+        Ok(cell)
     }
 
     fn formula_attrs(&self) -> Result<Vec<(String, String)>, String> {
@@ -417,14 +460,7 @@ impl<'a> SheetScan<'a> {
                 }
             }
             "c" if parent == Some("row") => {
-                let mut c = CellScan {
-                    r: element.attr("r")?,
-                    t: element.attr("t")?,
-                    cm: element.attr("cm")?,
-                    ..Default::default()
-                };
-                c.vm = element.attr("vm")?.is_some();
-                c.at = c.r.as_deref().map(CellIndex::parse);
+                let c = element.cell()?;
                 if c.r.is_none() {
                     self.missing_r = true;
                 }

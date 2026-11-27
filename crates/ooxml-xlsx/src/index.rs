@@ -40,7 +40,7 @@ pub(crate) enum RowErr {
     CellsOutOfOrder,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct RowEntry {
     /// 1-based row number.
     pub(crate) row: u32,
@@ -59,7 +59,7 @@ pub(crate) struct RowEntry {
     pub(crate) cells: std::result::Result<Vec<(u32, usize)>, RowErr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct SheetIndex {
     /// `sheetData` exists.
     pub(crate) sheet_data: bool,
@@ -277,6 +277,22 @@ impl SheetIndex {
             }
             let k = rows.partition_point(|e| e.row < row_no);
             rows.insert(k, RowEntry { row: row_no, item, alternate: false, cells_end: 0, misordered: false, cells: Ok(Vec::new()) });
+        }
+    }
+
+    /// A cell was removed at item `item` of the row `row_no`.
+    pub(crate) fn cell_removed(&mut self, row_no: u32, item: usize) {
+        let Ok(rows) = &mut self.rows else { return };
+        let Ok(k) = rows.binary_search_by_key(&row_no, |entry| entry.row) else { return };
+        let row = &mut rows[k];
+        let Ok(cells) = &mut row.cells else { return };
+        let k = cells.partition_point(|cell| cell.1 < item);
+        cells.remove(k);
+        for cell in &mut cells[k..] {
+            cell.1 -= 1;
+        }
+        if row.cells_end > item {
+            row.cells_end -= 1;
         }
     }
 
