@@ -299,6 +299,7 @@ function project(bytes, name, { sheetRows, dense, cellNF, cellText, cellDates, s
   return withDocument(bytes, (document) => {
     // A usable declared extent (`A1:B2`); a missing or single-cell `dimension` is not one.
     const declared = document.sheet_range(name);
+    const looseDeclared = document.sheet_declared_range(name);
     const autofilter = document.autofilter(name);
     const margins = document.explicit_margins(name);
     const merges = document.merged_ranges(name);
@@ -336,7 +337,8 @@ function project(bytes, name, { sheetRows, dense, cellNF, cellText, cellDates, s
       cells.free();
     }
     // CE 0.20.3 derives !ref from the data when there is no usable dimension.
-    const original = declared ?? (extent.length
+    const deriveFromData = nodim || looseDeclared !== undefined;
+    const original = declared ?? (deriveFromData && extent.length
       ? encode_range({ s: { r: extent[0], c: extent[1] }, e: { r: extent[2], c: extent[3] } }) : undefined);
     const storedCellCount = values.length;
     // Shared-string markup (`r`) and HTML, read once per distinct item.
@@ -436,6 +438,7 @@ function project(bytes, name, { sheetRows, dense, cellNF, cellText, cellDates, s
       const row = coordinates[index * 2];
       const column = coordinates[index * 2 + 1];
       const key = encode_cell({ r: row, c: column });
+      if (!nodim && index < storedCellCount && (declared === undefined ? looseDeclared === undefined : !rangeContains(declared, row, column))) continue;
       const value = values[index];
       const style = formatStyles?.[index];
       const formulaOffset = formulaValues[formulaIndex] === index ? formulaIndex : undefined;
@@ -577,7 +580,8 @@ function project(bytes, name, { sheetRows, dense, cellNF, cellText, cellDates, s
         if (!Object.hasOwn(object, key) && typeof key === 'string' && /^[A-Z]{1,3}[1-9][0-9]{0,6}$/.test(key)) {
           const [, row, column] = address(key);
           if (reference && rangeContains(reference, row, column) &&
-              resultRanges.some((range) => rangeContains(range, row, column))) {
+              (resultRanges.some((range) => rangeContains(range, row, column)) ||
+                merges.some((range) => rangeContains(range, row, column)))) {
             throw unsupported(name, key);
           }
         }
