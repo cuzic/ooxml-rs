@@ -331,13 +331,18 @@ fn content_style_same(
                     if text == e && string.runs.is_none() && string.phonetic.is_none())
         }
         // the same item (`sst` is append-only); the `v` spelling is
-        // compared literally (C5: `00` over `0` applies, as sequentially)
-        CellOp::Shared(i) => node.is_some_and(|c| {
-            c.attr(sml::Cell::ATTR_T) == Some("s")
-                && c.elements()
-                    .find(|e| e.is(sml::CellValue::QNAME))
-                    .is_some_and(|v| v.text() == i.to_string())
-        }),
+        // compared literally (C5: `00` over `0` applies, as sequentially).
+        // The resolved state must be the item: a dangling `v` spelling a
+        // fresh reservation is `Value`, not `Str`, so it applies (B1: the
+        // sequential side appends the item a skip would drop)
+        CellOp::Shared(i) => {
+            node.is_some_and(|c| {
+                c.attr(sml::Cell::ATTR_T) == Some("s")
+                    && c.elements()
+                        .find(|e| e.is(sml::CellValue::QNAME))
+                        .is_some_and(|v| v.text() == i.to_string())
+            }) && matches!(&state.content, Content::Str { inline: false, .. })
+        }
         CellOp::Bool(b) => {
             let want = if *b { "1" } else { "0" };
             matches!(&state.content, Content::Value { t: ct, v } if ct == "b" && v == want)
@@ -1798,6 +1803,33 @@ mod tests {
     fn report_shared_compares_the_index() {
         let mut wb = Workbook::new().unwrap();
         let sheet = sheet(&wb, "Sheet1");
+        wb.worksheet().unwrap().write_string(0, 0, "zero").unwrap();
+        wb.worksheet().unwrap().write_string(0, 1, "one").unwrap();
+        // B1 holds item 1, resolved
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "B1",
+            CellOp::Shared(1),
+            Extra::default(),
+        ));
+        assert!(t.state_same && t.validation_same);
+        let t = single(report_of(
+            &wb,
+            sheet,
+            "B1",
+            CellOp::Shared(2),
+            Extra::default(),
+        ));
+        assert!(!t.state_same && !t.validation_same);
+    }
+
+    #[test]
+    fn report_shared_with_a_dangling_v_applies() {
+        // B1 (post-merge review): the `v` spells index 2 but the table is
+        // empty, so it is not the item (a fresh reservation spells the same)
+        let mut wb = Workbook::new().unwrap();
+        let sheet = sheet(&wb, "Sheet1");
         wb.edit_cell(sheet, at("A1"), CellOp::Shared(2)).unwrap();
         let t = single(report_of(
             &wb,
@@ -1806,15 +1838,8 @@ mod tests {
             CellOp::Shared(2),
             Extra::default(),
         ));
-        assert!(t.state_same && t.validation_same);
-        let t = single(report_of(
-            &wb,
-            sheet,
-            "A1",
-            CellOp::Shared(3),
-            Extra::default(),
-        ));
-        assert!(!t.state_same && !t.validation_same);
+        assert!(t.exists && !t.group_or_array);
+        assert!(!t.state_same && !t.validation_same, "a dangling `v` applies");
     }
 
     #[test]

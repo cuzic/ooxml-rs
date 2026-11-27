@@ -755,3 +755,30 @@ fn fixed_44_b1_identity_write_to_a_diverged_header_is_applied() {
     assert!(last_applied(&p), "the staged rename is not the identity");
     p.finish();
 }
+
+/// B1 (post-merge review): a `v` spelling a fresh reservation is dangling,
+/// not the item. The table holds one item (`a` at 0); A1's `v` is 1, which
+/// is what `set_string("fresh")` reserves. The sequential side appends the
+/// item, so a skip would silently drop the user's write.
+#[test]
+fn fixed_45_b1_dangling_v_spelling_a_fresh_reservation_is_applied() {
+    use super::fixtures::{custom_styles, package, plain};
+    let sheet = |v: &str| {
+        format!(
+            r#"<dimension ref="A1"/><sheetData><row r="1"><c r="A1" t="s"><v>{v}</v></c></row></sheetData>"#
+        )
+    };
+    let styles = custom_styles(false);
+    // one item in the table, `v` 1: dangling, and the fresh reservation
+    let bytes = package(&[("Sheet1", sheet("1"))], &[plain("a")], None, &styles);
+    let mut p = Pair::new(&bytes);
+    p.step(c1("A1", CellCall::String("fresh".into()))).unwrap();
+    assert!(last_applied(&p), "the append is real: a skip would drop it");
+    p.finish();
+    // an empty table: `v` 0 is dangling too
+    let bytes = package(&[("Sheet1", sheet("0"))], &[], None, &styles);
+    let mut p = Pair::new(&bytes);
+    p.step(c1("A1", CellCall::String("fresh".into()))).unwrap();
+    assert!(last_applied(&p), "index 0 of an empty table is dangling");
+    p.finish();
+}
