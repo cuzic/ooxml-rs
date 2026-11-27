@@ -90,6 +90,9 @@ mod registry;
 mod setters;
 mod workbook;
 mod worksheet;
+pub mod streaming;
+mod streaming_rows;
+mod streaming_manifest;
 mod tables;
 pub use tables::{Col, Table, TableStyle, Total};
 
