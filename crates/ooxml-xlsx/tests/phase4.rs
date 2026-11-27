@@ -34,6 +34,96 @@ fn sheet_with(children: &str, sheet_data: &str) -> Vec<u8> {
 
 // ---- merged cells (§3) ----
 
+#[test]
+fn model_merge_preserves_covered_values() {
+    let records = r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c></row>"#;
+    let input = sheet_with("", records);
+    assert_matches!(try_on(&input, 0, |ws| ws.merge("A1:B1")).1, Err(Error::MergeWouldHideValues { .. }));
+    let (wb, result) = try_on(&input, 0, |ws| ws.merge_preserving_covered_values("A1:B1"));
+    result.unwrap();
+    let merged = wb.to_bytes().unwrap();
+    let xml = String::from_utf8(part(&merged, "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains(records));
+    assert!(xml.contains(r#"<mergeCell ref="A1:B1"/>"#));
+    assert_matches!(try_on(&merged, 0, |ws| ws.merge_preserving_covered_values("B1:C1")).1,
+        Err(Error::MergeOverlap { .. }));
+}
+
+#[test]
+fn exact_static_array_row_clear_preserves_cell_styles() {
+    use ooxml_xlsx::CellRange;
+    let input = sheet_with("", r#"<row r="1"><c r="B1"><f t="array" ref="B1:C1">B2+1</f><v>2</v></c><c r="C1" s="0"><v>3</v></c></row>"#);
+    let (wb, result) = try_on(&input, 0, |ws| ws.clear_static_array_row(CellRange::parse("B1:C1")?));
+    result.unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let xml = String::from_utf8(part(&bytes, "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(!xml.contains("<f "));
+    assert!(!xml.contains("<v>"));
+    assert!(xml.contains(r#"<c r="C1" s="0""#));
+    assert_matches!(try_on(&input, 0, |ws| ws.clear_static_array_row(CellRange::parse("B1")?)).1,
+        Err(Error::ArrayAnchor { .. }));
+}
+
+#[test]
+fn shared_formula_row_clear_requires_all_members() {
+    use ooxml_xlsx::CellIndex;
+    let input = sheet_with("", r#"<row r="1"><c r="B1"><f t="shared" ref="B1:D1" si="0">B2+1</f><v>2</v></c><c r="C1" s="0"><f t="shared" si="0"/><v>3</v></c><c r="D1"><f t="shared" si="0"/><v>4</v></c></row>"#);
+    let master = CellIndex::parse("B1").unwrap();
+    for columns in [&[2][..], &[2, 2, 3], &[2, 3, 4]] {
+        assert_matches!(try_on(&input, 0, |ws| ws.clear_shared_formula_row(master, columns)).1,
+            Err(Error::SharedFormulaMaster { .. }));
+    }
+    let (wb, result) = try_on(&input, 0, |ws| ws.clear_shared_formula_row(master, &[2, 3]));
+    result.unwrap();
+    let bytes = wb.to_bytes().unwrap();
+    let xml = String::from_utf8(part(&bytes, "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(!xml.contains("<f "));
+    assert!(!xml.contains("<v>"));
+    assert!(xml.contains(r#"<c r="C1" s="0""#));
+}
+
+#[test]
+fn sparse_shared_formula_row_skips_independent_cells() {
+    let input = sheet_with("", r#"<row r="1"><c r="C1"><v>23</v></c></row>"#);
+    let range = ooxml_xlsx::CellRange::parse("B1:D1").unwrap();
+    for invalid in [vec![(1, CellValue::Empty)], vec![(3, CellValue::Empty), (3, CellValue::Empty)]] {
+        assert!(try_on(&input, 0, |ws| {
+            ws.set_sparse_shared_formula_row(range, "B2+1", CellValue::Empty, invalid)
+        }).1.is_err());
+    }
+    let (wb, result) = try_on(&input, 0, |ws| {
+        ws.set_sparse_shared_formula_row(range, "B2+1", CellValue::Number(0.0), vec![(3, CellValue::Bool(false))])
+    });
+    result.unwrap();
+    let xml = String::from_utf8(part(&wb.to_bytes().unwrap(), "xl/worksheets/sheet1.xml")).unwrap();
+    assert!(xml.contains(r#"<c r="C1"><v>23</v></c>"#));
+    assert!(xml.contains(r#"ref="B1:D1""#));
+    assert_eq!(xml.matches(r#"t="shared""#).count(), 2);
+}
+
+#[test]
+fn styled_cell_batch_refuses_invalid_style_before_writing() {
+    use ooxml_xlsx::{CellIndex, CellWrite};
+    let mut seed = Workbook::new().unwrap();
+    let style = seed.register_number_format_style(0, "0.000").unwrap();
+    seed.worksheet().unwrap().cell_mut(0, 0).unwrap().set_number(1.0).unwrap();
+    seed.worksheet().unwrap().cell_mut(0, 1).unwrap().set_number(2.0).unwrap();
+    let input = seed.to_bytes().unwrap();
+    let edits = [
+        (CellIndex::new(0, 0).unwrap(), CellWrite::Number(9.0)),
+        (CellIndex::new(0, 1).unwrap(), CellWrite::Clear),
+    ];
+    assert_matches!(try_on(&input, 0, |ws| ws.write_cells_with_styles(&edits, &[Some(style), Some(u32::MAX)])).1,
+        Err(Error::StyleIndexOutOfRange { .. }));
+    let (mut wb, result) = try_on(&input, 0, |ws| ws.write_cells_with_styles(&edits, &[Some(style), None]));
+    result.unwrap();
+    let sheet = wb.worksheet().unwrap();
+    let cell = sheet.cell(0, 0).unwrap().unwrap();
+    assert_eq!(cell.style_index().unwrap(), style);
+    assert_eq!(cell.value().unwrap(), CellValue::Number(9.0));
+    assert_eq!(sheet.cell(0, 1).unwrap().unwrap().value().unwrap(), CellValue::Empty);
+}
+
 /// Round 1 m2: a merge over a spill (dynamic array) range is refused.
 #[test]
 fn merge_over_a_spill_is_refused() {
@@ -41,6 +131,8 @@ fn merge_over_a_spill_is_refused() {
     assert_matches!(try_on(&input, 0, |ws| ws.merge("D2:E3")).1, Err(Error::ArrayResultCell { .. }));
     assert_matches!(try_on(&input, 0, |ws| ws.merge("C2:C3")).1, Err(Error::ArrayAnchor { .. }));
     assert_matches!(try_on(&input, 0, |ws| ws.merge_clearing("D1:D2")).1, Err(Error::ArrayResultCell { .. }));
+    assert_matches!(try_on(&input, 0, |ws| ws.clear_static_array_row(ooxml_xlsx::CellRange::parse("C2:D2")?)).1,
+        Err(Error::ArrayAnchor { .. }));
 }
 
 /// Round 1 m2: `merge_clearing` checks every cell before clearing the first:
