@@ -564,5 +564,14 @@ mod tests {
         let e = encode_cells(0, [(2, rich())]).unwrap_err();
         assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
         assert_eq!(e.cell(), Some("C1"));
+        // No runs, or an empty run, in streaming rich text.
+        let noruns = || RowCell { rich_text: Some(vec![]), ..CellValue::Empty.into() };
+        let e = encode_cells(0, [(0, noruns())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("A1"));
+        let empty = || RowCell { rich_text: Some(vec![("".to_string(), None)]), ..CellValue::Empty.into() };
+        let e = encode_cells(0, [(0, empty())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("A1"));
     }
 }
