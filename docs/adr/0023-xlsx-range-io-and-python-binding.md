@@ -1,6 +1,6 @@
 # ADR-0023: xlsx range reads and writes at workbook scope, and the Python binding policy
 
-- Status: **Proposed** (revision 6)
+- Status: **Proposed** (revision 7)
 - Date: 2026-11-27
 - Repository baseline: `213e27a` (main after PR #170)
 - Depends on:
@@ -97,6 +97,10 @@
   - **m1:** stale-cache write-back after an earlier input edit replaces the formula (intended);
     documented with workarounds in §6.2 and §11.4.
   - **n1:** superseded "shared report" wordings annotated.
+- **Revision 7** (U1 implementation feedback, Opus consult 01a21c66): `InvalidArgument`
+  carries the cell (`{ cell: Option<String>, message }`) so cell-level caller errors keep
+  their cell; `None` for batch-level ones. xlsx `InvalidValue` stays the file-decoding
+  error (oracle 11 unchanged).
 
 ## Context
 
@@ -673,8 +677,10 @@ impl Error {
 - **Audit (U1, M2):** every place that returns `Malformed` or `InvalidValue` for **caller
   input** rather than file content is listed in the U1 PR (known: `write_cells_with_styles`
   length mismatch, `set_shared_formula` range/result count mismatch, in the ADR-0021 work).
-  Each is moved to a new caller-input variant `InvalidArgument { message }` in its crate, or
-  kept and listed as an exception in the binding table with the reason. `Malformed` then
+  Each is moved to a new caller-input variant `InvalidArgument { cell: Option<String>,
+  message }` in its crate (`Some` for cell-level errors, so `cell()` keeps working; `None`
+  for batch-level ones), or kept and listed as an exception in the binding table with the
+  reason. `Malformed` then
   means "the file", which the binding maps to `MalformedFileError`.
 - ADR-0021/0022 adapters keep their own error-code vocabulary (`INVALID_VALUE`,
   `CELL_EDIT_REFUSED`, `WORKSHEET_READ_REFUSED`, `INVALID_INPUT`, …); if they want the Rust
@@ -682,7 +688,8 @@ impl Error {
   changes those codes.
 - New xlsx variants in this ADR: `RangeTooLarge { cells, limit }`, `NoSuchName(String)`,
   `AmbiguousName { name, reason: &'static str }`, `NameNotARange { name, reason: &'static str }`,
-  `NonScalarCell { cell, reason: &'static str }` (§9), `InvalidArgument { message }` (audit).
+  `NonScalarCell { cell, reason: &'static str }` (§9), `InvalidArgument { cell, message }`
+  (audit, revision 7: `cell` is `Option<String>`).
   Each gets the `Err ⇒ byte-identical` test where an edit raises it.
 
 ### 9. Lifting the classifier (shared by Wasm and Python)

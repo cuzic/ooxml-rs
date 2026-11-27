@@ -25,7 +25,7 @@ plan PRs (#3–#5) merged ADR-0003/0004/0005 while still Proposed.
 | 0014 | xlsx Phase4: range features on existing worksheets | not on `main`: Proposed in [#35](https://github.com/cuzic/ooxml-rs/pull/35) | in the PR |
 | 0015 | Word Phase3: review features | not on `main`: Proposed in [#39](https://github.com/cuzic/ooxml-rs/pull/39) | in the PR |
 | 0016 | PowerPoint Phase 3: formatting writes and links | not on `main`: Proposed in [#37](https://github.com/cuzic/ooxml-rs/pull/37) | in the PR |
-| [0023](0023-xlsx-range-io-and-python-binding.md) | xlsx range reads and writes at workbook scope, and the Python binding policy | Proposed (revision 2); depends on the ADR-0021/0022 Rust work landing first | [r1](0023-opus-review-round1.md) |
+| [0023](0023-xlsx-range-io-and-python-binding.md) | xlsx range reads and writes at workbook scope, and the Python binding policy | Proposed (revision 7; rounds 1–5 converged, U1 in progress) | [r5](0023-opus-review-round5.md) |
 
 Reviews of implementation and core PRs that have no ADR of their own are in
 [`docs/reviews/`](../reviews/), for example `pr16-round*.md` (core depth limit),
