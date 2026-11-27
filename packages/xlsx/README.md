@@ -234,14 +234,14 @@ edits to an obsolete workbook.
 ## Baseline measurements
 
 One local run with webpack 5.113.0 produced the following raw and gzip
-sizes. Both adapters shared one 2,224,866-byte Wasm asset (630,764 bytes
+sizes. Both adapters shared one 8,510,679-byte Wasm asset (2,380,349 bytes
 gzip).
 
 | JS bundle | Raw bytes | Gzip bytes |
 | --- | ---: | ---: |
-| ExcelJS only | 11,190 | 4,392 |
-| SheetJS only | 13,399 | 5,170 |
-| Both | 14,875 | 5,661 |
+| ExcelJS only | 333,878 | 74,702 |
+| SheetJS only | 380,951 | 106,592 |
+| Both | 614,128 | 166,937 |
 
 | Browser | Fixture | Initialization ms | ExcelJS load / 10 setters / save ms | SheetJS load and projection / save ms | Wasm linear-memory high water |
 | --- | --- | ---: | ---: | ---: | ---: |
