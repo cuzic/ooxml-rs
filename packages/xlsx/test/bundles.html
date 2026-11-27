@@ -1,0 +1,22 @@
+<!doctype html><body>Running</body><script type="module">
+try {
+  const name = location.search.slice(1);
+  const api = await import('./dist/' + name + '/bundle.mjs');
+  const input = await (await fetch('./57523.xlsx')).arrayBuffer();
+  if (api.Workbook) {
+    const workbook = await new api.Workbook().xlsx.load(input);
+    workbook.worksheets[0].getCell('B2').value = 42817;
+    const reopened = await new api.Workbook().xlsx.load(await workbook.xlsx.writeBuffer());
+    if (reopened.worksheets[0].getCell('B2').value !== 42817) throw Error('ExcelJS');
+  }
+  if (api.read) {
+    const book = api.read(input);
+    book.Sheets[book.SheetNames[0]].B2 = { t: 'n', v: 42817 };
+    const reopened = api.read(api.write(book, { bookType: 'xlsx', type: 'array' }));
+    if (reopened.Sheets[book.SheetNames[0]].B2.v !== 42817) throw Error('SheetJS');
+  }
+  document.body.textContent = 'PASS';
+} catch (error) {
+  document.body.textContent = 'FAIL ' + error;
+}
+</script>
