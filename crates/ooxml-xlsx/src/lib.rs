@@ -102,7 +102,7 @@ mod tables;
 pub use tables::{Col, ColumnTotal, Table, TableStyle, Total};
 
 pub use error::{Error, Result};
-pub use reference::{CellIndex, CellRange, MAX_COLS, MAX_ROWS};
+pub use reference::{CellIndex, CellRange, SheetRef, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;
 pub use sheet_ops::{RewrittenLocation, SheetState};
