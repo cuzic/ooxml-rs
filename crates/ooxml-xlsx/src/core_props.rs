@@ -322,7 +322,7 @@ impl Workbook {
             return Ok(());
         }
         if self.pkg.package_relationships().by_type(CUSTOM_REL).next().is_some() {
-            return Err(Error::InvalidArgument { cell: None, message: "custom properties already exist".into() });
+            return Err(Error::invalid_argument(None, "custom properties already exist".into()));
         }
         let doc = custom_properties_xml(entries)?;
         self.add_metadata_part(doc, CUSTOM_PART, "docProps/custom{}.xml", CUSTOM_TYPE, CUSTOM_REL)
@@ -349,7 +349,7 @@ fn custom_properties_xml(entries: &[(String, String, String)]) -> Result<ooxml_c
     let mut xml = format!(r#"<Properties xmlns="{CUSTOM_NS}" xmlns:vt="{VARIANT_NS}">"#);
     let mut names = std::collections::HashSet::new();
     for (index, (name, kind, value)) in entries.iter().enumerate() {
-        let bad = || Error::InvalidArgument { cell: None, message: format!("invalid custom property {name:?}") };
+        let bad = || Error::invalid_argument(None, format!("invalid custom property {name:?}"));
         if name.is_empty() || !names.insert(name) {
             return Err(bad());
         }

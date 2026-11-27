@@ -221,24 +221,15 @@ fn encode_row_inner(
     {
         let at = CellIndex::new(row, column)?;
         if previous.is_some_and(|previous| previous >= column) {
-            return Err(Error::InvalidArgument {
-                cell: Some(at.to_string()),
-                message: format!("cell {at}: streaming row columns must be strictly increasing"),
-            });
+            return Err(Error::invalid_argument(Some(at.to_string()), "streaming row columns must be strictly increasing".into()));
         }
         previous = Some(column);
         let text = match &formula {
             Some(RowFormula::Array { range, .. }) if range.first != at => {
-                return Err(Error::InvalidArgument {
-                    cell: Some(at.to_string()),
-                    message: format!("cell {at}: array formula must start at its anchor cell"),
-                });
+                return Err(Error::invalid_argument(Some(at.to_string()), "array formula must start at its anchor cell".into()));
             }
             Some(RowFormula::SharedMaster { range, .. }) if range.first != at => {
-                return Err(Error::InvalidArgument {
-                    cell: Some(at.to_string()),
-                    message: format!("cell {at}: shared formula must start at its anchor cell"),
-                });
+                return Err(Error::invalid_argument(Some(at.to_string()), "shared formula must start at its anchor cell".into()));
             }
             Some(
                 RowFormula::Ordinary(text)
@@ -253,10 +244,7 @@ fn encode_row_inner(
         let rich_inline = rich_text.is_some() && strings.is_none();
         let (kind, content) = if let Some(rich_text) = rich_text {
             if formula.is_some() || value != CellValue::Empty {
-                return Err(Error::InvalidArgument {
-                    cell: Some(at.to_string()),
-                    message: format!("cell {at}: rich text must be a cell value"),
-                });
+                return Err(Error::invalid_argument(Some(at.to_string()), "rich text must be a cell value".into()));
             }
             let runs = rich_text
                 .iter()

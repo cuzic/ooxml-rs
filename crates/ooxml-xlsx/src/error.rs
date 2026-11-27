@@ -199,9 +199,8 @@ pub enum Error {
     InvalidArgument {
         /// The cell, A1 style, when the error is about one cell.
         cell: Option<String>,
-        /// What is wrong. When `cell` is `Some`, constructors prefix it
-        /// with `cell {at}: ` so the Display keeps the old InvalidValue
-        /// shape (`cell()` stays the machine-readable location).
+        /// What is wrong (without the `cell {at}: ` prefix; the
+        /// [`Error::invalid_argument`] constructor adds it).
         message: String,
     },
 
@@ -683,6 +682,18 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl Error {
+    /// A caller-input rejection. When `cell` is `Some`, the message is
+    /// prefixed with `cell {at}: ` (the old `InvalidValue` Display shape);
+    /// `cell()` stays the machine-readable location. All `InvalidArgument`
+    /// sites go through here so the prefix cannot be forgotten.
+    pub(crate) fn invalid_argument(cell: Option<String>, message: String) -> Self {
+        let message = match &cell {
+            Some(at) => format!("cell {at}: {message}"),
+            None => message,
+        };
+        Error::InvalidArgument { cell, message }
+    }
+
     /// The variant name, e.g. `"MergedCell"`. Stable: renaming a variant is a
     /// breaking change recorded in the owning ADR (ADR-0023 §8).
     pub fn kind(&self) -> &'static str {
@@ -1054,6 +1065,16 @@ mod tests {
         for (error, expected) in samples() {
             assert_eq!(error.cell(), expected);
         }
+    }
+
+    #[test]
+    fn invalid_argument_prefixes_some_cells() {
+        let some = Error::invalid_argument(Some("B2".to_string()), "m".to_string());
+        assert_eq!(some.cell(), Some("B2"));
+        assert_eq!(some.to_string(), "cell B2: m");
+        let none = Error::invalid_argument(None, "m".to_string());
+        assert_eq!(none.cell(), None);
+        assert_eq!(none.to_string(), "m");
     }
 }
 
