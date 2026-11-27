@@ -107,7 +107,7 @@ pub use registry::read::FormatRead;
 pub use registry::format::{Alignment, Border, Color, DxfFont, DxfFormat, Fill, Font, FontSize, Format, NumFormat, Protection, Side, Tint, Underline, VertAlign};
 pub use workbook::{CalcPolicy, Workbook};
 pub use validation::{ErrorStyle, Validation, ValidationOperator, ValidationType};
-pub use condfmt::{CfOperator, CfRemoval, Cfvo, IconSetValues, Rule, RuleKind};
+pub use condfmt::{CfOperator, CfRemoval, Cfvo, ExtendedDataBar, ExtendedDataBarThreshold, ExtendedIconRule, IconSetValues, Rule, RuleKind};
 pub use hyperlink::{HyperlinkInfo, Link, LinkOptions};
 pub use layout::{HeaderFooter, Margins, Orientation, PageSetup, PrintOptions};
 pub use formula::future::add_future_prefixes;
