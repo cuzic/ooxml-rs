@@ -490,57 +490,65 @@ impl Error {
 }
 
 
+/// One value of every variant (for the kind()/cell() tests and the binding table test).
+#[doc(hidden)]
+pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
+    vec![
+        (Error::Io(std::io::Error::other("x")), None),
+        (Error::Zip(zip::result::ZipError::FileNotFound), None),
+        (Error::EncryptedPackage, None),
+        (Error::StrictNotSupported(String::from("x")), None),
+        (Error::PartNotFound(String::from("x")), None),
+        (Error::NewPartUnsupported(String::from("x")), None),
+        (Error::Package(String::from("x")), None),
+        (Error::Xml { position: 0, message: String::from("x") }, None),
+        (Error::DtdNotAllowed { position: 0 }, None),
+        (Error::TooDeep { limit: 0, position: 0 }, None),
+        (Error::UnsupportedEncoding(String::from("x")), None),
+        (Error::WrongElement { expected: QName::new("", ""), found_ns: String::from("x"), found_local: String::from("x") }, None),
+        (Error::AlreadyPresent(QName::new("", "")), None),
+        (Error::AmbiguousSlot(QName::new("", "")), None),
+        (Error::UnresolvedSibling(QName::new("", "")), None),
+        (Error::UnsupportedContentModel(QName::new("", "")), None),
+        (Error::NotAllowed { parent: QName::new("", ""), child: QName::new("", "") }, None),
+        (Error::NotText(QName::new("", "")), None),
+        (Error::IncompleteSpec(QName::new("", "")), None),
+        (Error::NotMovable { reason: MoveRefusal::Root, name: String::from("x") }, None),
+        (Error::NamespaceNotInScope(String::from("x")), None),
+        (Error::InvalidNamespaceDeclaration { prefix: String::from("x"), uri: String::from("x"), reason: "x" }, None),
+        (Error::InvalidXmlChar { ch: 'x', offset: 0 }, None),
+        (Error::NoSuchElement, None),
+        (Error::NotLeaf, None),
+        (Error::TypedNamespace, None),
+        (Error::NilElement, None),
+        (Error::NotDetachable { reason: DetachRefusal::AlternateContent, name: String::from("x") }, None),
+        (Error::InsertIndexOutOfRange { index: 0, len: 0 }, None),
+        (Error::WrongDocument, None),
+        (Error::Attr(crate::schema::AttrError { attr: QName::new("", ""), raw: String::from("x") }), None),
+        (Error::RemovePartRefused { part: String::from("x"), reason: crate::package::RemoveRefusal::RegistryPart }, None),
+        (Error::RegistryRefused { part: String::from("x"), reason: crate::package::RegistryRefusal::InvalidPartName { reason: "x" } }, None),
+        (Error::NotWellFormed { position: 0, reason: WellFormedness::ByteOrderMark }, None),
+        (Error::NamespaceDeclaration(QName::new("", "")), None),
+        (Error::TruncatedEntry { part: String::from("x"), end: 0, len: 0 }, None),
+        (Error::XmlPartTooLarge { len: 0 }, None),
+        (Error::PartTooLarge { part: String::from("x"), limit: 0 }, None),
+        (Error::PackageTooLarge { size: 0, limit: 0 }, None),
+    ]
+}
+
+/// Every error kind as it surfaces to callers.
+#[doc(hidden)]
+pub fn __surface_kinds() -> Vec<&'static str> {
+    __error_samples().into_iter().map(|(e, _)| e.kind()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn samples() -> Vec<(Error, Option<&'static str>)> {
-        vec![
-            (Error::Io(std::io::Error::other("x")), None),
-            (Error::Zip(zip::result::ZipError::FileNotFound), None),
-            (Error::EncryptedPackage, None),
-            (Error::StrictNotSupported(String::from("x")), None),
-            (Error::PartNotFound(String::from("x")), None),
-            (Error::NewPartUnsupported(String::from("x")), None),
-            (Error::Package(String::from("x")), None),
-            (Error::Xml { position: 0, message: String::from("x") }, None),
-            (Error::DtdNotAllowed { position: 0 }, None),
-            (Error::TooDeep { limit: 0, position: 0 }, None),
-            (Error::UnsupportedEncoding(String::from("x")), None),
-            (Error::WrongElement { expected: QName::new("", ""), found_ns: String::from("x"), found_local: String::from("x") }, None),
-            (Error::AlreadyPresent(QName::new("", "")), None),
-            (Error::AmbiguousSlot(QName::new("", "")), None),
-            (Error::UnresolvedSibling(QName::new("", "")), None),
-            (Error::UnsupportedContentModel(QName::new("", "")), None),
-            (Error::NotAllowed { parent: QName::new("", ""), child: QName::new("", "") }, None),
-            (Error::NotText(QName::new("", "")), None),
-            (Error::IncompleteSpec(QName::new("", "")), None),
-            (Error::NotMovable { reason: MoveRefusal::Root, name: String::from("x") }, None),
-            (Error::NamespaceNotInScope(String::from("x")), None),
-            (Error::InvalidNamespaceDeclaration { prefix: String::from("x"), uri: String::from("x"), reason: "x" }, None),
-            (Error::InvalidXmlChar { ch: 'x', offset: 0 }, None),
-            (Error::NoSuchElement, None),
-            (Error::NotLeaf, None),
-            (Error::TypedNamespace, None),
-            (Error::NilElement, None),
-            (Error::NotDetachable { reason: DetachRefusal::AlternateContent, name: String::from("x") }, None),
-            (Error::InsertIndexOutOfRange { index: 0, len: 0 }, None),
-            (Error::WrongDocument, None),
-            (Error::Attr(crate::schema::AttrError { attr: QName::new("", ""), raw: String::from("x") }), None),
-            (Error::RemovePartRefused { part: String::from("x"), reason: crate::package::RemoveRefusal::RegistryPart }, None),
-            (Error::RegistryRefused { part: String::from("x"), reason: crate::package::RegistryRefusal::InvalidPartName { reason: "x" } }, None),
-            (Error::NotWellFormed { position: 0, reason: WellFormedness::ByteOrderMark }, None),
-            (Error::NamespaceDeclaration(QName::new("", "")), None),
-            (Error::TruncatedEntry { part: String::from("x"), end: 0, len: 0 }, None),
-            (Error::XmlPartTooLarge { len: 0 }, None),
-            (Error::PartTooLarge { part: String::from("x"), limit: 0 }, None),
-            (Error::PackageTooLarge { size: 0, limit: 0 }, None),
-        ]
-    }
-
     #[test]
     fn kind_matches_debug_name() {
-        for (error, _) in samples() {
+        for (error, _) in __error_samples() {
             let debug = format!("{error:?}");
             let kind = error.kind();
             assert!(debug.starts_with(kind), "{debug}");
@@ -551,8 +559,22 @@ mod tests {
     }
 
     #[test]
+    fn samples_cover_every_variant() {
+        // See the xlsx/docx/pptx copies: samples must cover every kind arm
+        // so __surface_kinds (and the binding table check) cannot drift.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples().into_iter().map(|(e, _)| e.kind()).collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms, "a variant lacks a sample");
+    }
+
+    #[test]
     fn cell_reports_carrying_variants() {
-        for (error, expected) in samples() {
+        for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);
         }
     }

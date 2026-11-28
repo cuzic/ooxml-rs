@@ -27,6 +27,8 @@ pub mod value;
 pub mod xml;
 
 pub use error::{DetachRefusal, Error, MoveRefusal, Result, WellFormedness};
+#[doc(hidden)]
+pub use error::__surface_kinds;
 pub use lens::{Detached, Lens, LensMut, MoveSource, NsDecl, SamePartDetached, SamePartOptions};
 pub use name::{QName, XName};
 pub use package::{

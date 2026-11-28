@@ -1,0 +1,29 @@
+[workspace]
+
+[package]
+name = "ooxml-py"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cuzic/ooxml-rs"
+authors = ["Tomoya Kawanishi"]
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+# No Rust-side tests that would link libpython; behaviour is tested from Python.
+test = false
+doctest = false
+
+[dependencies]
+ooxml-core = { path = "../../crates/ooxml-core", version = "0.1.0" }
+ooxml-xlsx = { path = "../../crates/ooxml-xlsx", version = "0.1.0" }
+ooxml-docx = { path = "../../crates/ooxml-docx", version = "0.1.0" }
+ooxml-pptx = { path = "../../crates/ooxml-pptx", version = "0.1.0" }
+pyo3 = "=0.30.1"
+
+[features]
+# Used only by the CI fault-injection test build (ADR-0023 m8). Never enabled
+# from pyproject.toml.
+fault-injection = ["ooxml-xlsx/fault-injection"]

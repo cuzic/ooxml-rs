@@ -104,6 +104,8 @@ mod tables;
 pub use tables::{Col, ColumnTotal, Table, TableStyle, Total};
 
 pub use error::{Error, Result};
+#[doc(hidden)]
+pub use error::__surface_kinds;
 pub use reference::{CellIndex, CellRange, SheetRef, MAX_COLS, MAX_ROWS};
 #[doc(hidden)]
 pub use workbook::ApplyStep;

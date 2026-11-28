@@ -50,6 +50,8 @@ pub use deckread::{
     Timing, Transition, UNDERSTOOD_NAMESPACES,
 };
 pub use error::{Error, Result};
+#[doc(hidden)]
+pub use error::__surface_kinds;
 pub use new_deck::NewOptions;
 pub use resolve::{
     Autofit, BodyProps, Bullet, ClrMap, Color, Family, Fill, Font, Lookup, MapSource, MatchKind, Outline, ParaProps, PlaceholderMatch,

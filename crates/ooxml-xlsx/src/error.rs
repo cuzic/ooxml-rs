@@ -957,129 +957,145 @@ impl Error {
 }
 
 
+/// One value of every variant (for the kind()/cell() tests and the binding table test).
+#[doc(hidden)]
+pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
+    vec![
+        (Error::InvalidStructuralBand { at: 0, count: 0 }, None),
+        (Error::ShiftOffSheet { what: String::from("x") }, None),
+        (Error::StructureBlocked { part: String::from("x"), place: String::from("x") }, None),
+        (Error::ReferenceDeleted { part: String::from("x"), location: String::from("x") }, None),
+        (Error::ArrayFormulaSplit { cell: String::from("B2") }, Some("B2")),
+        (Error::InvalidSparklineGroup, None),
+        (Error::PartNotEditable { part: String::from("x"), reason: String::from("x") }, None),
+        (Error::Protected { scope: "x", operation: "x" }, None),
+        (Error::NoteExists, None),
+        (Error::ThreadedComment, None),
+        (Error::NoSuchNote, None),
+        (Error::ImageFormat, None),
+        (Error::ImageSize, None),
+        (Error::ImageAnchor, None),
+        (Error::NoSuchImage(0), None),
+        (Error::UnresolvedRichValue { step: "x" }, None),
+        (Error::Core(ooxml_core::Error::EncryptedPackage), None),
+        (Error::NoWorkbook, None),
+        (Error::NoVisibleWorksheet, None),
+        (Error::Malformed(String::from("x")), None),
+        (Error::FormulaScanFailed { part: String::from("x"), reason: String::from("x") }, None),
+        (Error::MergedCell { cell: String::from("B2"), range: String::from("x") }, Some("B2")),
+        (Error::RichValueCell { cell: String::from("B2") }, Some("B2")),
+        (Error::TableHeaderCell { cell: String::from("B2"), table: String::from("x") }, Some("B2")),
+        (Error::MissingReference { part: String::from("x"), what: String::from("x") }, None),
+        (Error::OutOfOrder(String::from("x")), None),
+        (Error::InvalidReference(String::from("x")), None),
+        (Error::OutOfRange { row: 0, col: 0 }, None),
+        (Error::InvalidNumber(0.0), None),
+        (Error::StringTooLong(0), None),
+        (Error::InvalidValue { cell: String::from("B2"), message: String::from("x") }, Some("B2")),
+        (Error::InvalidArgument { cell: None, message: String::from("x") }, None),
+        (Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") }, Some("B2")),
+        (Error::SheetAdditionUnsupported, None),
+        (Error::ArrayResultCell { cell: String::from("B2"), anchor: String::from("x") }, Some("B2")),
+        (Error::ArrayAnchor { cell: String::from("B2") }, Some("B2")),
+        (Error::UnknownCellMetadata { part: String::from("x"), cell: String::from("B2") }, Some("B2")),
+        (Error::MacroSheetDependent { sheet: String::from("x"), cell: String::from("B2") }, Some("B2")),
+        (Error::IterativeCalculation, None),
+        (Error::SharedFormulaMaster { cell: String::from("B2"), reason: String::from("x") }, Some("B2")),
+        (Error::InvalidFormula { text: String::from("x"), reason: String::from("x") }, None),
+        (Error::NoSuchSheet(String::from("x")), None),
+        (Error::NotAWorksheet(String::from("x")), None),
+        (Error::NoSuchName(String::from("x")), None),
+        (Error::AmbiguousName { name: String::from("x"), reason: "x" }, None),
+        (Error::NameNotARange { name: String::from("x"), reason: "x" }, None),
+        (Error::Poisoned(String::from("x")), None),
+        (Error::SheetNamingUnsupported, None),
+        (Error::DuplicateCellWrite { cell: String::from("B2") }, Some("B2")),
+        (Error::MissingFunctionPrefix { name: String::from("x"), prefix: "x" }, None),
+        (Error::DynamicArrayOperator { operator: 'x', file_form: "x" }, None),
+        (Error::InvalidSheetName { name: String::from("x"), reason: "x" }, None),
+        (Error::DuplicateSheetName(String::from("x")), None),
+        (Error::LastVisibleSheet, None),
+        (Error::SharedWorkbook, None),
+        (Error::SheetHasUnsupportedParts { rel_types: vec![String::from("x")] }, None),
+        (Error::SheetIsPivotSource(String::from("x")), None),
+        (Error::TableInUse(String::from("x")), None),
+        (Error::TableRange { reason: "x" }, None),
+        (Error::InvalidTableName { reason: "x" }, None),
+        (Error::DuplicateColumnName(String::from("x")), None),
+        (Error::HeaderNotText(String::from("x")), None),
+        (Error::ColumnInUse(String::from("x")), None),
+        (Error::NoSuchTable(String::from("x")), None),
+        (Error::CustomViewReferencesSheet, None),
+        (Error::UnrewritableReference { part: String::from("x"), location: String::from("x") }, None),
+        (Error::ReversesThreeDReference(String::from("x")), None),
+        (Error::BinaryReferencesPossible, None),
+        (Error::SheetInUse { sheet: String::from("x"), count: 0 }, None),
+        (Error::NoStylesPart, None),
+        (Error::UnsupportedStylesPart(String::from("x")), None),
+        (Error::StyleTableFull { table: String::from("x"), limit: 0 }, None),
+        (Error::NumFmtIdExhausted, None),
+        (Error::BuiltinNumFormatRedefined { id: 0 }, None),
+        (Error::InvalidFormat(String::from("x")), None),
+        (Error::InvalidNumFormat(String::from("x")), None),
+        (Error::StyleIndexOutOfRange { index: 0, count: 0 }, None),
+        (Error::NoSuchStyle(String::from("x")), None),
+        (Error::DanglingReference { table: String::from("x"), index: 0 }, None),
+        (Error::NonexistentDate, None),
+        (Error::AmbiguousStyleName(String::from("x")), None),
+        (Error::NotExpressible(String::from("x")), None),
+        (Error::DateOutOfRange, None),
+        (Error::MergeSingleCell(String::from("x")), None),
+        (Error::MergeOverlap { range: String::from("x"), existing: String::from("x") }, None),
+        (Error::MergeWouldHideValues { range: String::from("x"), cells: vec![String::from("x")] }, None),
+        (Error::NoSuchMerge(String::from("x")), None),
+        (Error::TableOverlap { range: String::from("x"), table: String::from("x") }, None),
+        (Error::PivotOverlap { range: String::from("x"), location: String::from("x") }, None),
+        (Error::QueryTableOverlap(String::from("x")), None),
+        (Error::AutoFilterExists, None),
+        (Error::FilterActive, None),
+        (Error::DuplicateBuiltInName { name: String::from("x") }, None),
+        (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, None),
+        (Error::InvalidSpinCount(0), None),
+        (Error::CrossSheetReference { text: String::from("x") }, None),
+        (Error::UnknownSheet(String::from("x")), None),
+        (Error::ValidationOverlap { sqref: String::from("x"), existing: String::from("x") }, None),
+        (Error::ListTooLong(0), None),
+        (Error::ListItemHasComma(String::from("x")), None),
+        (Error::HyperlinkOverlap { range: String::from("x"), existing: String::from("x") }, None),
+        (Error::InvalidUrl(String::from("x")), None),
+        (Error::PivotConditionalFormat(String::from("x")), None),
+        (Error::NoSuchRule { what: "x", sqref: String::from("x") }, None),
+        (Error::NothingToFreeze, None),
+        (Error::PageLayoutView, None),
+        (Error::AmbiguousColumns(String::from("x")), None),
+        (Error::InvalidOutlineLevel(0), None),
+        (Error::InvalidHeaderFooter(String::from("x")), None),
+        (Error::InvalidSetting { what: String::from("x"), reason: String::from("x") }, None),
+        (Error::Random(String::from("x")), None),
+    ]
+}
+
+/// Every error kind as it surfaces to callers (`Core` excluded: a wrapped
+/// core error surfaces as `("core", kind)`).
+#[doc(hidden)]
+pub fn __surface_kinds() -> Vec<&'static str> {
+    // Order-preserving dedupe: InvalidArgument is sampled twice (None/Some).
+    let mut seen = std::collections::HashSet::new();
+    __error_samples()
+        .into_iter()
+        .filter(|(e, _)| !matches!(e, Error::Core(_)))
+        .map(|(e, _)| e.kind())
+        .filter(|kind| seen.insert(*kind))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn samples() -> Vec<(Error, Option<&'static str>)> {
-        vec![
-            (Error::InvalidStructuralBand { at: 0, count: 0 }, None),
-            (Error::ShiftOffSheet { what: String::from("x") }, None),
-            (Error::StructureBlocked { part: String::from("x"), place: String::from("x") }, None),
-            (Error::ReferenceDeleted { part: String::from("x"), location: String::from("x") }, None),
-            (Error::ArrayFormulaSplit { cell: String::from("B2") }, Some("B2")),
-            (Error::InvalidSparklineGroup, None),
-            (Error::PartNotEditable { part: String::from("x"), reason: String::from("x") }, None),
-            (Error::Protected { scope: "x", operation: "x" }, None),
-            (Error::NoteExists, None),
-            (Error::ThreadedComment, None),
-            (Error::NoSuchNote, None),
-            (Error::ImageFormat, None),
-            (Error::ImageSize, None),
-            (Error::ImageAnchor, None),
-            (Error::NoSuchImage(0), None),
-            (Error::UnresolvedRichValue { step: "x" }, None),
-            (Error::Core(ooxml_core::Error::EncryptedPackage), None),
-            (Error::NoWorkbook, None),
-            (Error::NoVisibleWorksheet, None),
-            (Error::Malformed(String::from("x")), None),
-            (Error::FormulaScanFailed { part: String::from("x"), reason: String::from("x") }, None),
-            (Error::MergedCell { cell: String::from("B2"), range: String::from("x") }, Some("B2")),
-            (Error::RichValueCell { cell: String::from("B2") }, Some("B2")),
-            (Error::TableHeaderCell { cell: String::from("B2"), table: String::from("x") }, Some("B2")),
-            (Error::MissingReference { part: String::from("x"), what: String::from("x") }, None),
-            (Error::OutOfOrder(String::from("x")), None),
-            (Error::InvalidReference(String::from("x")), None),
-            (Error::OutOfRange { row: 0, col: 0 }, None),
-            (Error::InvalidNumber(0.0), None),
-            (Error::StringTooLong(0), None),
-            (Error::InvalidValue { cell: String::from("B2"), message: String::from("x") }, Some("B2")),
-            (Error::InvalidArgument { cell: None, message: String::from("x") }, None),
-            (Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") }, Some("B2")),
-            (Error::SheetAdditionUnsupported, None),
-            (Error::ArrayResultCell { cell: String::from("B2"), anchor: String::from("x") }, Some("B2")),
-            (Error::ArrayAnchor { cell: String::from("B2") }, Some("B2")),
-            (Error::UnknownCellMetadata { part: String::from("x"), cell: String::from("B2") }, Some("B2")),
-            (Error::MacroSheetDependent { sheet: String::from("x"), cell: String::from("B2") }, Some("B2")),
-            (Error::IterativeCalculation, None),
-            (Error::SharedFormulaMaster { cell: String::from("B2"), reason: String::from("x") }, Some("B2")),
-            (Error::InvalidFormula { text: String::from("x"), reason: String::from("x") }, None),
-            (Error::NoSuchSheet(String::from("x")), None),
-            (Error::NotAWorksheet(String::from("x")), None),
-            (Error::NoSuchName(String::from("x")), None),
-            (Error::AmbiguousName { name: String::from("x"), reason: "x" }, None),
-            (Error::NameNotARange { name: String::from("x"), reason: "x" }, None),
-            (Error::Poisoned(String::from("x")), None),
-            (Error::SheetNamingUnsupported, None),
-            (Error::DuplicateCellWrite { cell: String::from("B2") }, Some("B2")),
-            (Error::MissingFunctionPrefix { name: String::from("x"), prefix: "x" }, None),
-            (Error::DynamicArrayOperator { operator: 'x', file_form: "x" }, None),
-            (Error::InvalidSheetName { name: String::from("x"), reason: "x" }, None),
-            (Error::DuplicateSheetName(String::from("x")), None),
-            (Error::LastVisibleSheet, None),
-            (Error::SharedWorkbook, None),
-            (Error::SheetHasUnsupportedParts { rel_types: vec![String::from("x")] }, None),
-            (Error::SheetIsPivotSource(String::from("x")), None),
-            (Error::TableInUse(String::from("x")), None),
-            (Error::TableRange { reason: "x" }, None),
-            (Error::InvalidTableName { reason: "x" }, None),
-            (Error::DuplicateColumnName(String::from("x")), None),
-            (Error::HeaderNotText(String::from("x")), None),
-            (Error::ColumnInUse(String::from("x")), None),
-            (Error::NoSuchTable(String::from("x")), None),
-            (Error::CustomViewReferencesSheet, None),
-            (Error::UnrewritableReference { part: String::from("x"), location: String::from("x") }, None),
-            (Error::ReversesThreeDReference(String::from("x")), None),
-            (Error::BinaryReferencesPossible, None),
-            (Error::SheetInUse { sheet: String::from("x"), count: 0 }, None),
-            (Error::NoStylesPart, None),
-            (Error::UnsupportedStylesPart(String::from("x")), None),
-            (Error::StyleTableFull { table: String::from("x"), limit: 0 }, None),
-            (Error::NumFmtIdExhausted, None),
-            (Error::BuiltinNumFormatRedefined { id: 0 }, None),
-            (Error::InvalidFormat(String::from("x")), None),
-            (Error::InvalidNumFormat(String::from("x")), None),
-            (Error::StyleIndexOutOfRange { index: 0, count: 0 }, None),
-            (Error::NoSuchStyle(String::from("x")), None),
-            (Error::DanglingReference { table: String::from("x"), index: 0 }, None),
-            (Error::NonexistentDate, None),
-            (Error::AmbiguousStyleName(String::from("x")), None),
-            (Error::NotExpressible(String::from("x")), None),
-            (Error::DateOutOfRange, None),
-            (Error::MergeSingleCell(String::from("x")), None),
-            (Error::MergeOverlap { range: String::from("x"), existing: String::from("x") }, None),
-            (Error::MergeWouldHideValues { range: String::from("x"), cells: vec![String::from("x")] }, None),
-            (Error::NoSuchMerge(String::from("x")), None),
-            (Error::TableOverlap { range: String::from("x"), table: String::from("x") }, None),
-            (Error::PivotOverlap { range: String::from("x"), location: String::from("x") }, None),
-            (Error::QueryTableOverlap(String::from("x")), None),
-            (Error::AutoFilterExists, None),
-            (Error::FilterActive, None),
-            (Error::DuplicateBuiltInName { name: String::from("x") }, None),
-            (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, None),
-            (Error::InvalidSpinCount(0), None),
-            (Error::CrossSheetReference { text: String::from("x") }, None),
-            (Error::UnknownSheet(String::from("x")), None),
-            (Error::ValidationOverlap { sqref: String::from("x"), existing: String::from("x") }, None),
-            (Error::ListTooLong(0), None),
-            (Error::ListItemHasComma(String::from("x")), None),
-            (Error::HyperlinkOverlap { range: String::from("x"), existing: String::from("x") }, None),
-            (Error::InvalidUrl(String::from("x")), None),
-            (Error::PivotConditionalFormat(String::from("x")), None),
-            (Error::NoSuchRule { what: "x", sqref: String::from("x") }, None),
-            (Error::NothingToFreeze, None),
-            (Error::PageLayoutView, None),
-            (Error::AmbiguousColumns(String::from("x")), None),
-            (Error::InvalidOutlineLevel(0), None),
-            (Error::InvalidHeaderFooter(String::from("x")), None),
-            (Error::InvalidSetting { what: String::from("x"), reason: String::from("x") }, None),
-            (Error::Random(String::from("x")), None),
-        ]
-    }
-
     #[test]
     fn kind_matches_debug_name() {
-        for (error, _) in samples() {
+        for (error, _) in __error_samples() {
             if matches!(error, Error::Core(_)) {
                 continue;
             }
@@ -1097,8 +1113,28 @@ mod tests {
     }
 
     #[test]
+    fn samples_cover_every_variant() {
+        // A new variant without a sample would escape __surface_kinds and
+        // fall silently into the binding's base class (ADR-0023 m2): the
+        // deduped sample kinds (minus the Core sample, which surfaces as
+        // core) must equal the kind() arms minus the delegating Core arm.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples()
+            .into_iter()
+            .filter(|(e, _)| !matches!(e, Error::Core(_)))
+            .map(|(e, _)| e.kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms - 1, "a variant lacks a sample");
+    }
+
+    #[test]
     fn cell_reports_carrying_variants() {
-        for (error, expected) in samples() {
+        for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);
         }
     }

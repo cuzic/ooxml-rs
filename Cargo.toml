@@ -6,6 +6,9 @@ members = [
     "crates/*",
     "xtask",
 ]
+# The Python binding is a separate workspace (ADR-0023 section 10): it must
+# never be picked up by the glob above, now or in the future.
+exclude = ["bindings/python"]
 
 [workspace.package]
 version = "0.1.0"

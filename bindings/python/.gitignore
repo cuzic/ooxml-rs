@@ -1,0 +1,12 @@
+target/
+dist/
+build/
+*.egg-info/
+.venv/
+*.so
+*.pyd
+__pycache__/
+.pytest_cache/
+
+# The binding workspace commits its own lock (ADR-0023 section 10).
+!Cargo.lock

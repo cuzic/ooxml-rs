@@ -610,106 +610,115 @@ impl Error {
 }
 
 
+fn __refusal_sample() -> crate::replace::Refusal {
+    crate::replace::Refusal {
+        para: crate::story::ParaRef::new(crate::story::StoryIndex(0), 0),
+        range: 0..0,
+        reason: crate::replace::RefusalReason::InsideField,
+    }
+}
+
+/// One value of every variant (for the kind()/cell() tests and the binding table test).
+#[doc(hidden)]
+pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
+    vec![
+        (Error::SdtIdRandomness, None),
+        (Error::UnsupportedControl, None),
+        (Error::ControlLocked, None),
+        (Error::UnsupportedBinding, None),
+        (Error::BindingMismatch, None),
+        (Error::UnsupportedDateFormat { token: String::from("x") }, None),
+        (Error::NoFollowingParagraph, None),
+        (Error::TrackedParagraphFormatting, None),
+        (Error::BookmarkSpansContainers, None),
+        (Error::BookmarkReferenced { name: String::from("x") }, None),
+        (Error::DuplicateBookmarkName { name: String::from("x") }, None),
+        (Error::NameReferencedByField { name: String::from("x") }, None),
+        (Error::InvalidBookmark { name: String::from("x") }, None),
+        (Error::InvalidCommentPart, None),
+        (Error::InvalidTextRange, None),
+        (Error::NoSuchComment(0), None),
+        (Error::LegacyCommentsExtended, None),
+        (Error::NestedReply, None),
+        (Error::ParentNotAddressable, None),
+        (Error::NotIgnorable("x"), None),
+        (Error::CommentIdRandomness, None),
+        (Error::AnnotationIdsExhausted, None),
+        (Error::StyleCycle, None),
+        (Error::InvalidNotePart, None),
+        (Error::NoteIdsExhausted, None),
+        (Error::InvalidNumbering, None),
+        (Error::UnknownNumId { id: 0 }, None),
+        (Error::NumberingIdsExhausted, None),
+        (Error::NoStylesPart, None),
+        (Error::BuiltInStyleName { name: String::from("x") }, None),
+        (Error::DuplicateStyleName { name: String::from("x") }, None),
+        (Error::StyleIdInUse { id: String::from("x") }, None),
+        (Error::Core(ooxml_core::Error::EncryptedPackage), None),
+        (Error::MainPartMissing, None),
+        (Error::NoBody, None),
+        (Error::SectionBreakAtEnd, None),
+        (Error::TrackedSectionBreakDeletion, None),
+        (Error::TrackRevisionsOn, None),
+        (Error::DocumentProtected { edit: String::from("x") }, None),
+        (Error::StaleFieldRisk { codes: vec![String::from("x")] }, None),
+        (Error::InsideField, None),
+        (Error::InsideRevision { context: RunContext::Direct }, None),
+        (Error::UnsupportedContext { ancestor: "x" }, None),
+        (Error::RunNotTextOnly { child: String::from("x") }, None),
+        (Error::InvalidXmlChar { ch: 'x' }, None),
+        (Error::EmptyNeedle, None),
+        (Error::ReplaceRefused { refused: vec![__refusal_sample()] }, None),
+        (Error::StaleMatch, None),
+        (Error::OverlappingMatches, None),
+        (Error::NoSuchStory, None),
+        (Error::DuplicateProperty { name: String::from("x") }, None),
+        (Error::InvalidValue { what: "x", value: String::from("x") }, None),
+        (Error::TrackedPropertyChange { element: "x" }, None),
+        (Error::StyleChainTooDeep, None),
+        (Error::UnknownStyle { id: String::from("x"), latent_only: false }, None),
+        (Error::StyleTypeMismatch { id: String::from("x"), expected: "x", found: String::from("x"), linked: None }, None),
+        (Error::AmbiguousStyle { id: String::from("x") }, None),
+        (Error::AmbiguousStylesPart, None),
+        (Error::NoSettingsPart, None),
+        (Error::AmbiguousSettings, None),
+        (Error::DuplicateSetting { name: "x" }, None),
+        (Error::AlreadySectionEnd, None),
+        (Error::NoSectionProperties, None),
+        (Error::RelIdReferenced { id: String::from("x") }, None),
+        (Error::UnknownBookmark { name: String::from("x") }, None),
+        (Error::NestedHyperlink, None),
+        (Error::InconsistentGrid, None),
+        (Error::NoSuchTable(0), None),
+        (Error::WouldRemoveNote, None),
+        (Error::RevisionInRange { element: String::from("x") }, None),
+        (Error::AnchorWouldBreak { marker: String::from("x") }, None),
+        (Error::TableWouldBeEmpty, None),
+        (Error::RowWouldBeEmpty, None),
+        (Error::CellNotEmpty, None),
+        (Error::MergeOverlaps, None),
+        (Error::MergeNonEmpty, None),
+        (Error::UnsupportedImage, None),
+        (Error::DrawingIdsExhausted, None),
+        (Error::NoSuchParagraph(0), None),
+        (Error::NoSuchRun { paragraph: 0, run: 0 }, None),
+    ]
+}
+
+/// Every error kind as it surfaces to callers (`Core` excluded: a wrapped
+/// core error surfaces as `("core", kind)`).
+#[doc(hidden)]
+pub fn __surface_kinds() -> Vec<&'static str> {
+    __error_samples().into_iter().filter(|(e, _)| !matches!(e, Error::Core(_))).map(|(e, _)| e.kind()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn refusal_sample() -> crate::replace::Refusal {
-        crate::replace::Refusal {
-            para: crate::story::ParaRef::new(crate::story::StoryIndex(0), 0),
-            range: 0..0,
-            reason: crate::replace::RefusalReason::InsideField,
-        }
-    }
-
-    fn samples() -> Vec<(Error, Option<&'static str>)> {
-        vec![
-            (Error::SdtIdRandomness, None),
-            (Error::UnsupportedControl, None),
-            (Error::ControlLocked, None),
-            (Error::UnsupportedBinding, None),
-            (Error::BindingMismatch, None),
-            (Error::UnsupportedDateFormat { token: String::from("x") }, None),
-            (Error::NoFollowingParagraph, None),
-            (Error::TrackedParagraphFormatting, None),
-            (Error::BookmarkSpansContainers, None),
-            (Error::BookmarkReferenced { name: String::from("x") }, None),
-            (Error::DuplicateBookmarkName { name: String::from("x") }, None),
-            (Error::NameReferencedByField { name: String::from("x") }, None),
-            (Error::InvalidBookmark { name: String::from("x") }, None),
-            (Error::InvalidCommentPart, None),
-            (Error::InvalidTextRange, None),
-            (Error::NoSuchComment(0), None),
-            (Error::LegacyCommentsExtended, None),
-            (Error::NestedReply, None),
-            (Error::ParentNotAddressable, None),
-            (Error::NotIgnorable("x"), None),
-            (Error::CommentIdRandomness, None),
-            (Error::AnnotationIdsExhausted, None),
-            (Error::StyleCycle, None),
-            (Error::InvalidNotePart, None),
-            (Error::NoteIdsExhausted, None),
-            (Error::InvalidNumbering, None),
-            (Error::UnknownNumId { id: 0 }, None),
-            (Error::NumberingIdsExhausted, None),
-            (Error::NoStylesPart, None),
-            (Error::BuiltInStyleName { name: String::from("x") }, None),
-            (Error::DuplicateStyleName { name: String::from("x") }, None),
-            (Error::StyleIdInUse { id: String::from("x") }, None),
-            (Error::Core(ooxml_core::Error::EncryptedPackage), None),
-            (Error::MainPartMissing, None),
-            (Error::NoBody, None),
-            (Error::SectionBreakAtEnd, None),
-            (Error::TrackedSectionBreakDeletion, None),
-            (Error::TrackRevisionsOn, None),
-            (Error::DocumentProtected { edit: String::from("x") }, None),
-            (Error::StaleFieldRisk { codes: vec![String::from("x")] }, None),
-            (Error::InsideField, None),
-            (Error::InsideRevision { context: RunContext::Direct }, None),
-            (Error::UnsupportedContext { ancestor: "x" }, None),
-            (Error::RunNotTextOnly { child: String::from("x") }, None),
-            (Error::InvalidXmlChar { ch: 'x' }, None),
-            (Error::EmptyNeedle, None),
-            (Error::ReplaceRefused { refused: vec![refusal_sample()] }, None),
-            (Error::StaleMatch, None),
-            (Error::OverlappingMatches, None),
-            (Error::NoSuchStory, None),
-            (Error::DuplicateProperty { name: String::from("x") }, None),
-            (Error::InvalidValue { what: "x", value: String::from("x") }, None),
-            (Error::TrackedPropertyChange { element: "x" }, None),
-            (Error::StyleChainTooDeep, None),
-            (Error::UnknownStyle { id: String::from("x"), latent_only: false }, None),
-            (Error::StyleTypeMismatch { id: String::from("x"), expected: "x", found: String::from("x"), linked: None }, None),
-            (Error::AmbiguousStyle { id: String::from("x") }, None),
-            (Error::AmbiguousStylesPart, None),
-            (Error::NoSettingsPart, None),
-            (Error::AmbiguousSettings, None),
-            (Error::DuplicateSetting { name: "x" }, None),
-            (Error::AlreadySectionEnd, None),
-            (Error::NoSectionProperties, None),
-            (Error::RelIdReferenced { id: String::from("x") }, None),
-            (Error::UnknownBookmark { name: String::from("x") }, None),
-            (Error::NestedHyperlink, None),
-            (Error::InconsistentGrid, None),
-            (Error::NoSuchTable(0), None),
-            (Error::WouldRemoveNote, None),
-            (Error::RevisionInRange { element: String::from("x") }, None),
-            (Error::AnchorWouldBreak { marker: String::from("x") }, None),
-            (Error::TableWouldBeEmpty, None),
-            (Error::RowWouldBeEmpty, None),
-            (Error::CellNotEmpty, None),
-            (Error::MergeOverlaps, None),
-            (Error::MergeNonEmpty, None),
-            (Error::UnsupportedImage, None),
-            (Error::DrawingIdsExhausted, None),
-            (Error::NoSuchParagraph(0), None),
-            (Error::NoSuchRun { paragraph: 0, run: 0 }, None),
-        ]
-    }
-
     #[test]
     fn kind_matches_debug_name() {
-        for (error, _) in samples() {
+        for (error, _) in __error_samples() {
             if matches!(error, Error::Core(_)) {
                 continue;
             }
@@ -727,8 +736,28 @@ mod tests {
     }
 
     #[test]
+    fn samples_cover_every_variant() {
+        // A new variant without a sample would escape __surface_kinds and
+        // fall silently into the binding's base class (ADR-0023 m2): the
+        // deduped sample kinds (minus the Core sample, which surfaces as
+        // core) must equal the kind() arms minus the delegating Core arm.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples()
+            .into_iter()
+            .filter(|(e, _)| !matches!(e, Error::Core(_)))
+            .map(|(e, _)| e.kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms - 1, "a variant lacks a sample");
+    }
+
+    #[test]
     fn cell_reports_carrying_variants() {
-        for (error, expected) in samples() {
+        for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);
         }
     }

@@ -753,6 +753,18 @@ impl Workbook {
         }
     }
 
+    /// Test hook (not API): arms a fault before an apply `step` (`panic`
+    /// panics instead of failing). Only with the `fault-injection` feature;
+    /// the binding's fault-injection test build drives it. Returns whether a
+    /// fault was already armed.
+    #[doc(hidden)]
+    #[cfg(feature = "fault-injection")]
+    pub fn __inject_fault(&mut self, step: ApplyStep, panic: bool) -> bool {
+        let was = self.fault.is_some();
+        self.fault = Some((step, panic));
+        was
+    }
+
     /// Test hook (not API): a fingerprint of every index the workbook keeps
     /// (sheet list, formula census, defined names, calculation state), for
     /// the ADR-0009 oracle "rebuilt state == state of the reopened output".

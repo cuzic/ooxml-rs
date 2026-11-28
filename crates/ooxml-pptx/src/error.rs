@@ -589,98 +589,107 @@ impl Error {
 }
 
 
+/// One value of every variant (for the kind()/cell() tests and the binding table test).
+#[doc(hidden)]
+pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
+    vec![
+        (Error::UnsafeLinkScheme, None),
+        (Error::InvalidLinkUrl, None),
+        (Error::UnsupportedAction, None),
+        (Error::ReadOnlyLinkTarget, None),
+        (Error::SmartArtLinkUnsupported, None),
+        (Error::LinkHasSound, None),
+        (Error::ForeignLinkSlide, None),
+        (Error::LinkSlideNotFound { slide_id: 0 }, None),
+        (Error::UnsupportedBullet, None),
+        (Error::InvalidSchemeColor, None),
+        (Error::RangeOutOfBounds, None),
+        (Error::RangeSplitsField, None),
+        (Error::Core(ooxml_core::Error::EncryptedPackage), None),
+        (Error::NotAPresentation(String::from("x")), None),
+        (Error::StrictConformance, None),
+        (Error::SlideIndexOutOfRange { index: 0, count: 0 }, None),
+        (Error::DanglingSlide { slide_id: 0 }, None),
+        (Error::ShapeNotFound, None),
+        (Error::AmbiguousShapeId { id: 0 }, None),
+        (Error::InvalidShapeId, None),
+        (Error::InsideAlternateContent, None),
+        (Error::NoTextBody, None),
+        (Error::NotATable, None),
+        (Error::CellNotFound { row: 0, col: 0 }, None),
+        (Error::MergedCell { row: 0, col: 0 }, None),
+        (Error::ParagraphNotFound(0), None),
+        (Error::RunNotFound(0), None),
+        (Error::FieldNotFound(0), None),
+        (Error::FieldInParagraph { paragraph: 0 }, None),
+        (Error::UnsupportedContent(String::from("x")), None),
+        (Error::LastParagraph, None),
+        (Error::AnimatedParagraphs { shape_id: 0 }, None),
+        (Error::AnimatedCharacters { shape_id: 0 }, None),
+        (Error::CommentAnchoredText { shape_id: 0 }, None),
+        (Error::InvalidXmlChar { ch: 'x', offset: 0 }, None),
+        (Error::LineBreakInRun, None),
+        (Error::LineBreakInParagraph, None),
+        (Error::FormatNotCopyable("x"), None),
+        (Error::LayoutNotFound(String::from("x")), None),
+        (Error::SlideIdsExhausted, None),
+        (Error::ShapeIdsExhausted, None),
+        (Error::CreationIdsExhausted, None),
+        (Error::SlideIsReferenced { from_part: String::from("x"), rel_type: String::from("x") }, None),
+        (Error::SlideInCustomShow, None),
+        (Error::ShowRangeByPosition, None),
+        (Error::UnsupportedSlidePart(String::from("x")), None),
+        (Error::UnsupportedSections, None),
+        (Error::SectionsInconsistent, None),
+        (Error::TableNotWellFormed(String::from("x")), None),
+        (Error::CommentAnchoredTable { shape_id: 0 }, None),
+        (Error::MergeOriginInRow { row: 0 }, None),
+        (Error::MergeOriginInColumn { col: 0 }, None),
+        (Error::RangeContainsMerge, None),
+        (Error::RangeOutsideGrid, None),
+        (Error::NotAMergeOrigin { row: 0, col: 0 }, None),
+        (Error::LastRow, None),
+        (Error::LastColumn, None),
+        (Error::MasterIndexOutOfRange { index: 0 }, None),
+        (Error::SharedTheme, None),
+        (Error::TableStyleNotDefined(String::from("x")), None),
+        (Error::TableStyleInline, None),
+        (Error::ValueOutOfRange { what: "x" }, None),
+        (Error::UnsupportedFill, None),
+        (Error::UnsupportedGeometry, None),
+        (Error::UnknownAdjustment { name: String::from("x") }, None),
+        (Error::InvalidPattern, None),
+        (Error::FieldInMatch, None),
+        (Error::BreakInMatch, None),
+        (Error::MixedFormatInMatch, None),
+        (Error::LinkSplitByBreak, None),
+        (Error::NoNotesSlide { slide_id: 0 }, None),
+        (Error::NotesWithoutMaster, None),
+        (Error::NoNotesBody, None),
+        (Error::TransformedGroup { group_id: None }, None),
+        (Error::BrokenChain { from: String::from("x"), missing: crate::ChainLink::Master }, None),
+        (Error::NotSmartArt, None),
+        (Error::SmartArtNodeNotFound(String::from("x")), None),
+        (Error::SmartArtCacheInconsistent(String::from("x")), None),
+        (Error::SmartArtCacheUnresolved, None),
+        (Error::SmartArtCacheShared, None),
+    ]
+}
+
+/// Every error kind as it surfaces to callers (`Core` excluded: a wrapped
+/// core error surfaces as `("core", kind)`).
+#[doc(hidden)]
+pub fn __surface_kinds() -> Vec<&'static str> {
+    __error_samples().into_iter().filter(|(e, _)| !matches!(e, Error::Core(_))).map(|(e, _)| e.kind()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn samples() -> Vec<(Error, Option<&'static str>)> {
-        vec![
-            (Error::UnsafeLinkScheme, None),
-            (Error::InvalidLinkUrl, None),
-            (Error::UnsupportedAction, None),
-            (Error::ReadOnlyLinkTarget, None),
-            (Error::SmartArtLinkUnsupported, None),
-            (Error::LinkHasSound, None),
-            (Error::ForeignLinkSlide, None),
-            (Error::LinkSlideNotFound { slide_id: 0 }, None),
-            (Error::UnsupportedBullet, None),
-            (Error::InvalidSchemeColor, None),
-            (Error::RangeOutOfBounds, None),
-            (Error::RangeSplitsField, None),
-            (Error::Core(ooxml_core::Error::EncryptedPackage), None),
-            (Error::NotAPresentation(String::from("x")), None),
-            (Error::StrictConformance, None),
-            (Error::SlideIndexOutOfRange { index: 0, count: 0 }, None),
-            (Error::DanglingSlide { slide_id: 0 }, None),
-            (Error::ShapeNotFound, None),
-            (Error::AmbiguousShapeId { id: 0 }, None),
-            (Error::InvalidShapeId, None),
-            (Error::InsideAlternateContent, None),
-            (Error::NoTextBody, None),
-            (Error::NotATable, None),
-            (Error::CellNotFound { row: 0, col: 0 }, None),
-            (Error::MergedCell { row: 0, col: 0 }, None),
-            (Error::ParagraphNotFound(0), None),
-            (Error::RunNotFound(0), None),
-            (Error::FieldNotFound(0), None),
-            (Error::FieldInParagraph { paragraph: 0 }, None),
-            (Error::UnsupportedContent(String::from("x")), None),
-            (Error::LastParagraph, None),
-            (Error::AnimatedParagraphs { shape_id: 0 }, None),
-            (Error::AnimatedCharacters { shape_id: 0 }, None),
-            (Error::CommentAnchoredText { shape_id: 0 }, None),
-            (Error::InvalidXmlChar { ch: 'x', offset: 0 }, None),
-            (Error::LineBreakInRun, None),
-            (Error::LineBreakInParagraph, None),
-            (Error::FormatNotCopyable("x"), None),
-            (Error::LayoutNotFound(String::from("x")), None),
-            (Error::SlideIdsExhausted, None),
-            (Error::ShapeIdsExhausted, None),
-            (Error::CreationIdsExhausted, None),
-            (Error::SlideIsReferenced { from_part: String::from("x"), rel_type: String::from("x") }, None),
-            (Error::SlideInCustomShow, None),
-            (Error::ShowRangeByPosition, None),
-            (Error::UnsupportedSlidePart(String::from("x")), None),
-            (Error::UnsupportedSections, None),
-            (Error::SectionsInconsistent, None),
-            (Error::TableNotWellFormed(String::from("x")), None),
-            (Error::CommentAnchoredTable { shape_id: 0 }, None),
-            (Error::MergeOriginInRow { row: 0 }, None),
-            (Error::MergeOriginInColumn { col: 0 }, None),
-            (Error::RangeContainsMerge, None),
-            (Error::RangeOutsideGrid, None),
-            (Error::NotAMergeOrigin { row: 0, col: 0 }, None),
-            (Error::LastRow, None),
-            (Error::LastColumn, None),
-            (Error::MasterIndexOutOfRange { index: 0 }, None),
-            (Error::SharedTheme, None),
-            (Error::TableStyleNotDefined(String::from("x")), None),
-            (Error::TableStyleInline, None),
-            (Error::ValueOutOfRange { what: "x" }, None),
-            (Error::UnsupportedFill, None),
-            (Error::UnsupportedGeometry, None),
-            (Error::UnknownAdjustment { name: String::from("x") }, None),
-            (Error::InvalidPattern, None),
-            (Error::FieldInMatch, None),
-            (Error::BreakInMatch, None),
-            (Error::MixedFormatInMatch, None),
-            (Error::LinkSplitByBreak, None),
-            (Error::NoNotesSlide { slide_id: 0 }, None),
-            (Error::NotesWithoutMaster, None),
-            (Error::NoNotesBody, None),
-            (Error::TransformedGroup { group_id: None }, None),
-            (Error::BrokenChain { from: String::from("x"), missing: crate::ChainLink::Master }, None),
-            (Error::NotSmartArt, None),
-            (Error::SmartArtNodeNotFound(String::from("x")), None),
-            (Error::SmartArtCacheInconsistent(String::from("x")), None),
-            (Error::SmartArtCacheUnresolved, None),
-            (Error::SmartArtCacheShared, None),
-        ]
-    }
-
     #[test]
     fn kind_matches_debug_name() {
-        for (error, _) in samples() {
+        for (error, _) in __error_samples() {
             if matches!(error, Error::Core(_)) {
                 continue;
             }
@@ -698,8 +707,28 @@ mod tests {
     }
 
     #[test]
+    fn samples_cover_every_variant() {
+        // A new variant without a sample would escape __surface_kinds and
+        // fall silently into the binding's base class (ADR-0023 m2): the
+        // deduped sample kinds (minus the Core sample, which surfaces as
+        // core) must equal the kind() arms minus the delegating Core arm.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples()
+            .into_iter()
+            .filter(|(e, _)| !matches!(e, Error::Core(_)))
+            .map(|(e, _)| e.kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms - 1, "a variant lacks a sample");
+    }
+
+    #[test]
     fn cell_reports_carrying_variants() {
-        for (error, expected) in samples() {
+        for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);
         }
     }
