@@ -102,6 +102,22 @@ def test_skip_mode_returns_dicts_and_writes_the_rest():
     assert doc.paragraph_texts()[1] == "plain X"
 
 
+def test_many_is_atomic_when_a_later_pair_is_refused():
+    before = package(para("a {{x}}") + f"<w:p>{FIELD}</w:p>")
+    doc = R.Document.from_bytes(before)
+    with pytest.raises(R.RefusedError):
+        doc.replace_many([("{{x}}", "X"), ("{{d}}", "Y")])
+    assert doc.to_bytes() == before
+
+
+def test_many_is_atomic_when_a_later_pair_is_empty_in_skip_mode():
+    before = package(para("a {{x}}"))
+    doc = R.Document.from_bytes(before)
+    with pytest.raises(R.InvalidInputError):
+        doc.replace_many([("{{x}}", "X"), ("", "Y")], on_refused="skip")
+    assert doc.to_bytes() == before
+
+
 def test_skip_mode_many_concatenates():
     doc = R.Document.from_bytes(package(f"<w:p>{FIELD}</w:p>"))
     count, skipped = doc.replace_many([("{{d}}", "X"), ("{{d}}", "Y")], on_refused="skip")

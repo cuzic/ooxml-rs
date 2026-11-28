@@ -98,12 +98,29 @@ impl Document {
         };
         let opts = ReplaceOptions::default().on_refused(mode);
         let (replaced, skipped): (usize, Vec<Skipped>) = run(py, &self.handle, None, None, |doc| {
+            // Multi-pair calls snapshot first: a later pair's refusal (or a
+            // later EmptyNeedle in skip mode) must not leave earlier pairs
+            // applied (Err ⇒ byte-identical). Single pairs are atomic in Rust.
+            let snapshot = if pairs.len() > 1 { Some(doc.to_bytes()?) } else { None };
             let mut replaced = 0;
             let mut skipped = Vec::new();
             for (needle, replacement) in &pairs {
-                let report = doc.replace(needle, replacement, &opts)?;
-                replaced += report.replaced;
-                skipped.extend(report.skipped.into_iter().map(Skipped::from));
+                match doc.replace(needle, replacement, &opts) {
+                    Ok(report) => {
+                        replaced += report.replaced;
+                        skipped.extend(report.skipped.into_iter().map(Skipped::from));
+                    }
+                    Err(error) => {
+                        if let Some(bytes) = snapshot {
+                            // Round-tripping our own bytes cannot fail; a
+                            // failure here is a bug and must be loud (the
+                            // handle then dead-ends as HandlePoisoned).
+                            *doc = ooxml_docx::Document::from_bytes(bytes)
+                                .expect("snapshot reopens");
+                        }
+                        return Err(error);
+                    }
+                }
             }
             Ok::<_, ooxml_docx::Error>((replaced, skipped))
         })?;
@@ -143,7 +160,7 @@ impl From<ooxml_docx::Refusal> for Skipped {
             paragraph: refusal.para.index(),
             start: refusal.range.start,
             end: refusal.range.end,
-            reason: format!("{:?}", refusal.reason),
+            reason: refusal.reason.kind().to_owned(),
         }
     }
 }
