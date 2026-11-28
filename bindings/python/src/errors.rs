@@ -36,11 +36,14 @@ enum Category {
 
 /// `(crate, kind)` → category. One entry per surfacing kind; `__table_keys`
 /// plus the coverage test keep it complete. Judgement calls (see the U7 PR):
-/// `Unsupported*` and exhaustion are refusals (the operation cannot proceed,
-/// the file is not broken); `Random`/`*Randomness` (OS randomness failed) are
-/// refusals (retryable, handle usable); `ImageSize` follows its caller-driven
-/// siblings; `NoTextBody`/`NoNotes*`/caches are file structure (malformed);
-/// `NotA*` (caller picked the wrong kind) is caller input.
+/// Rule: the operation cannot proceed on a valid file -> Refused
+/// (`Unsupported*`, exhaustion, `Random`/`*Randomness`, missing optional
+/// parts the library does not create: `NoStylesPart`, `NoSettingsPart`,
+/// `NoTextBody`, `NoNotesSlide`, `NoNotesBody`, `NoSectionProperties`);
+/// the file breaks a format invariant -> MalformedFile; the caller's pick
+/// is wrong (`NotA*`, `MasterIndexOutOfRange`) or mixed caller/file image
+/// and name families (`ImageSize`, `NameInUse`, `Ambiguous*`) ->
+/// InvalidInput.
 static TABLE: &[((&str, &str), Category)] = &[
     // --- core ---
     (("core", "Io"), Category::Io),
@@ -86,7 +89,7 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("xlsx", "InvalidStructuralBand"), Category::InvalidInput),
     (("xlsx", "ShiftOffSheet"), Category::Refused),
     (("xlsx", "StructureBlocked"), Category::Refused),
-    (("xlsx", "ReferenceDeleted"), Category::MalformedFile),
+    (("xlsx", "ReferenceDeleted"), Category::Refused),
     (("xlsx", "ArrayFormulaSplit"), Category::Refused),
     (("xlsx", "InvalidSparklineGroup"), Category::InvalidInput),
     (("xlsx", "PartNotEditable"), Category::Refused),
@@ -107,7 +110,7 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("xlsx", "RichValueCell"), Category::Refused),
     (("xlsx", "TableHeaderCell"), Category::Refused),
     (("xlsx", "MissingReference"), Category::MalformedFile),
-    (("xlsx", "OutOfOrder"), Category::InvalidInput),
+    (("xlsx", "OutOfOrder"), Category::MalformedFile),
     (("xlsx", "InvalidReference"), Category::InvalidInput),
     (("xlsx", "OutOfRange"), Category::InvalidInput),
     (("xlsx", "InvalidNumber"), Category::InvalidInput),
@@ -147,11 +150,11 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("xlsx", "ReversesThreeDReference"), Category::Refused),
     (("xlsx", "BinaryReferencesPossible"), Category::Refused),
     (("xlsx", "SheetInUse"), Category::Refused),
-    (("xlsx", "NoStylesPart"), Category::MalformedFile),
+    (("xlsx", "NoStylesPart"), Category::Refused),
     (("xlsx", "UnsupportedStylesPart"), Category::Refused),
     (("xlsx", "StyleTableFull"), Category::Refused),
     (("xlsx", "NumFmtIdExhausted"), Category::Refused),
-    (("xlsx", "BuiltinNumFormatRedefined"), Category::InvalidInput),
+    (("xlsx", "BuiltinNumFormatRedefined"), Category::Refused),
     (("xlsx", "InvalidFormat"), Category::InvalidInput),
     (("xlsx", "InvalidNumFormat"), Category::InvalidInput),
     (("xlsx", "StyleIndexOutOfRange"), Category::InvalidInput),
@@ -159,7 +162,7 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("xlsx", "DanglingReference"), Category::MalformedFile),
     (("xlsx", "NonexistentDate"), Category::InvalidInput),
     (("xlsx", "AmbiguousStyleName"), Category::InvalidInput),
-    (("xlsx", "NotExpressible"), Category::MalformedFile),
+    (("xlsx", "NotExpressible"), Category::Refused),
     (("xlsx", "DateOutOfRange"), Category::InvalidInput),
     (("xlsx", "MergeSingleCell"), Category::InvalidInput),
     (("xlsx", "MergeOverlap"), Category::Refused),
@@ -247,11 +250,11 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("docx", "StyleTypeMismatch"), Category::InvalidInput),
     (("docx", "AmbiguousStyle"), Category::InvalidInput),
     (("docx", "AmbiguousStylesPart"), Category::InvalidInput),
-    (("docx", "NoSettingsPart"), Category::MalformedFile),
+    (("docx", "NoSettingsPart"), Category::Refused),
     (("docx", "AmbiguousSettings"), Category::InvalidInput),
     (("docx", "DuplicateSetting"), Category::InvalidInput),
     (("docx", "AlreadySectionEnd"), Category::Refused),
-    (("docx", "NoSectionProperties"), Category::MalformedFile),
+    (("docx", "NoSectionProperties"), Category::Refused),
     (("docx", "RelIdReferenced"), Category::Refused),
     (("docx", "UnknownBookmark"), Category::NotFound),
     (("docx", "NestedHyperlink"), Category::InvalidInput),
@@ -288,9 +291,9 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("pptx", "DanglingSlide"), Category::MalformedFile),
     (("pptx", "ShapeNotFound"), Category::NotFound),
     (("pptx", "AmbiguousShapeId"), Category::InvalidInput),
-    (("pptx", "InvalidShapeId"), Category::InvalidInput),
+    (("pptx", "InvalidShapeId"), Category::MalformedFile),
     (("pptx", "InsideAlternateContent"), Category::Refused),
-    (("pptx", "NoTextBody"), Category::MalformedFile),
+    (("pptx", "NoTextBody"), Category::Refused),
     (("pptx", "NotATable"), Category::InvalidInput),
     (("pptx", "CellNotFound"), Category::NotFound),
     (("pptx", "MergedCell"), Category::Refused),
@@ -313,7 +316,7 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("pptx", "CreationIdsExhausted"), Category::Refused),
     (("pptx", "SlideIsReferenced"), Category::Refused),
     (("pptx", "SlideInCustomShow"), Category::Refused),
-    (("pptx", "ShowRangeByPosition"), Category::MalformedFile),
+    (("pptx", "ShowRangeByPosition"), Category::Refused),
     (("pptx", "UnsupportedSlidePart"), Category::Refused),
     (("pptx", "UnsupportedSections"), Category::Refused),
     (("pptx", "SectionsInconsistent"), Category::MalformedFile),
@@ -326,10 +329,10 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("pptx", "NotAMergeOrigin"), Category::InvalidInput),
     (("pptx", "LastRow"), Category::Refused),
     (("pptx", "LastColumn"), Category::Refused),
-    (("pptx", "MasterIndexOutOfRange"), Category::MalformedFile),
+    (("pptx", "MasterIndexOutOfRange"), Category::InvalidInput),
     (("pptx", "SharedTheme"), Category::Refused),
     (("pptx", "TableStyleNotDefined"), Category::NotFound),
-    (("pptx", "TableStyleInline"), Category::InvalidInput),
+    (("pptx", "TableStyleInline"), Category::Refused),
     (("pptx", "ValueOutOfRange"), Category::InvalidInput),
     (("pptx", "UnsupportedFill"), Category::Refused),
     (("pptx", "UnsupportedGeometry"), Category::Refused),
@@ -339,9 +342,9 @@ static TABLE: &[((&str, &str), Category)] = &[
     (("pptx", "BreakInMatch"), Category::Refused),
     (("pptx", "MixedFormatInMatch"), Category::Refused),
     (("pptx", "LinkSplitByBreak"), Category::Refused),
-    (("pptx", "NoNotesSlide"), Category::MalformedFile),
+    (("pptx", "NoNotesSlide"), Category::Refused),
     (("pptx", "NotesWithoutMaster"), Category::MalformedFile),
-    (("pptx", "NoNotesBody"), Category::MalformedFile),
+    (("pptx", "NoNotesBody"), Category::Refused),
     (("pptx", "TransformedGroup"), Category::Refused),
     (("pptx", "BrokenChain"), Category::Refused),
     (("pptx", "NotSmartArt"), Category::InvalidInput),
@@ -438,32 +441,68 @@ pub fn convert<E: CrateError>(
         && let Some(io) = error.io_error()
     {
         io_kind = Some(io.kind());
-        kwargs.set_item("errno", io.raw_os_error()).expect("errno");
+        // On Windows raw_os_error() is a Win32 code, not an errno: derive
+        // errno from the kind (POSIX values, as CPython reports them) and
+        // pass the raw code as winerror.
+        #[cfg(windows)]
+        let errno = errno_from_kind(io.kind());
+        #[cfg(not(windows))]
+        let errno = io.raw_os_error();
+        kwargs.set_item("errno", errno).expect("errno");
         let strerror = io
             .raw_os_error()
             .map(|code| std::io::Error::from_raw_os_error(code).to_string())
             .unwrap_or_else(|| message.clone());
         kwargs.set_item("strerror", strerror).expect("strerror");
         kwargs.set_item("filename", filename).expect("filename");
+        #[cfg(windows)]
+        kwargs.set_item("winerror", io.raw_os_error()).expect("winerror");
     }
-    let class: &Bound<'_, PyType> = match categorize(crate_name, &kind) {
-        Some(Category::Refused) => &RefusedError::type_object(py),
-        Some(Category::Poisoned) => &PoisonedError::type_object(py),
-        Some(Category::NotFound) => &NotFoundError::type_object(py),
-        Some(Category::InvalidInput) => &InvalidInputError::type_object(py),
-        Some(Category::UnsupportedFile) => &UnsupportedFileError::type_object(py),
-        Some(Category::MalformedFile) => &MalformedFileError::type_object(py),
+    let class = category_class(py, categorize(crate_name, &kind), io_kind);
+    PyErr::from_value(class.call((message,), Some(&kwargs)).expect("exception __init__"))
+}
+
+/// POSIX errno for an I/O kind (Windows: CPython reports these values).
+#[cfg(windows)]
+fn errno_from_kind(kind: std::io::ErrorKind) -> Option<i32> {
+    use std::io::ErrorKind::*;
+    match kind {
+        NotFound => Some(2),
+        PermissionDenied => Some(13),
+        AlreadyExists => Some(17),
+        InvalidInput | InvalidData => Some(22),
+        TimedOut => Some(110),
+        Interrupted => Some(4),
+        BrokenPipe => Some(32),
+        ConnectionRefused => Some(111),
+        _ => None,
+    }
+}
+
+/// The Python class for a category (shared by `convert` and `__raise` so
+/// the mapping pins verify the real selection).
+fn category_class(
+    py: Python<'_>,
+    category: Option<Category>,
+    io_kind: Option<std::io::ErrorKind>,
+) -> Bound<'_, PyType> {
+    match category {
+        Some(Category::Refused) => RefusedError::type_object(py),
+        Some(Category::Poisoned) => PoisonedError::type_object(py),
+        Some(Category::NotFound) => NotFoundError::type_object(py),
+        Some(Category::InvalidInput) => InvalidInputError::type_object(py),
+        Some(Category::UnsupportedFile) => UnsupportedFileError::type_object(py),
+        Some(Category::MalformedFile) => MalformedFileError::type_object(py),
         Some(Category::Io) if io_kind == Some(std::io::ErrorKind::NotFound) => {
-            &OoxmlFileNotFoundError::type_object(py)
+            OoxmlFileNotFoundError::type_object(py)
         }
         Some(Category::Io) if io_kind == Some(std::io::ErrorKind::PermissionDenied) => {
-            &OoxmlPermissionError::type_object(py)
+            OoxmlPermissionError::type_object(py)
         }
-        Some(Category::Io) => &OoxmlIOError::type_object(py),
+        Some(Category::Io) => OoxmlIOError::type_object(py),
         // Unreachable (coverage test); fail closed on the base class.
-        None => &OoxmlError::type_object(py),
-    };
-    PyErr::from_value(class.call((message,), Some(&kwargs)).expect("exception __init__"))
+        None => OoxmlError::type_object(py),
+    }
 }
 
 /// Raises a binding-level error (`crate="binding"`).
@@ -512,16 +551,7 @@ pub fn __raise(py: Python<'_>, crate_name: &str, kind: &str) -> PyResult<()> {
     kwargs.set_item("kind", kind).expect("str");
     kwargs.set_item("cell", py.None()).expect("cell");
     kwargs.set_item("sheet", py.None()).expect("sheet");
-    let class: &Bound<'_, PyType> = match categorize(crate_name, kind) {
-        Some(Category::Refused) => &RefusedError::type_object(py),
-        Some(Category::Poisoned) => &PoisonedError::type_object(py),
-        Some(Category::NotFound) => &NotFoundError::type_object(py),
-        Some(Category::InvalidInput) => &InvalidInputError::type_object(py),
-        Some(Category::UnsupportedFile) => &UnsupportedFileError::type_object(py),
-        Some(Category::MalformedFile) => &MalformedFileError::type_object(py),
-        Some(Category::Io) => &OoxmlIOError::type_object(py),
-        None => &OoxmlError::type_object(py),
-    };
+    let class = category_class(py, categorize(crate_name, kind), None);
     Err(PyErr::from_value(
         class.call((format!("{crate_name}::{kind} (raised by the test hook)"),), Some(&kwargs)).expect("exception __init__"),
     ))

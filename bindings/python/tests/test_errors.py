@@ -59,6 +59,27 @@ def test_kinds_are_stable_strings():
         ("core", "Xml", R.MalformedFileError),
         ("core", "Package", R.MalformedFileError),
         ("core", "Io", R.OoxmlIOError),
+        # Judgement calls (round 1 M1): operation blocked on a valid file.
+        ("xlsx", "ReferenceDeleted", R.RefusedError),
+        ("xlsx", "NotExpressible", R.RefusedError),
+        ("pptx", "ShowRangeByPosition", R.RefusedError),
+        ("xlsx", "NoStylesPart", R.RefusedError),
+        ("docx", "NoSettingsPart", R.RefusedError),
+        ("pptx", "NoTextBody", R.RefusedError),
+        ("pptx", "NoNotesSlide", R.RefusedError),
+        ("pptx", "NoNotesBody", R.RefusedError),
+        ("docx", "NoSectionProperties", R.RefusedError),
+        ("pptx", "TableStyleInline", R.RefusedError),
+        ("xlsx", "BuiltinNumFormatRedefined", R.RefusedError),
+        ("xlsx", "Random", R.RefusedError),
+        ("pptx", "MasterIndexOutOfRange", R.InvalidInputError),
+        ("xlsx", "OutOfOrder", R.MalformedFileError),
+        ("pptx", "InvalidShapeId", R.MalformedFileError),
+        ("docx", "InconsistentGrid", R.MalformedFileError),
+        ("xlsx", "ImageSize", R.InvalidInputError),
+        ("xlsx", "NameInUse", R.InvalidInputError),
+        ("xlsx", "AmbiguousColumns", R.InvalidInputError),
+        ("pptx", "NotSmartArt", R.InvalidInputError),
     ],
 )
 def test_named_mappings(crate, kind, category):
@@ -103,6 +124,7 @@ def test_save_into_missing_directory_raises_file_not_found(tmp_path):
     with pytest.raises(R.OoxmlFileNotFoundError) as caught:
         wb.save(tmp_path / "nope" / "out.xlsx")
     assert caught.value.filename == str(tmp_path / "nope" / "out.xlsx")
+    assert caught.value.errno == errno.ENOENT
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX permissions")
