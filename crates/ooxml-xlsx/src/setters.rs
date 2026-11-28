@@ -18,7 +18,7 @@ use crate::worksheet::{CellMut, MAX_STRING_LEN};
 
 pub(crate) fn prepare_rich_text(at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<(Vec<crate::registry::strings::RichRun>, String)> {
     use crate::registry::strings::RichRun;
-    let bad = |message: String| Error::InvalidArgument { cell: Some(at.to_string()), message };
+    let bad = |message: String| Error::invalid_argument(Some(at.to_string()), message);
     if runs.is_empty() {
         return Err(bad("a rich string needs at least one run".into()));
     }
@@ -62,7 +62,7 @@ pub(crate) fn project_protection(node: &ooxml_core::RawNode) -> crate::Protectio
 
 pub(crate) fn iso_date_op(at: CellIndex, value: &str) -> Result<CellOp> {
     if parse_iso_date(value).is_none() {
-        return Err(Error::InvalidArgument { cell: Some(at.to_string()), message: "expected a UTC ISO date".into() });
+        return Err(Error::invalid_argument(Some(at.to_string()), "expected a UTC ISO date".into()));
     }
     Ok(CellOp::Date(value.into()))
 }
@@ -319,7 +319,7 @@ impl Workbook {
         runs: &[(&Font, &str)],
     ) -> Result<(CellOp, Extra)> {
         use crate::registry::strings::{RichRun, SiContent};
-        let bad = |message: String| Error::InvalidArgument { cell: Some(at.to_string()), message };
+        let bad = |message: String| Error::invalid_argument(Some(at.to_string()), message);
         if runs.is_empty() {
             return Err(bad("a rich string needs at least one run".into()));
         }
@@ -451,10 +451,7 @@ pub(crate) fn error_value(at: CellIndex, value: &str) -> Result<&'static str> {
         .iter()
         .copied()
         .find(|e| *e == value)
-        .ok_or_else(|| Error::InvalidArgument {
-            cell: Some(at.to_string()),
-            message: format!("{value:?} is not an error value"),
-        })
+        .ok_or_else(|| Error::invalid_argument(Some(at.to_string()), format!("{value:?} is not an error value")))
 }
 
 impl CellMut<'_, '_> {

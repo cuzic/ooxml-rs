@@ -902,7 +902,7 @@ impl<'wb> Worksheet<'wb> {
         &mut self, writes: &[(CellIndex, CellWrite<'_>)], styles: &[Option<u32>],
     ) -> Result<()> {
         if writes.len() != styles.len() {
-            return Err(Error::InvalidArgument { cell: None, message: "expected one style slot per cell write".into() });
+            return Err(Error::invalid_argument(None, "expected one style slot per cell write".into()));
         }
         self.wb.check_editable()?;
         let mut ops = self.prepare_cell_writes(writes)?;
@@ -1139,12 +1139,12 @@ impl Worksheet<'_> {
         let last = range.last;
         CellIndex::new(last.row, last.col)?;
         if !range.contains(first) {
-            return Err(Error::InvalidArgument { cell: None, message: "invalid shared formula range".into() });
+            return Err(Error::invalid_argument(None, "invalid shared formula range".into()));
         }
         let rows = (last.row - first.row + 1) as usize;
         let cols = (last.col - first.col + 1) as usize;
         if rows.checked_mul(cols) != Some(results.len()) {
-            return Err(Error::InvalidArgument { cell: None, message: "shared formula results must cover the range".into() });
+            return Err(Error::invalid_argument(None, "shared formula results must cover the range".into()));
         }
         let cells = results.into_iter().enumerate().map(|(index, value)| {
             (CellIndex { row: first.row + (index / cols) as u32, col: first.col + (index % cols) as u32 }, value)
@@ -1161,7 +1161,7 @@ impl Worksheet<'_> {
         if range.first.row != range.last.row || !range.contains(range.first) ||
             members.iter().any(|(col, _)| *col <= range.first.col || *col > range.last.col)
         {
-            return Err(Error::InvalidArgument { cell: None, message: "invalid sparse shared formula range".into() });
+            return Err(Error::invalid_argument(None, "invalid sparse shared formula range".into()));
         }
         let cells = std::iter::once((range.first, master)).chain(members.into_iter().map(|(col, value)| {
             (CellIndex { row: range.first.row, col }, value)
@@ -1204,7 +1204,7 @@ impl Worksheet<'_> {
         let at = range.first;
         CellIndex::new(range.last.row, range.last.col)?;
         if !range.contains(at) {
-            return Err(Error::InvalidArgument { cell: None, message: "invalid shared formula range".into() });
+            return Err(Error::invalid_argument(None, "invalid shared formula range".into()));
         }
         let census = &self.wb.census;
         if census.at(self.sheet, at).and_then(|id| census.get(id))

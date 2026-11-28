@@ -685,7 +685,11 @@ mod tests {
                 continue;
             }
             let debug = format!("{error:?}");
-            assert!(debug.starts_with(error.kind()), "{debug}");
+            let kind = error.kind();
+            assert!(debug.starts_with(kind), "{debug}");
+            // A prefix of another variant's name (Package/PackageTooLarge)
+            // must not pass: the next character ends the identifier.
+            assert!(debug[kind.len()..].chars().next().is_none_or(|c| !c.is_alphanumeric() && c != '_'), "{debug}");
         }
         let inner = ooxml_core::Error::EncryptedPackage;
         let (k, dbg) = (inner.kind().to_string(), format!("{inner:?}"));

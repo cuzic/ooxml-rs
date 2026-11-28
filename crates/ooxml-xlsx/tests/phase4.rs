@@ -133,6 +133,23 @@ fn set_shared_formula_writes_group_with_caches_and_next_si() {
 }
 
 #[test]
+fn reversed_shared_formula_ranges_are_rejected() {
+    use ooxml_xlsx::{CellIndex, CellRange};
+    let input = sheet_with("", r#"<row r="1"><c r="A1"><v>7</v></c></row>"#);
+    // A directly constructed reversed range (parse would normalize it).
+    let reversed = CellRange {
+        first: CellIndex::parse("D1").unwrap(),
+        last: CellIndex::parse("B1").unwrap(),
+    };
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula(reversed, "B2+1", vec![CellValue::Empty])
+    }).1, Err(Error::InvalidArgument { cell: None, .. }));
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula_master(reversed, "B2+1", CellValue::Empty)
+    }).1, Err(Error::InvalidArgument { cell: None, .. }));
+}
+
+#[test]
 fn set_shared_formula_replaces_whole_group_without_handoff() {
     use ooxml_xlsx::CellRange;
     let input = sheet_with("", r#"<row r="1"><c r="B1"><f t="shared" ref="B1:D1" si="0">B2+1</f><v>2</v></c><c r="C1"><f t="shared" si="0"/><v>3</v></c><c r="D1"><f t="shared" si="0"/><v>4</v></c></row>"#);
