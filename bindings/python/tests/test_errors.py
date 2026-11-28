@@ -78,8 +78,14 @@ def test_kinds_are_stable_strings():
         ("docx", "InconsistentGrid", R.MalformedFileError),
         ("xlsx", "ImageSize", R.InvalidInputError),
         ("xlsx", "NameInUse", R.InvalidInputError),
-        ("xlsx", "AmbiguousColumns", R.InvalidInputError),
         ("pptx", "NotSmartArt", R.InvalidInputError),
+        # Ambiguous file state blocks the operation (round 2 m3).
+        ("xlsx", "AmbiguousColumns", R.RefusedError),
+        ("xlsx", "AmbiguousStyleName", R.RefusedError),
+        ("docx", "AmbiguousStyle", R.RefusedError),
+        ("docx", "AmbiguousStylesPart", R.RefusedError),
+        ("docx", "AmbiguousSettings", R.RefusedError),
+        ("pptx", "AmbiguousShapeId", R.RefusedError),
     ],
 )
 def test_named_mappings(crate, kind, category):
