@@ -322,7 +322,7 @@ impl Workbook {
             return Ok(());
         }
         if self.pkg.package_relationships().by_type(CUSTOM_REL).next().is_some() {
-            return Err(Error::Malformed("custom properties already exist".into()));
+            return Err(Error::invalid_argument(None, "custom properties already exist".into()));
         }
         let doc = custom_properties_xml(entries)?;
         self.add_metadata_part(doc, CUSTOM_PART, "docProps/custom{}.xml", CUSTOM_TYPE, CUSTOM_REL)
@@ -349,7 +349,7 @@ fn custom_properties_xml(entries: &[(String, String, String)]) -> Result<ooxml_c
     let mut xml = format!(r#"<Properties xmlns="{CUSTOM_NS}" xmlns:vt="{VARIANT_NS}">"#);
     let mut names = std::collections::HashSet::new();
     for (index, (name, kind, value)) in entries.iter().enumerate() {
-        let bad = || Error::Malformed(format!("invalid custom property {name:?}"));
+        let bad = || Error::invalid_argument(None, format!("invalid custom property {name:?}"));
         if name.is_empty() || !names.insert(name) {
             return Err(bad());
         }
@@ -482,12 +482,25 @@ mod tests {
         let mut book = Workbook::new_at(UNIX_EPOCH).unwrap();
         let original = book.to_bytes().unwrap();
         let invalid = [("Bad".into(), "i4".into(), "not an integer".into())];
-        assert!(book.add_custom_properties(&invalid).is_err());
+        let e = book.add_custom_properties(&invalid).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), None);
         assert_eq!(book.to_bytes().unwrap(), original);
+        for bad in [
+            vec![("".into(), "lpwstr".into(), "x".into())],
+            vec![("A".into(), "lpwstr".into(), "x".into()), ("A".into(), "lpwstr".into(), "y".into())],
+            vec![("A".into(), "nope".into(), "x".into())],
+        ] {
+            let e = book.add_custom_properties(&bad).unwrap_err();
+            assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+            assert_eq!(book.to_bytes().unwrap(), original);
+        }
         let input = [("A & B".into(), "lpwstr".into(), "a_x0041_ & b".into())];
         book.add_custom_properties(&input).unwrap();
         let saved = book.to_bytes().unwrap();
-        assert!(book.add_custom_properties(&input).is_err());
+        let e = book.add_custom_properties(&input).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), None);
         assert_eq!(book.to_bytes().unwrap(), saved);
         let mut reopened = Workbook::from_bytes(saved).unwrap();
         assert!(reopened.document_properties().contains(&(

@@ -172,6 +172,26 @@ fn empty_template_export_has_no_worksheet_and_preserves_source() {
 }
 
 #[test]
+fn caller_scope_and_id_rejections_change_nothing() {
+    let mut wb = Workbook::new().unwrap();
+    let before = wb.to_bytes().unwrap();
+    // A defined-name scope outside the workbook.
+    let e = wb.set_defined_name("X", "$A$1", Some(5), None).unwrap_err();
+    assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+    assert_eq!(e.cell(), None);
+    assert_eq!(wb.to_bytes().unwrap(), before);
+    // A reserved sheet id (0, or one already taken).
+    for id in [Some(0), Some(1)] {
+        let e = wb.add_sheet_with_id("S", 0, id).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{id:?}: {e:?}");
+        assert_eq!(e.cell(), None);
+        assert_eq!(wb.to_bytes().unwrap(), before);
+    }
+    wb.add_sheet_with_id("S", 0, Some(7)).unwrap();
+    assert_eq!(wb.sheet_names().count(), 2);
+}
+
+#[test]
 fn template_workbook_type_rejections_change_nothing() {
     // A workbook opened from bytes is not a template: changing its type is
     // a caller error (InvalidArgument, no cell) and changes no bytes.

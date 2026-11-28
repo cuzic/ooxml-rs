@@ -550,7 +550,11 @@ mod tests {
     fn kind_matches_debug_name() {
         for (error, _) in __error_samples() {
             let debug = format!("{error:?}");
-            assert!(debug.starts_with(error.kind()), "{debug}");
+            let kind = error.kind();
+            assert!(debug.starts_with(kind), "{debug}");
+            // A prefix of another variant's name (Package/PackageTooLarge)
+            // must not pass: the next character ends the identifier.
+            assert!(debug[kind.len()..].chars().next().is_none_or(|c| !c.is_alphanumeric() && c != '_'), "{debug}");
         }
     }
 
