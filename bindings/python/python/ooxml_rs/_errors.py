@@ -77,11 +77,15 @@ class OoxmlIOError(OoxmlError, OSError):
         errno: int | None = None,
         strerror: str | None = None,
         filename: str | None = None,
+        winerror: int | None = None,
     ) -> None:
         OoxmlError.__init__(
             self, message, crate=crate, kind=kind, cell=cell, sheet=sheet
         )
-        OSError.__init__(self, errno or 0, strerror or message, filename)
+        if winerror is None:
+            OSError.__init__(self, errno or 0, strerror or message, filename)
+        else:
+            OSError.__init__(self, errno or 0, strerror or message, filename, winerror)
         # OSError.__init__ overwrote args; keep the Rust message visible.
         self.args = (message,)
 
