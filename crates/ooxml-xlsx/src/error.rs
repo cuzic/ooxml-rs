@@ -960,6 +960,7 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
         (Error::StringTooLong(0), None),
         (Error::InvalidValue { cell: String::from("B2"), message: String::from("x") }, Some("B2")),
         (Error::InvalidArgument { cell: None, message: String::from("x") }, None),
+        (Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") }, Some("B2")),
         (Error::SheetAdditionUnsupported, None),
         (Error::ArrayResultCell { cell: String::from("B2"), anchor: String::from("x") }, Some("B2")),
         (Error::ArrayAnchor { cell: String::from("B2") }, Some("B2")),
@@ -1042,7 +1043,14 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
 /// core error surfaces as `("core", kind)`).
 #[doc(hidden)]
 pub fn __surface_kinds() -> Vec<&'static str> {
-    __error_samples().into_iter().filter(|(e, _)| !matches!(e, Error::Core(_))).map(|(e, _)| e.kind()).collect()
+    // Order-preserving dedupe: InvalidArgument is sampled twice (None/Some).
+    let mut seen = std::collections::HashSet::new();
+    __error_samples()
+        .into_iter()
+        .filter(|(e, _)| !matches!(e, Error::Core(_)))
+        .map(|(e, _)| e.kind())
+        .filter(|kind| seen.insert(*kind))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1066,6 +1074,26 @@ mod tests {
         let (k, dbg) = (inner.kind().to_string(), format!("{inner:?}"));
         assert_eq!(Error::Core(inner).kind(), k);
         assert!(dbg.starts_with("EncryptedPackage"));
+    }
+
+    #[test]
+    fn samples_cover_every_variant() {
+        // A new variant without a sample would escape __surface_kinds and
+        // fall silently into the binding's base class (ADR-0023 m2): the
+        // deduped sample kinds (minus the Core sample, which surfaces as
+        // core) must equal the kind() arms minus the delegating Core arm.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples()
+            .into_iter()
+            .filter(|(e, _)| !matches!(e, Error::Core(_)))
+            .map(|(e, _)| e.kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms - 1, "a variant lacks a sample");
     }
 
     #[test]
