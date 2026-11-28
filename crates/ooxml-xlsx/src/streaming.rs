@@ -221,24 +221,15 @@ fn encode_row_inner(
     {
         let at = CellIndex::new(row, column)?;
         if previous.is_some_and(|previous| previous >= column) {
-            return Err(Error::InvalidArgument {
-                cell: Some(at.to_string()),
-                message: "streaming row columns must be strictly increasing".into(),
-            });
+            return Err(Error::invalid_argument(Some(at.to_string()), "streaming row columns must be strictly increasing".into()));
         }
         previous = Some(column);
         let text = match &formula {
             Some(RowFormula::Array { range, .. }) if range.first != at => {
-                return Err(Error::InvalidArgument {
-                    cell: Some(at.to_string()),
-                    message: "array formula must start at its anchor cell".into(),
-                });
+                return Err(Error::invalid_argument(Some(at.to_string()), "array formula must start at its anchor cell".into()));
             }
             Some(RowFormula::SharedMaster { range, .. }) if range.first != at => {
-                return Err(Error::InvalidArgument {
-                    cell: Some(at.to_string()),
-                    message: "shared formula must start at its anchor cell".into(),
-                });
+                return Err(Error::invalid_argument(Some(at.to_string()), "shared formula must start at its anchor cell".into()));
             }
             Some(
                 RowFormula::Ordinary(text)
@@ -253,10 +244,7 @@ fn encode_row_inner(
         let rich_inline = rich_text.is_some() && strings.is_none();
         let (kind, content) = if let Some(rich_text) = rich_text {
             if formula.is_some() || value != CellValue::Empty {
-                return Err(Error::InvalidArgument {
-                    cell: Some(at.to_string()),
-                    message: "rich text must be a cell value".into(),
-                });
+                return Err(Error::invalid_argument(Some(at.to_string()), "rich text must be a cell value".into()));
             }
             let runs = rich_text
                 .iter()
@@ -564,5 +552,14 @@ mod tests {
         let e = encode_cells(0, [(2, rich())]).unwrap_err();
         assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
         assert_eq!(e.cell(), Some("C1"));
+        // No runs, or an empty run, in streaming rich text.
+        let noruns = || RowCell { rich_text: Some(vec![]), ..CellValue::Empty.into() };
+        let e = encode_cells(0, [(0, noruns())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("A1"));
+        let empty = || RowCell { rich_text: Some(vec![("".to_string(), None)]), ..CellValue::Empty.into() };
+        let e = encode_cells(0, [(0, empty())]).unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("A1"));
     }
 }

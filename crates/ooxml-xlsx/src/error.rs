@@ -199,7 +199,8 @@ pub enum Error {
     InvalidArgument {
         /// The cell, A1 style, when the error is about one cell.
         cell: Option<String>,
-        /// What is wrong.
+        /// What is wrong (without the `cell {at}: ` prefix; the
+        /// [`Error::invalid_argument`] constructor adds it).
         message: String,
     },
 
@@ -681,6 +682,18 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl Error {
+    /// A caller-input rejection. When `cell` is `Some`, the message is
+    /// prefixed with `cell {at}: ` (the old `InvalidValue` Display shape);
+    /// `cell()` stays the machine-readable location. All `InvalidArgument`
+    /// sites go through here so the prefix cannot be forgotten.
+    pub(crate) fn invalid_argument(cell: Option<String>, message: String) -> Self {
+        let message = match &cell {
+            Some(at) => format!("cell {at}: {message}"),
+            None => message,
+        };
+        Error::InvalidArgument { cell, message }
+    }
+
     /// The variant name, e.g. `"MergedCell"`. Stable: renaming a variant is a
     /// breaking change recorded in the owning ADR (ADR-0023 §8).
     pub fn kind(&self) -> &'static str {
@@ -887,7 +900,8 @@ impl Error {
             Error::AutoFilterExists => None,
             Error::FilterActive => None,
             Error::DuplicateBuiltInName { .. } => None,
-            Error::NameInUse { cell, .. } => Some(cell.as_str()),
+            // NameInUse.cell holds `Sheet!A1` or `defined name X`, not an A1 cell.
+            Error::NameInUse { .. } => None,
             Error::InvalidSpinCount(..) => None,
             Error::CrossSheetReference { .. } => None,
             Error::UnknownSheet(..) => None,
@@ -1003,7 +1017,7 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
         (Error::AutoFilterExists, None),
         (Error::FilterActive, None),
         (Error::DuplicateBuiltInName { name: String::from("x") }, None),
-        (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, Some("B2")),
+        (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, None),
         (Error::InvalidSpinCount(0), None),
         (Error::CrossSheetReference { text: String::from("x") }, None),
         (Error::UnknownSheet(String::from("x")), None),
@@ -1042,7 +1056,11 @@ mod tests {
                 continue;
             }
             let debug = format!("{error:?}");
-            assert!(debug.starts_with(error.kind()), "{debug}");
+            let kind = error.kind();
+            assert!(debug.starts_with(kind), "{debug}");
+            // A prefix of another variant's name (Package/PackageTooLarge)
+            // must not pass: the next character ends the identifier.
+            assert!(debug[kind.len()..].chars().next().is_none_or(|c| !c.is_alphanumeric() && c != '_'), "{debug}");
         }
         let inner = ooxml_core::Error::EncryptedPackage;
         let (k, dbg) = (inner.kind().to_string(), format!("{inner:?}"));
@@ -1058,10 +1076,13 @@ mod tests {
     }
 
     #[test]
-    fn cell_invalid_argument_some() {
-        let e = Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") };
-        assert_eq!(e.kind(), "InvalidArgument");
-        assert_eq!(e.cell(), Some("B2"));
+    fn invalid_argument_prefixes_some_cells() {
+        let some = Error::invalid_argument(Some("B2".to_string()), "m".to_string());
+        assert_eq!(some.cell(), Some("B2"));
+        assert_eq!(some.to_string(), "cell B2: m");
+        let none = Error::invalid_argument(None, "m".to_string());
+        assert_eq!(none.cell(), None);
+        assert_eq!(none.to_string(), "m");
     }
 }
 

@@ -245,7 +245,7 @@ impl Workbook {
         let mut staged = None;
         for (name, formula, sheet, comment) in edits {
             if sheet.is_some_and(|index| index as usize >= self.sheets.len()) {
-                return Err(Error::Malformed("defined name sheet is outside the workbook".into()));
+                return Err(Error::invalid_argument(None, "defined name sheet is outside the workbook".into()));
             }
             let old = defined_name_elements(staged.as_ref().unwrap_or(doc))
                 .find(|(_, node)| node.attr(ooxml_core::QName::new("", "name")).unwrap_or_default()
@@ -724,7 +724,7 @@ impl Workbook {
         let reserved = self.reserved_sheet_ids()?;
         let sheet_id = match id {
             Some(id) if id != 0 && !reserved.contains(&id) => id,
-            Some(id) => return Err(Error::Malformed(format!("sheetId {id} is reserved"))),
+            Some(id) => return Err(Error::invalid_argument(None, format!("sheetId {id} is reserved"))),
             None => reserved.iter().copied().max().unwrap_or(0).checked_add(1)
                 .ok_or(Error::Malformed("sheetId exhausted".into()))?,
         };
