@@ -147,6 +147,39 @@ fn absolute_areas_resolve() {
 }
 
 #[test]
+fn absolute_whole_columns_and_rows_resolve_to_the_full_span() {
+    use ooxml_xlsx::{CellIndex, MAX_COLS, MAX_ROWS};
+    let bytes = book(
+        &[("Sheet1", "")],
+        concat!(
+            r#"<definedName name="Cols">Sheet1!$B:$A</definedName>"#,
+            r#"<definedName name="Rows">Sheet1!$3:$2</definedName>"#,
+        ),
+        "",
+    );
+    assert_eq!(
+        resolve(&bytes, "Cols", None).unwrap(),
+        ResolvedName::Range {
+            sheet: 0,
+            range: CellRange {
+                first: CellIndex { row: 0, col: 0 },
+                last: CellIndex { row: MAX_ROWS - 1, col: 1 },
+            },
+        }
+    );
+    assert_eq!(
+        resolve(&bytes, "Rows", None).unwrap(),
+        ResolvedName::Range {
+            sheet: 0,
+            range: CellRange {
+                first: CellIndex { row: 1, col: 0 },
+                last: CellIndex { row: 2, col: MAX_COLS - 1 },
+            },
+        }
+    );
+}
+
+#[test]
 fn every_not_a_range_reason() {
     let bytes = book(
         &[("Sheet1", ""), ("Sheet2", "")],
@@ -157,16 +190,19 @@ fn every_not_a_range_reason() {
             r#"<definedName name="F2">Sheet1!$A$1+1</definedName>"#,
             r#"<definedName name="F3">(((</definedName>"#,
             r#"<definedName name="F4">OFFSET(Sheet1!$A$1,0,0)</definedName>"#,
+            r#"<definedName name="F5">Sheet1!$A$1:Sheet1!$B$2</definedName>"#,
+            r#"<definedName name="F6">$A$1048577</definedName>"#,
             r#"<definedName name="M1">Sheet1!$A$1,Sheet1!$B$2</definedName>"#,
-            r#"<definedName name="M2">Sheet1!$A$1:$B$2 Sheet1!$B$2:$C$3</definedName>"#,
+            r#"<definedName name="M2">Sheet1!$A$1 Sheet1!$A$1:$B$2</definedName>"#,
             r#"<definedName name="R1">Sheet1!A1</definedName>"#,
             r#"<definedName name="R2">Sheet1!$A1:$B$2</definedName>"#,
             r#"<definedName name="R3">$A$1:$B$2</definedName>"#,
-            r#"<definedName name="R4">Sheet1!$A:$B</definedName>"#,
-            r#"<definedName name="R5">Sheet1!$1:$2</definedName>"#,
+            r#"<definedName name="R4">Sheet1!A:B</definedName>"#,
             r#"<definedName name="E1">[1]Sheet1!$A$1</definedName>"#,
             r#"<definedName name="X1">Sheet1!#REF!</definedName>"#,
             r#"<definedName name="X2">NoSheet!$A$1</definedName>"#,
+            r#"<definedName name="X3">#REF!</definedName>"#,
+            r#"<definedName name="X4">#REF!$A$1</definedName>"#,
             r#"<definedName name="T1">Sheet1:Sheet2!$A$1</definedName>"#,
         ),
         "",
@@ -178,17 +214,16 @@ fn every_not_a_range_reason() {
     for name in ["C1", "C2"] {
         assert_eq!(reason(name), "constant", "{name}");
     }
-    for name in ["F1", "F2", "F3", "F4"] {
+    for name in ["F1", "F2", "F3", "F4", "F5", "F6"] {
         assert_eq!(reason(name), "formula", "{name}");
     }
-    for name in ["M1", "M2"] {
-        assert_eq!(reason(name), "multiple areas", "{name}");
-    }
-    for name in ["R1", "R2", "R3", "R4", "R5"] {
+    assert_eq!(reason("M1"), "multiple areas");
+    assert_eq!(reason("M2"), "formula"); // an intersection needs evaluation
+    for name in ["R1", "R2", "R3", "R4"] {
         assert_eq!(reason(name), "relative reference", "{name}");
     }
     assert_eq!(reason("E1"), "external reference");
-    for name in ["X1", "X2"] {
+    for name in ["X1", "X2", "X3", "X4"] {
         assert_eq!(reason(name), "#REF!", "{name}");
     }
     assert_eq!(reason("T1"), "3D reference");

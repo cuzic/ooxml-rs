@@ -14,7 +14,7 @@ use crate::error::{Error, Result};
 use crate::formula::lexer::{Area, Prefix};
 use crate::formula::parse::{Expr, parse};
 use crate::formula::precedents::fold;
-use crate::reference::{CellIndex, CellRange, SheetRef};
+use crate::reference::{CellIndex, CellRange, SheetRef, MAX_COLS, MAX_ROWS};
 use crate::workbook::Workbook;
 
 /// A defined name, as stored.
@@ -189,9 +189,16 @@ impl Workbook {
     /// formula is evaluated.
     fn classify_name(&self, name: &str, text: &str) -> Result<ResolvedName> {
         let not_a_range = |reason: &'static str| Error::NameNotARange { name: name.to_owned(), reason };
+        // Excel's dangling forms: bare `#REF!` parses as a literal and
+        // `#REF!$A$1` does not parse at all, but both mean gone.
+        if text.trim().as_bytes().get(..5).is_some_and(|h| h.eq_ignore_ascii_case(b"#REF!")) {
+            return Err(not_a_range("#REF!"));
+        }
         let area = match parse(text).ok() {
             Some(Expr::Ref(reference)) => reference,
-            Some(Expr::Union(_)) | Some(Expr::Intersect(..)) => return Err(not_a_range("multiple areas")),
+            Some(Expr::Union(_)) => return Err(not_a_range("multiple areas")),
+            // An intersection is at most one area but needs evaluation.
+            Some(Expr::Intersect(..)) => return Err(not_a_range("formula")),
             Some(Expr::Lit) => return Err(not_a_range("constant")),
             // A name, a call, an operator, an opaque/structured reference, or
             // text that does not parse: a formula, unevaluated.
@@ -205,17 +212,37 @@ impl Workbook {
             Prefix::None => return Err(not_a_range("relative reference")),
             Prefix::Sheet(sheet) => sheet,
         };
-        let (c1, r1, c2, r2) = match area.area {
-            Area::Cell { col, row } => (col, row, col, row),
-            Area::Range { c1, r1, c2, r2 } => (c1, r1, c2, r2),
-            // Whole columns/rows name no absolute rows/columns.
+        let range = match area.area {
+            Area::Cell { col, row } => {
+                if !(col.abs && row.abs) {
+                    return Err(not_a_range("relative reference"));
+                }
+                CellRange {
+                    first: CellIndex { row: row.idx, col: col.idx },
+                    last: CellIndex { row: row.idx, col: col.idx },
+                }
+            }
+            Area::Range { c1, r1, c2, r2 } => {
+                if !(c1.abs && r1.abs && c2.abs && r2.abs) {
+                    // A `$`-less row or column is relative to the active cell.
+                    return Err(not_a_range("relative reference"));
+                }
+                let (r1, r2) = (r1.idx.min(r2.idx), r1.idx.max(r2.idx));
+                let (c1, c2) = (c1.idx.min(c2.idx), c1.idx.max(c2.idx));
+                CellRange { first: CellIndex { row: r1, col: c1 }, last: CellIndex { row: r2, col: c2 } }
+            }
+            // Absolute whole columns/rows are one absolute area: the full span.
+            Area::Cols { c1, c2 } if c1.abs && c2.abs => {
+                let (c1, c2) = (c1.idx.min(c2.idx), c1.idx.max(c2.idx));
+                CellRange { first: CellIndex { row: 0, col: c1 }, last: CellIndex { row: MAX_ROWS - 1, col: c2 } }
+            }
+            Area::Rows { r1, r2 } if r1.abs && r2.abs => {
+                let (r1, r2) = (r1.idx.min(r2.idx), r1.idx.max(r2.idx));
+                CellRange { first: CellIndex { row: r1, col: 0 }, last: CellIndex { row: r2, col: MAX_COLS - 1 } }
+            }
             Area::Cols { .. } | Area::Rows { .. } => return Err(not_a_range("relative reference")),
             Area::RefError => return Err(not_a_range("#REF!")),
         };
-        if !(c1.abs && r1.abs && c2.abs && r2.abs) {
-            // A `$`-less row or column is relative to the active cell.
-            return Err(not_a_range("relative reference"));
-        }
         // Stored text, so the precedents rule (unique fold, no exact-first).
         let folded = fold(sheet_name);
         let mut at = self.sheets.iter().enumerate().filter(|(_, s)| fold(&s.name) == folded).map(|(i, _)| i);
@@ -227,11 +254,6 @@ impl Workbook {
         if self.sheets[sheet].kind != SheetKind::Worksheet {
             return Err(not_a_range("not a worksheet"));
         }
-        let (r1, r2) = (r1.idx.min(r2.idx), r1.idx.max(r2.idx));
-        let (c1, c2) = (c1.idx.min(c2.idx), c1.idx.max(c2.idx));
-        Ok(ResolvedName::Range {
-            sheet,
-            range: CellRange { first: CellIndex { row: r1, col: c1 }, last: CellIndex { row: r2, col: c2 } },
-        })
+        Ok(ResolvedName::Range { sheet, range })
     }
 }
