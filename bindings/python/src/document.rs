@@ -78,7 +78,9 @@ impl Document {
         self.replace_many(py, vec![(needle, replacement)], on_refused)
     }
 
-    /// `replace` over pairs, applied in order under one lock.
+    /// `replace` over pairs, applied in order under one lock. Multi-pair
+    /// calls serialize the document once up front (the atomicity snapshot),
+    /// so they cost one serialization even on success.
     #[pyo3(signature = (pairs, *, on_refused="refuse"))]
     fn replace_many(
         &self,
@@ -101,6 +103,11 @@ impl Document {
             // Multi-pair calls snapshot first: a later pair's refusal (or a
             // later EmptyNeedle in skip mode) must not leave earlier pairs
             // applied (Err ⇒ byte-identical). Single pairs are atomic in Rust.
+            // Valid only while the binding exposes no non-byte Document
+            // state (fields_opt_in, gates, high-water marks): restoring
+            // from bytes resets those to reopen values. A later binding
+            // PR that exposes such state must switch to a Rust-side
+            // replace_many that plans before the first write.
             let snapshot = if pairs.len() > 1 { Some(doc.to_bytes()?) } else { None };
             let mut replaced = 0;
             let mut skipped = Vec::new();
