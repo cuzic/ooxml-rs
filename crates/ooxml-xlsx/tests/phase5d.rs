@@ -892,6 +892,22 @@ fn array_anchor_cache_is_validated_and_invalidated() {
     );
     assert_eq!(wb.to_bytes().unwrap(), input);
 
+    // A range that does not start at the anchor cell is a caller error
+    // naming the anchor; an unrepresentable cached result likewise.
+    let mut ws = wb.worksheet().unwrap();
+    let off = CellRange::parse("I2:J3").unwrap();
+    let e = ws.cell_mut(1, 7).unwrap().set_array_formula("Z1+2", off, false).unwrap_err();
+    assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+    assert_eq!(e.cell(), Some("H2"));
+    assert_eq!(wb.to_bytes().unwrap(), input);
+    let mut ws = wb.worksheet().unwrap();
+    let e = ws.cell_mut(1, 7).unwrap()
+        .set_array_formula_with_result("Z1+2", range, false, CellValue::Error("#WHAT".into()))
+        .unwrap_err();
+    assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+    assert_eq!(e.cell(), Some("H2"));
+    assert_eq!(wb.to_bytes().unwrap(), input);
+
     let mut ws = wb.worksheet().unwrap();
     ws.cell_mut(1, 7).unwrap()
         .set_array_formula_with_result("Z1+2", range, false, CellValue::Number(3.0))

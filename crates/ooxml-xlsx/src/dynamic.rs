@@ -171,10 +171,7 @@ pub(crate) fn formula_cache(at: crate::CellIndex, result: CellValue) -> Result<c
         CellValue::Error(value) if crate::setters::CELL_ERRORS.contains(&value.as_str()) => {
             Some((CellValues::Error, value))
         }
-        _ => return Err(Error::InvalidValue {
-            cell: at.to_string(),
-            message: "unsupported formula result".into(),
-        }),
+        _ => return Err(Error::invalid_argument(Some(at.to_string()), "unsupported formula result".into())),
     })
 }
 
@@ -201,7 +198,7 @@ impl CellMut<'_, '_> {
         }
         crate::CellIndex::new(range.last.row, range.last.col)?;
         if range.first != self.at || !range.contains(self.at) {
-            return Err(Error::Malformed("array formula must start at its anchor".into()));
+            return Err(Error::invalid_argument(Some(self.at.to_string()), "array formula must start at its anchor".into()));
         }
         let text = text.strip_prefix('=').unwrap_or(text);
         if !dynamic {

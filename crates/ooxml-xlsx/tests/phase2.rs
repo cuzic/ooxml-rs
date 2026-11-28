@@ -673,7 +673,10 @@ fn explicit_iso_date_validation_is_atomic() {
     let mut book = Workbook::new_at(std::time::UNIX_EPOCH).unwrap();
     let original = book.to_bytes().unwrap();
     let mut sheet = book.worksheet().unwrap();
-    assert!(sheet.cell_mut(0, 0).unwrap().set_iso_date("2023-02-29T00:00:00.000Z").is_err());
+    let e = sheet.cell_mut(0, 0).unwrap().set_iso_date("2023-02-29T00:00:00.000Z").unwrap_err();
+    assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+    assert_eq!(e.cell(), Some("A1"));
+    assert_eq!(e.to_string(), "cell A1: expected a UTC ISO date");
     assert_eq!(book.to_bytes().unwrap(), original);
     let mut sheet = book.worksheet().unwrap();
     sheet.cell_mut(0, 0).unwrap().set_iso_date("2024-02-29T00:00:00.123Z").unwrap();
@@ -908,8 +911,15 @@ fn quote_prefix_bool_and_error() {
         ws.cell_mut(0, 0).unwrap().set_string_with_format("=not a formula", &Format::new().set_quote_prefix()).unwrap();
         ws.cell_mut(0, 1).unwrap().set_bool(true).unwrap();
         ws.cell_mut(0, 2).unwrap().set_error("#N/A").unwrap();
-        assert!(matches!(ws.cell_mut(0, 3).unwrap().set_error("#WHAT"), Err(Error::InvalidValue { .. })));
     }
+    let before = wb.to_bytes().unwrap();
+    {
+        let mut ws = wb.worksheet_by_index(0).unwrap();
+        let e = ws.cell_mut(0, 3).unwrap().set_error("#WHAT").unwrap_err();
+        assert!(matches!(e, Error::InvalidArgument { .. }), "{e:?}");
+        assert_eq!(e.cell(), Some("D1"));
+    }
+    assert_eq!(wb.to_bytes().unwrap(), before, "Err leaves the bytes identical");
     let out = wb.to_bytes().unwrap();
     let xfs = &style_entries(&parse(&part(&out, "xl/styles.xml")))["cellXfs"];
     assert_eq!(xfs[1], r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" quotePrefix="1"/>"#);

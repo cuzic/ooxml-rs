@@ -86,11 +86,14 @@ fn shared_formula_row_clear_requires_all_members() {
 fn sparse_shared_formula_row_skips_independent_cells() {
     let input = sheet_with("", r#"<row r="1"><c r="C1"><v>23</v></c></row>"#);
     let range = ooxml_xlsx::CellRange::parse("B1:D1").unwrap();
-    for invalid in [vec![(1, CellValue::Empty)], vec![(3, CellValue::Empty), (3, CellValue::Empty)]] {
-        assert!(try_on(&input, 0, |ws| {
-            ws.set_sparse_shared_formula_row(range, "B2+1", CellValue::Empty, invalid)
-        }).1.is_err());
-    }
+    // try_on asserts each failed call leaves the input byte-identical.
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_sparse_shared_formula_row(range, "B2+1", CellValue::Empty, vec![(1, CellValue::Empty)])
+    }).1, Err(Error::InvalidArgument { cell: None, .. }));
+    // A duplicated member column fails later, in the write planner.
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_sparse_shared_formula_row(range, "B2+1", CellValue::Empty, vec![(3, CellValue::Empty), (3, CellValue::Empty)])
+    }).1, Err(Error::DuplicateCellWrite { .. }));
     let (wb, result) = try_on(&input, 0, |ws| {
         ws.set_sparse_shared_formula_row(range, "B2+1", CellValue::Number(0.0), vec![(3, CellValue::Bool(false))])
     });
@@ -126,7 +129,24 @@ fn set_shared_formula_writes_group_with_caches_and_next_si() {
         Some((CellIndex::parse("F1").unwrap(), CellRange::parse("F1:G1").unwrap())));
     assert_matches!(try_on(&input, 0, |ws| {
         ws.set_shared_formula(CellRange::parse("B1:D1")?, "B2+1", vec![CellValue::Empty, CellValue::Empty])
-    }).1, Err(Error::Malformed(_)));
+    }).1, Err(Error::InvalidArgument { cell: None, .. }));
+}
+
+#[test]
+fn reversed_shared_formula_ranges_are_rejected() {
+    use ooxml_xlsx::{CellIndex, CellRange};
+    let input = sheet_with("", r#"<row r="1"><c r="A1"><v>7</v></c></row>"#);
+    // A directly constructed reversed range (parse would normalize it).
+    let reversed = CellRange {
+        first: CellIndex::parse("D1").unwrap(),
+        last: CellIndex::parse("B1").unwrap(),
+    };
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula(reversed, "B2+1", vec![CellValue::Empty])
+    }).1, Err(Error::InvalidArgument { cell: None, .. }));
+    assert_matches!(try_on(&input, 0, |ws| {
+        ws.set_shared_formula_master(reversed, "B2+1", CellValue::Empty)
+    }).1, Err(Error::InvalidArgument { cell: None, .. }));
 }
 
 #[test]
@@ -221,6 +241,10 @@ fn styled_cell_batch_refuses_invalid_style_before_writing() {
     ];
     assert_matches!(try_on(&input, 0, |ws| ws.write_cells_with_styles(&edits, &[Some(style), Some(u32::MAX)])).1,
         Err(Error::StyleIndexOutOfRange { .. }));
+    // A length mismatch is a caller error (InvalidArgument, no cell), also
+    // byte-identical via try_on.
+    assert_matches!(try_on(&input, 0, |ws| ws.write_cells_with_styles(&edits, &[Some(style)])).1,
+        Err(Error::InvalidArgument { cell: None, .. }));
     let (mut wb, result) = try_on(&input, 0, |ws| ws.write_cells_with_styles(&edits, &[Some(style), None]));
     result.unwrap();
     let sheet = wb.worksheet().unwrap();

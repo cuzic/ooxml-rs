@@ -127,7 +127,15 @@ fn rich_string_refusals_change_nothing() {
             ("too long", ws.cell_mut(0, 0).unwrap().set_rich_string(&[(&bold(), &long), (&bold(), &long)])),
         ];
         for (what, r) in cases {
-            assert!(r.is_err(), "{what}");
+            let e = r.unwrap_err();
+            // Caller-input rejections carry the cell; the workbook bytes are
+            // unchanged (assert_l1_except below).
+            if what == "no runs" || what == "empty run" {
+                assert!(matches!(e, ooxml_xlsx::Error::InvalidArgument { .. }), "{what}: {e:?}");
+                assert_eq!(e.cell(), Some("A1"), "{what}");
+            } else {
+                assert!(matches!(e, ooxml_xlsx::Error::InvalidFormat(_) | ooxml_xlsx::Error::StringTooLong(_)), "{what}: {e:?}");
+            }
         }
         assert!(matches!(ws.cell_mut(0, 0).unwrap().set_rich_string(&[(&bold(), &long), (&bold(), &long)]), Err(Error::StringTooLong(40_000))));
     }

@@ -193,6 +193,17 @@ pub enum Error {
         message: String,
     },
 
+    /// Caller input (not file content) is invalid. `cell` is `Some` for cell-level
+    /// validation, `None` for batch-level argument errors (ADR-0023 §8).
+    #[error("{message}")]
+    InvalidArgument {
+        /// The cell, A1 style, when the error is about one cell.
+        cell: Option<String>,
+        /// What is wrong (without the `cell {at}: ` prefix; the
+        /// [`Error::invalid_argument`] constructor adds it).
+        message: String,
+    },
+
     /// Adding worksheets is not supported in Phase0. The only exception is
     /// the first `add_worksheet()` on a [`Workbook::new`](crate::Workbook::new)
     /// workbook, which returns the template's one sheet.
@@ -669,3 +680,401 @@ pub enum Error {
 
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl Error {
+    /// A caller-input rejection. When `cell` is `Some`, the message is
+    /// prefixed with `cell {at}: ` (the old `InvalidValue` Display shape);
+    /// `cell()` stays the machine-readable location. All `InvalidArgument`
+    /// sites go through here so the prefix cannot be forgotten.
+    pub(crate) fn invalid_argument(cell: Option<String>, message: String) -> Self {
+        let message = match &cell {
+            Some(at) => format!("cell {at}: {message}"),
+            None => message,
+        };
+        Error::InvalidArgument { cell, message }
+    }
+
+    /// The variant name, e.g. `"MergedCell"`. Stable: renaming a variant is a
+    /// breaking change recorded in the owning ADR (ADR-0023 §8).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Error::InvalidStructuralBand { .. } => "InvalidStructuralBand",
+            Error::ShiftOffSheet { .. } => "ShiftOffSheet",
+            Error::StructureBlocked { .. } => "StructureBlocked",
+            Error::ReferenceDeleted { .. } => "ReferenceDeleted",
+            Error::ArrayFormulaSplit { .. } => "ArrayFormulaSplit",
+            Error::InvalidSparklineGroup => "InvalidSparklineGroup",
+            Error::PartNotEditable { .. } => "PartNotEditable",
+            Error::Protected { .. } => "Protected",
+            Error::NoteExists => "NoteExists",
+            Error::ThreadedComment => "ThreadedComment",
+            Error::NoSuchNote => "NoSuchNote",
+            Error::ImageFormat => "ImageFormat",
+            Error::ImageSize => "ImageSize",
+            Error::ImageAnchor => "ImageAnchor",
+            Error::NoSuchImage(..) => "NoSuchImage",
+            Error::UnresolvedRichValue { .. } => "UnresolvedRichValue",
+            Error::Core(e) => e.kind(),
+            Error::NoWorkbook => "NoWorkbook",
+            Error::NoVisibleWorksheet => "NoVisibleWorksheet",
+            Error::Malformed(..) => "Malformed",
+            Error::FormulaScanFailed { .. } => "FormulaScanFailed",
+            Error::MergedCell { .. } => "MergedCell",
+            Error::RichValueCell { .. } => "RichValueCell",
+            Error::TableHeaderCell { .. } => "TableHeaderCell",
+            Error::MissingReference { .. } => "MissingReference",
+            Error::OutOfOrder(..) => "OutOfOrder",
+            Error::InvalidReference(..) => "InvalidReference",
+            Error::OutOfRange { .. } => "OutOfRange",
+            Error::InvalidNumber(..) => "InvalidNumber",
+            Error::StringTooLong(..) => "StringTooLong",
+            Error::InvalidValue { .. } => "InvalidValue",
+            Error::InvalidArgument { .. } => "InvalidArgument",
+            Error::SheetAdditionUnsupported => "SheetAdditionUnsupported",
+            Error::ArrayResultCell { .. } => "ArrayResultCell",
+            Error::ArrayAnchor { .. } => "ArrayAnchor",
+            Error::UnknownCellMetadata { .. } => "UnknownCellMetadata",
+            Error::MacroSheetDependent { .. } => "MacroSheetDependent",
+            Error::IterativeCalculation => "IterativeCalculation",
+            Error::SharedFormulaMaster { .. } => "SharedFormulaMaster",
+            Error::InvalidFormula { .. } => "InvalidFormula",
+            Error::NoSuchSheet(..) => "NoSuchSheet",
+            Error::NotAWorksheet(..) => "NotAWorksheet",
+            Error::Poisoned(..) => "Poisoned",
+            Error::SheetNamingUnsupported => "SheetNamingUnsupported",
+            Error::DuplicateCellWrite { .. } => "DuplicateCellWrite",
+            Error::MissingFunctionPrefix { .. } => "MissingFunctionPrefix",
+            Error::DynamicArrayOperator { .. } => "DynamicArrayOperator",
+            Error::InvalidSheetName { .. } => "InvalidSheetName",
+            Error::DuplicateSheetName(..) => "DuplicateSheetName",
+            Error::LastVisibleSheet => "LastVisibleSheet",
+            Error::SharedWorkbook => "SharedWorkbook",
+            Error::SheetHasUnsupportedParts { .. } => "SheetHasUnsupportedParts",
+            Error::SheetIsPivotSource(..) => "SheetIsPivotSource",
+            Error::TableInUse(..) => "TableInUse",
+            Error::TableRange { .. } => "TableRange",
+            Error::InvalidTableName { .. } => "InvalidTableName",
+            Error::DuplicateColumnName(..) => "DuplicateColumnName",
+            Error::HeaderNotText(..) => "HeaderNotText",
+            Error::ColumnInUse(..) => "ColumnInUse",
+            Error::NoSuchTable(..) => "NoSuchTable",
+            Error::CustomViewReferencesSheet => "CustomViewReferencesSheet",
+            Error::UnrewritableReference { .. } => "UnrewritableReference",
+            Error::ReversesThreeDReference(..) => "ReversesThreeDReference",
+            Error::BinaryReferencesPossible => "BinaryReferencesPossible",
+            Error::SheetInUse { .. } => "SheetInUse",
+            Error::NoStylesPart => "NoStylesPart",
+            Error::UnsupportedStylesPart(..) => "UnsupportedStylesPart",
+            Error::StyleTableFull { .. } => "StyleTableFull",
+            Error::NumFmtIdExhausted => "NumFmtIdExhausted",
+            Error::BuiltinNumFormatRedefined { .. } => "BuiltinNumFormatRedefined",
+            Error::InvalidFormat(..) => "InvalidFormat",
+            Error::InvalidNumFormat(..) => "InvalidNumFormat",
+            Error::StyleIndexOutOfRange { .. } => "StyleIndexOutOfRange",
+            Error::NoSuchStyle(..) => "NoSuchStyle",
+            Error::DanglingReference { .. } => "DanglingReference",
+            Error::NonexistentDate => "NonexistentDate",
+            Error::AmbiguousStyleName(..) => "AmbiguousStyleName",
+            Error::NotExpressible(..) => "NotExpressible",
+            Error::DateOutOfRange => "DateOutOfRange",
+            Error::MergeSingleCell(..) => "MergeSingleCell",
+            Error::MergeOverlap { .. } => "MergeOverlap",
+            Error::MergeWouldHideValues { .. } => "MergeWouldHideValues",
+            Error::NoSuchMerge(..) => "NoSuchMerge",
+            Error::TableOverlap { .. } => "TableOverlap",
+            Error::PivotOverlap { .. } => "PivotOverlap",
+            Error::QueryTableOverlap(..) => "QueryTableOverlap",
+            Error::AutoFilterExists => "AutoFilterExists",
+            Error::FilterActive => "FilterActive",
+            Error::DuplicateBuiltInName { .. } => "DuplicateBuiltInName",
+            Error::NameInUse { .. } => "NameInUse",
+            Error::InvalidSpinCount(..) => "InvalidSpinCount",
+            Error::CrossSheetReference { .. } => "CrossSheetReference",
+            Error::UnknownSheet(..) => "UnknownSheet",
+            Error::ValidationOverlap { .. } => "ValidationOverlap",
+            Error::ListTooLong(..) => "ListTooLong",
+            Error::ListItemHasComma(..) => "ListItemHasComma",
+            Error::HyperlinkOverlap { .. } => "HyperlinkOverlap",
+            Error::InvalidUrl(..) => "InvalidUrl",
+            Error::PivotConditionalFormat(..) => "PivotConditionalFormat",
+            Error::NoSuchRule { .. } => "NoSuchRule",
+            Error::NothingToFreeze => "NothingToFreeze",
+            Error::PageLayoutView => "PageLayoutView",
+            Error::AmbiguousColumns(..) => "AmbiguousColumns",
+            Error::InvalidOutlineLevel(..) => "InvalidOutlineLevel",
+            Error::InvalidHeaderFooter(..) => "InvalidHeaderFooter",
+            Error::InvalidSetting { .. } => "InvalidSetting",
+            Error::Random(..) => "Random",
+        }
+    }
+
+    /// The A1 cell the error is about, for variants that carry one.
+    pub fn cell(&self) -> Option<&str> {
+        match self {
+            Error::InvalidStructuralBand { .. } => None,
+            Error::ShiftOffSheet { .. } => None,
+            Error::StructureBlocked { .. } => None,
+            Error::ReferenceDeleted { .. } => None,
+            Error::ArrayFormulaSplit { cell, .. } => Some(cell.as_str()),
+            Error::InvalidSparklineGroup => None,
+            Error::PartNotEditable { .. } => None,
+            Error::Protected { .. } => None,
+            Error::NoteExists => None,
+            Error::ThreadedComment => None,
+            Error::NoSuchNote => None,
+            Error::ImageFormat => None,
+            Error::ImageSize => None,
+            Error::ImageAnchor => None,
+            Error::NoSuchImage(..) => None,
+            Error::UnresolvedRichValue { .. } => None,
+            Error::Core(e) => e.cell(),
+            Error::NoWorkbook => None,
+            Error::NoVisibleWorksheet => None,
+            Error::Malformed(..) => None,
+            Error::FormulaScanFailed { .. } => None,
+            Error::MergedCell { cell, .. } => Some(cell.as_str()),
+            Error::RichValueCell { cell, .. } => Some(cell.as_str()),
+            Error::TableHeaderCell { cell, .. } => Some(cell.as_str()),
+            Error::MissingReference { .. } => None,
+            Error::OutOfOrder(..) => None,
+            Error::InvalidReference(..) => None,
+            Error::OutOfRange { .. } => None,
+            Error::InvalidNumber(..) => None,
+            Error::StringTooLong(..) => None,
+            Error::InvalidValue { cell, .. } => Some(cell.as_str()),
+            Error::InvalidArgument { cell, .. } => cell.as_deref(),
+            Error::SheetAdditionUnsupported => None,
+            Error::ArrayResultCell { cell, .. } => Some(cell.as_str()),
+            Error::ArrayAnchor { cell, .. } => Some(cell.as_str()),
+            Error::UnknownCellMetadata { cell, .. } => Some(cell.as_str()),
+            Error::MacroSheetDependent { cell, .. } => Some(cell.as_str()),
+            Error::IterativeCalculation => None,
+            Error::SharedFormulaMaster { cell, .. } => Some(cell.as_str()),
+            Error::InvalidFormula { .. } => None,
+            Error::NoSuchSheet(..) => None,
+            Error::NotAWorksheet(..) => None,
+            Error::Poisoned(..) => None,
+            Error::SheetNamingUnsupported => None,
+            Error::DuplicateCellWrite { cell, .. } => Some(cell.as_str()),
+            Error::MissingFunctionPrefix { .. } => None,
+            Error::DynamicArrayOperator { .. } => None,
+            Error::InvalidSheetName { .. } => None,
+            Error::DuplicateSheetName(..) => None,
+            Error::LastVisibleSheet => None,
+            Error::SharedWorkbook => None,
+            Error::SheetHasUnsupportedParts { .. } => None,
+            Error::SheetIsPivotSource(..) => None,
+            Error::TableInUse(..) => None,
+            Error::TableRange { .. } => None,
+            Error::InvalidTableName { .. } => None,
+            Error::DuplicateColumnName(..) => None,
+            Error::HeaderNotText(..) => None,
+            Error::ColumnInUse(..) => None,
+            Error::NoSuchTable(..) => None,
+            Error::CustomViewReferencesSheet => None,
+            Error::UnrewritableReference { .. } => None,
+            Error::ReversesThreeDReference(..) => None,
+            Error::BinaryReferencesPossible => None,
+            Error::SheetInUse { .. } => None,
+            Error::NoStylesPart => None,
+            Error::UnsupportedStylesPart(..) => None,
+            Error::StyleTableFull { .. } => None,
+            Error::NumFmtIdExhausted => None,
+            Error::BuiltinNumFormatRedefined { .. } => None,
+            Error::InvalidFormat(..) => None,
+            Error::InvalidNumFormat(..) => None,
+            Error::StyleIndexOutOfRange { .. } => None,
+            Error::NoSuchStyle(..) => None,
+            Error::DanglingReference { .. } => None,
+            Error::NonexistentDate => None,
+            Error::AmbiguousStyleName(..) => None,
+            Error::NotExpressible(..) => None,
+            Error::DateOutOfRange => None,
+            Error::MergeSingleCell(..) => None,
+            Error::MergeOverlap { .. } => None,
+            Error::MergeWouldHideValues { .. } => None,
+            Error::NoSuchMerge(..) => None,
+            Error::TableOverlap { .. } => None,
+            Error::PivotOverlap { .. } => None,
+            Error::QueryTableOverlap(..) => None,
+            Error::AutoFilterExists => None,
+            Error::FilterActive => None,
+            Error::DuplicateBuiltInName { .. } => None,
+            // NameInUse.cell holds `Sheet!A1` or `defined name X`, not an A1 cell.
+            Error::NameInUse { .. } => None,
+            Error::InvalidSpinCount(..) => None,
+            Error::CrossSheetReference { .. } => None,
+            Error::UnknownSheet(..) => None,
+            Error::ValidationOverlap { .. } => None,
+            Error::ListTooLong(..) => None,
+            Error::ListItemHasComma(..) => None,
+            Error::HyperlinkOverlap { .. } => None,
+            Error::InvalidUrl(..) => None,
+            Error::PivotConditionalFormat(..) => None,
+            Error::NoSuchRule { .. } => None,
+            Error::NothingToFreeze => None,
+            Error::PageLayoutView => None,
+            Error::AmbiguousColumns(..) => None,
+            Error::InvalidOutlineLevel(..) => None,
+            Error::InvalidHeaderFooter(..) => None,
+            Error::InvalidSetting { .. } => None,
+            Error::Random(..) => None,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn samples() -> Vec<(Error, Option<&'static str>)> {
+        vec![
+            (Error::InvalidStructuralBand { at: 0, count: 0 }, None),
+            (Error::ShiftOffSheet { what: String::from("x") }, None),
+            (Error::StructureBlocked { part: String::from("x"), place: String::from("x") }, None),
+            (Error::ReferenceDeleted { part: String::from("x"), location: String::from("x") }, None),
+            (Error::ArrayFormulaSplit { cell: String::from("B2") }, Some("B2")),
+            (Error::InvalidSparklineGroup, None),
+            (Error::PartNotEditable { part: String::from("x"), reason: String::from("x") }, None),
+            (Error::Protected { scope: "x", operation: "x" }, None),
+            (Error::NoteExists, None),
+            (Error::ThreadedComment, None),
+            (Error::NoSuchNote, None),
+            (Error::ImageFormat, None),
+            (Error::ImageSize, None),
+            (Error::ImageAnchor, None),
+            (Error::NoSuchImage(0), None),
+            (Error::UnresolvedRichValue { step: "x" }, None),
+            (Error::Core(ooxml_core::Error::EncryptedPackage), None),
+            (Error::NoWorkbook, None),
+            (Error::NoVisibleWorksheet, None),
+            (Error::Malformed(String::from("x")), None),
+            (Error::FormulaScanFailed { part: String::from("x"), reason: String::from("x") }, None),
+            (Error::MergedCell { cell: String::from("B2"), range: String::from("x") }, Some("B2")),
+            (Error::RichValueCell { cell: String::from("B2") }, Some("B2")),
+            (Error::TableHeaderCell { cell: String::from("B2"), table: String::from("x") }, Some("B2")),
+            (Error::MissingReference { part: String::from("x"), what: String::from("x") }, None),
+            (Error::OutOfOrder(String::from("x")), None),
+            (Error::InvalidReference(String::from("x")), None),
+            (Error::OutOfRange { row: 0, col: 0 }, None),
+            (Error::InvalidNumber(0.0), None),
+            (Error::StringTooLong(0), None),
+            (Error::InvalidValue { cell: String::from("B2"), message: String::from("x") }, Some("B2")),
+            (Error::InvalidArgument { cell: None, message: String::from("x") }, None),
+            (Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") }, Some("B2")),
+            (Error::SheetAdditionUnsupported, None),
+            (Error::ArrayResultCell { cell: String::from("B2"), anchor: String::from("x") }, Some("B2")),
+            (Error::ArrayAnchor { cell: String::from("B2") }, Some("B2")),
+            (Error::UnknownCellMetadata { part: String::from("x"), cell: String::from("B2") }, Some("B2")),
+            (Error::MacroSheetDependent { sheet: String::from("x"), cell: String::from("B2") }, Some("B2")),
+            (Error::IterativeCalculation, None),
+            (Error::SharedFormulaMaster { cell: String::from("B2"), reason: String::from("x") }, Some("B2")),
+            (Error::InvalidFormula { text: String::from("x"), reason: String::from("x") }, None),
+            (Error::NoSuchSheet(String::from("x")), None),
+            (Error::NotAWorksheet(String::from("x")), None),
+            (Error::Poisoned(String::from("x")), None),
+            (Error::SheetNamingUnsupported, None),
+            (Error::DuplicateCellWrite { cell: String::from("B2") }, Some("B2")),
+            (Error::MissingFunctionPrefix { name: String::from("x"), prefix: "x" }, None),
+            (Error::DynamicArrayOperator { operator: 'x', file_form: "x" }, None),
+            (Error::InvalidSheetName { name: String::from("x"), reason: "x" }, None),
+            (Error::DuplicateSheetName(String::from("x")), None),
+            (Error::LastVisibleSheet, None),
+            (Error::SharedWorkbook, None),
+            (Error::SheetHasUnsupportedParts { rel_types: vec![String::from("x")] }, None),
+            (Error::SheetIsPivotSource(String::from("x")), None),
+            (Error::TableInUse(String::from("x")), None),
+            (Error::TableRange { reason: "x" }, None),
+            (Error::InvalidTableName { reason: "x" }, None),
+            (Error::DuplicateColumnName(String::from("x")), None),
+            (Error::HeaderNotText(String::from("x")), None),
+            (Error::ColumnInUse(String::from("x")), None),
+            (Error::NoSuchTable(String::from("x")), None),
+            (Error::CustomViewReferencesSheet, None),
+            (Error::UnrewritableReference { part: String::from("x"), location: String::from("x") }, None),
+            (Error::ReversesThreeDReference(String::from("x")), None),
+            (Error::BinaryReferencesPossible, None),
+            (Error::SheetInUse { sheet: String::from("x"), count: 0 }, None),
+            (Error::NoStylesPart, None),
+            (Error::UnsupportedStylesPart(String::from("x")), None),
+            (Error::StyleTableFull { table: String::from("x"), limit: 0 }, None),
+            (Error::NumFmtIdExhausted, None),
+            (Error::BuiltinNumFormatRedefined { id: 0 }, None),
+            (Error::InvalidFormat(String::from("x")), None),
+            (Error::InvalidNumFormat(String::from("x")), None),
+            (Error::StyleIndexOutOfRange { index: 0, count: 0 }, None),
+            (Error::NoSuchStyle(String::from("x")), None),
+            (Error::DanglingReference { table: String::from("x"), index: 0 }, None),
+            (Error::NonexistentDate, None),
+            (Error::AmbiguousStyleName(String::from("x")), None),
+            (Error::NotExpressible(String::from("x")), None),
+            (Error::DateOutOfRange, None),
+            (Error::MergeSingleCell(String::from("x")), None),
+            (Error::MergeOverlap { range: String::from("x"), existing: String::from("x") }, None),
+            (Error::MergeWouldHideValues { range: String::from("x"), cells: vec![String::from("x")] }, None),
+            (Error::NoSuchMerge(String::from("x")), None),
+            (Error::TableOverlap { range: String::from("x"), table: String::from("x") }, None),
+            (Error::PivotOverlap { range: String::from("x"), location: String::from("x") }, None),
+            (Error::QueryTableOverlap(String::from("x")), None),
+            (Error::AutoFilterExists, None),
+            (Error::FilterActive, None),
+            (Error::DuplicateBuiltInName { name: String::from("x") }, None),
+            (Error::NameInUse { name: String::from("x"), cell: String::from("B2") }, None),
+            (Error::InvalidSpinCount(0), None),
+            (Error::CrossSheetReference { text: String::from("x") }, None),
+            (Error::UnknownSheet(String::from("x")), None),
+            (Error::ValidationOverlap { sqref: String::from("x"), existing: String::from("x") }, None),
+            (Error::ListTooLong(0), None),
+            (Error::ListItemHasComma(String::from("x")), None),
+            (Error::HyperlinkOverlap { range: String::from("x"), existing: String::from("x") }, None),
+            (Error::InvalidUrl(String::from("x")), None),
+            (Error::PivotConditionalFormat(String::from("x")), None),
+            (Error::NoSuchRule { what: "x", sqref: String::from("x") }, None),
+            (Error::NothingToFreeze, None),
+            (Error::PageLayoutView, None),
+            (Error::AmbiguousColumns(String::from("x")), None),
+            (Error::InvalidOutlineLevel(0), None),
+            (Error::InvalidHeaderFooter(String::from("x")), None),
+            (Error::InvalidSetting { what: String::from("x"), reason: String::from("x") }, None),
+            (Error::Random(String::from("x")), None),
+        ]
+    }
+
+    #[test]
+    fn kind_matches_debug_name() {
+        for (error, _) in samples() {
+            if matches!(error, Error::Core(_)) {
+                continue;
+            }
+            let debug = format!("{error:?}");
+            let kind = error.kind();
+            assert!(debug.starts_with(kind), "{debug}");
+            // A prefix of another variant's name (Package/PackageTooLarge)
+            // must not pass: the next character ends the identifier.
+            assert!(debug[kind.len()..].chars().next().is_none_or(|c| !c.is_alphanumeric() && c != '_'), "{debug}");
+        }
+        let inner = ooxml_core::Error::EncryptedPackage;
+        let (k, dbg) = (inner.kind().to_string(), format!("{inner:?}"));
+        assert_eq!(Error::Core(inner).kind(), k);
+        assert!(dbg.starts_with("EncryptedPackage"));
+    }
+
+    #[test]
+    fn cell_reports_carrying_variants() {
+        for (error, expected) in samples() {
+            assert_eq!(error.cell(), expected);
+        }
+    }
+
+    #[test]
+    fn invalid_argument_prefixes_some_cells() {
+        let some = Error::invalid_argument(Some("B2".to_string()), "m".to_string());
+        assert_eq!(some.cell(), Some("B2"));
+        assert_eq!(some.to_string(), "cell B2: m");
+        let none = Error::invalid_argument(None, "m".to_string());
+        assert_eq!(none.cell(), None);
+        assert_eq!(none.to_string(), "m");
+    }
+}
+

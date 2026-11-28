@@ -18,7 +18,7 @@ use crate::worksheet::{CellMut, MAX_STRING_LEN};
 
 pub(crate) fn prepare_rich_text(at: CellIndex, runs: &[(Option<&Font>, &str)]) -> Result<(Vec<crate::registry::strings::RichRun>, String)> {
     use crate::registry::strings::RichRun;
-    let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
+    let bad = |message: String| Error::invalid_argument(Some(at.to_string()), message);
     if runs.is_empty() {
         return Err(bad("a rich string needs at least one run".into()));
     }
@@ -62,7 +62,7 @@ pub(crate) fn project_protection(node: &ooxml_core::RawNode) -> crate::Protectio
 
 pub(crate) fn iso_date_op(at: CellIndex, value: &str) -> Result<CellOp> {
     if parse_iso_date(value).is_none() {
-        return Err(Error::InvalidValue { cell: at.to_string(), message: "expected a UTC ISO date".into() });
+        return Err(Error::invalid_argument(Some(at.to_string()), "expected a UTC ISO date".into()));
     }
     Ok(CellOp::Date(value.into()))
 }
@@ -319,7 +319,7 @@ impl Workbook {
         runs: &[(&Font, &str)],
     ) -> Result<(CellOp, Extra)> {
         use crate::registry::strings::{RichRun, SiContent};
-        let bad = |message: String| Error::InvalidValue { cell: at.to_string(), message };
+        let bad = |message: String| Error::invalid_argument(Some(at.to_string()), message);
         if runs.is_empty() {
             return Err(bad("a rich string needs at least one run".into()));
         }
@@ -434,7 +434,7 @@ impl Workbook {
 }
 
 /// The error value `value` names (ECMA-376 §18.17.4.6 plus Excel's
-/// `#GETTING_DATA`), else [`Error::InvalidValue`]. Shared by `set_error`
+/// `#GETTING_DATA`), else [`Error::InvalidArgument`]. Shared by `set_error`
 /// and the Journal's plan input, so the table cannot diverge.
 pub(crate) fn error_value(at: CellIndex, value: &str) -> Result<&'static str> {
     const ERRORS: &[&str] = &[
@@ -451,10 +451,7 @@ pub(crate) fn error_value(at: CellIndex, value: &str) -> Result<&'static str> {
         .iter()
         .copied()
         .find(|e| *e == value)
-        .ok_or_else(|| Error::InvalidValue {
-            cell: at.to_string(),
-            message: format!("{value:?} is not an error value"),
-        })
+        .ok_or_else(|| Error::invalid_argument(Some(at.to_string()), format!("{value:?} is not an error value")))
 }
 
 impl CellMut<'_, '_> {
@@ -495,7 +492,7 @@ impl CellMut<'_, '_> {
     /// Writes an error value (`t="e"`): one of `#NULL!`, `#DIV/0!`,
     /// `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#GETTING_DATA`
     /// (ECMA-376 §18.17.4.6 plus Excel's `#GETTING_DATA`), else
-    /// [`Error::InvalidValue`]. A value write, as [`Self::set_number`].
+    /// [`Error::InvalidArgument`]. A value write, as [`Self::set_number`].
     pub fn set_error(self, value: &str) -> Result<()> {
         let at = self.at;
         self.edit(CellOp::Error(error_value(at, value)?), None)
@@ -509,7 +506,7 @@ impl CellMut<'_, '_> {
     /// first run in [`Font::default`] gets no `rPr`. `s` is kept.
     ///
     /// Errors (nothing changed): no runs or an empty run
-    /// ([`Error::InvalidValue`]), more than 32,767 UTF-16 units in total
+    /// ([`Error::InvalidArgument`]), more than 32,767 UTF-16 units in total
     /// ([`Error::StringTooLong`]), an invalid font
     /// ([`Error::InvalidFormat`]), and those of [`Self::set_string`].
     pub fn set_rich_string(self, runs: &[(&Font, &str)]) -> Result<()> {

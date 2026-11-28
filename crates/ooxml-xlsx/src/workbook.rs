@@ -346,10 +346,10 @@ impl Workbook {
     pub fn set_template_workbook_type(&mut self, format: &str) -> Result<()> {
         self.check_editable()?;
         if !self.from_template {
-            return Err(Error::Malformed("workbook format change requires a new workbook".into()));
+            return Err(Error::invalid_argument(None, "workbook format change requires a new workbook".into()));
         }
         let (_, content_type) = XML_WORKBOOK_TYPES.iter().find(|(name, _)| *name == format)
-            .ok_or_else(|| Error::Malformed(format!("unknown XML workbook type {format:?}")))?;
+            .ok_or_else(|| Error::invalid_argument(None, format!("unknown XML workbook type {format:?}")))?;
         if self.pkg.content_type(&self.workbook_part) != Some(content_type) {
             self.pkg.set_content_type(&self.workbook_part, content_type)?;
         }

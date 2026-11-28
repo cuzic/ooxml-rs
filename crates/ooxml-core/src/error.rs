@@ -395,3 +395,166 @@ impl std::fmt::Display for DetachRefusal {
         })
     }
 }
+
+impl Error {
+    /// The variant name, e.g. `"MergedCell"`. Stable: renaming a variant is a
+    /// breaking change recorded in the owning ADR (ADR-0023 §8).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Error::Io(..) => "Io",
+            Error::Zip(..) => "Zip",
+            Error::EncryptedPackage => "EncryptedPackage",
+            Error::StrictNotSupported(..) => "StrictNotSupported",
+            Error::PartNotFound(..) => "PartNotFound",
+            Error::NewPartUnsupported(..) => "NewPartUnsupported",
+            Error::Package(..) => "Package",
+            Error::Xml { .. } => "Xml",
+            Error::DtdNotAllowed { .. } => "DtdNotAllowed",
+            Error::TooDeep { .. } => "TooDeep",
+            Error::UnsupportedEncoding(..) => "UnsupportedEncoding",
+            Error::WrongElement { .. } => "WrongElement",
+            Error::AlreadyPresent(..) => "AlreadyPresent",
+            Error::AmbiguousSlot(..) => "AmbiguousSlot",
+            Error::UnresolvedSibling(..) => "UnresolvedSibling",
+            Error::UnsupportedContentModel(..) => "UnsupportedContentModel",
+            Error::NotAllowed { .. } => "NotAllowed",
+            Error::NotText(..) => "NotText",
+            Error::IncompleteSpec(..) => "IncompleteSpec",
+            Error::NotMovable { .. } => "NotMovable",
+            Error::NamespaceNotInScope(..) => "NamespaceNotInScope",
+            Error::InvalidNamespaceDeclaration { .. } => "InvalidNamespaceDeclaration",
+            Error::InvalidXmlChar { .. } => "InvalidXmlChar",
+            Error::NoSuchElement => "NoSuchElement",
+            Error::NotLeaf => "NotLeaf",
+            Error::TypedNamespace => "TypedNamespace",
+            Error::NilElement => "NilElement",
+            Error::NotDetachable { .. } => "NotDetachable",
+            Error::InsertIndexOutOfRange { .. } => "InsertIndexOutOfRange",
+            Error::WrongDocument => "WrongDocument",
+            Error::Attr(..) => "Attr",
+            Error::RemovePartRefused { .. } => "RemovePartRefused",
+            Error::RegistryRefused { .. } => "RegistryRefused",
+            Error::NotWellFormed { .. } => "NotWellFormed",
+            Error::NamespaceDeclaration(..) => "NamespaceDeclaration",
+            Error::TruncatedEntry { .. } => "TruncatedEntry",
+            Error::XmlPartTooLarge { .. } => "XmlPartTooLarge",
+            Error::PartTooLarge { .. } => "PartTooLarge",
+            Error::PackageTooLarge { .. } => "PackageTooLarge",
+        }
+    }
+
+    /// The A1 cell the error is about, for variants that carry one.
+    pub fn cell(&self) -> Option<&str> {
+        match self {
+            Error::Io(..) => None,
+            Error::Zip(..) => None,
+            Error::EncryptedPackage => None,
+            Error::StrictNotSupported(..) => None,
+            Error::PartNotFound(..) => None,
+            Error::NewPartUnsupported(..) => None,
+            Error::Package(..) => None,
+            Error::Xml { .. } => None,
+            Error::DtdNotAllowed { .. } => None,
+            Error::TooDeep { .. } => None,
+            Error::UnsupportedEncoding(..) => None,
+            Error::WrongElement { .. } => None,
+            Error::AlreadyPresent(..) => None,
+            Error::AmbiguousSlot(..) => None,
+            Error::UnresolvedSibling(..) => None,
+            Error::UnsupportedContentModel(..) => None,
+            Error::NotAllowed { .. } => None,
+            Error::NotText(..) => None,
+            Error::IncompleteSpec(..) => None,
+            Error::NotMovable { .. } => None,
+            Error::NamespaceNotInScope(..) => None,
+            Error::InvalidNamespaceDeclaration { .. } => None,
+            Error::InvalidXmlChar { .. } => None,
+            Error::NoSuchElement => None,
+            Error::NotLeaf => None,
+            Error::TypedNamespace => None,
+            Error::NilElement => None,
+            Error::NotDetachable { .. } => None,
+            Error::InsertIndexOutOfRange { .. } => None,
+            Error::WrongDocument => None,
+            Error::Attr(..) => None,
+            Error::RemovePartRefused { .. } => None,
+            Error::RegistryRefused { .. } => None,
+            Error::NotWellFormed { .. } => None,
+            Error::NamespaceDeclaration(..) => None,
+            Error::TruncatedEntry { .. } => None,
+            Error::XmlPartTooLarge { .. } => None,
+            Error::PartTooLarge { .. } => None,
+            Error::PackageTooLarge { .. } => None,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn samples() -> Vec<(Error, Option<&'static str>)> {
+        vec![
+            (Error::Io(std::io::Error::other("x")), None),
+            (Error::Zip(zip::result::ZipError::FileNotFound), None),
+            (Error::EncryptedPackage, None),
+            (Error::StrictNotSupported(String::from("x")), None),
+            (Error::PartNotFound(String::from("x")), None),
+            (Error::NewPartUnsupported(String::from("x")), None),
+            (Error::Package(String::from("x")), None),
+            (Error::Xml { position: 0, message: String::from("x") }, None),
+            (Error::DtdNotAllowed { position: 0 }, None),
+            (Error::TooDeep { limit: 0, position: 0 }, None),
+            (Error::UnsupportedEncoding(String::from("x")), None),
+            (Error::WrongElement { expected: QName::new("", ""), found_ns: String::from("x"), found_local: String::from("x") }, None),
+            (Error::AlreadyPresent(QName::new("", "")), None),
+            (Error::AmbiguousSlot(QName::new("", "")), None),
+            (Error::UnresolvedSibling(QName::new("", "")), None),
+            (Error::UnsupportedContentModel(QName::new("", "")), None),
+            (Error::NotAllowed { parent: QName::new("", ""), child: QName::new("", "") }, None),
+            (Error::NotText(QName::new("", "")), None),
+            (Error::IncompleteSpec(QName::new("", "")), None),
+            (Error::NotMovable { reason: MoveRefusal::Root, name: String::from("x") }, None),
+            (Error::NamespaceNotInScope(String::from("x")), None),
+            (Error::InvalidNamespaceDeclaration { prefix: String::from("x"), uri: String::from("x"), reason: "x" }, None),
+            (Error::InvalidXmlChar { ch: 'x', offset: 0 }, None),
+            (Error::NoSuchElement, None),
+            (Error::NotLeaf, None),
+            (Error::TypedNamespace, None),
+            (Error::NilElement, None),
+            (Error::NotDetachable { reason: DetachRefusal::AlternateContent, name: String::from("x") }, None),
+            (Error::InsertIndexOutOfRange { index: 0, len: 0 }, None),
+            (Error::WrongDocument, None),
+            (Error::Attr(crate::schema::AttrError { attr: QName::new("", ""), raw: String::from("x") }), None),
+            (Error::RemovePartRefused { part: String::from("x"), reason: crate::package::RemoveRefusal::RegistryPart }, None),
+            (Error::RegistryRefused { part: String::from("x"), reason: crate::package::RegistryRefusal::InvalidPartName { reason: "x" } }, None),
+            (Error::NotWellFormed { position: 0, reason: WellFormedness::ByteOrderMark }, None),
+            (Error::NamespaceDeclaration(QName::new("", "")), None),
+            (Error::TruncatedEntry { part: String::from("x"), end: 0, len: 0 }, None),
+            (Error::XmlPartTooLarge { len: 0 }, None),
+            (Error::PartTooLarge { part: String::from("x"), limit: 0 }, None),
+            (Error::PackageTooLarge { size: 0, limit: 0 }, None),
+        ]
+    }
+
+    #[test]
+    fn kind_matches_debug_name() {
+        for (error, _) in samples() {
+            let debug = format!("{error:?}");
+            let kind = error.kind();
+            assert!(debug.starts_with(kind), "{debug}");
+            // A prefix of another variant's name (Package/PackageTooLarge)
+            // must not pass: the next character ends the identifier.
+            assert!(debug[kind.len()..].chars().next().is_none_or(|c| !c.is_alphanumeric() && c != '_'), "{debug}");
+        }
+    }
+
+    #[test]
+    fn cell_reports_carrying_variants() {
+        for (error, expected) in samples() {
+            assert_eq!(error.cell(), expected);
+        }
+    }
+}
+
