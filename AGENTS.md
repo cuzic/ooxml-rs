@@ -27,7 +27,6 @@ cargo xtask codegen --check
 
 - 3 つとも通ること。
 - `ooxml-pptx` か `ooxml-core` に触れたら、CI の python-pptx オラクル（`.github/workflows/ci.yml`）も通ること。
-- `bindings/python/` かその依存クレートに触れた PR は、CI の `python` ジョブも緑であること（毎 PR 回る。手元では任意）。
   手元で回す場合（pip にネットワークが要る。無ければ CI に任せる）:
 
   ```sh
@@ -36,6 +35,7 @@ cargo xtask codegen --check
   cargo run --release -p ooxml-pptx --example oracle_cases -- "$T/cases"
   "$T/venv/bin/python" -I crates/ooxml-pptx/tests/oracle/check.py "$T/cases" reference/fixtures/pptx
   ```
+- `bindings/python/` かその依存クレートに触れた PR は、CI の `python` ジョブも緑であること（毎 PR 回る。手元では任意）。
 - **拒否は無変更**: 編集 API が `Err` を返したら、保存結果は入力とバイト単位で同一（`Err ⇒ byte-identical`）。
   新しい拒否には必ずこのテストを付ける。
 - **局所性**: 編集は触ったノードの span の外を変えない（ADR-0001 の T1/T1b/T2）。
