@@ -80,9 +80,10 @@ def test_slide_operations(tmp_path):
     assert len(deck.slide_texts()) == 2
     assert deck.add_slide(0) == 2
     assert len(deck.slide_texts()) == 3
-    assert deck.duplicate_slide(0) == 3
-    assert len(deck.slide_texts()) == 4
     first = deck.slide_texts()[0]
+    assert deck.duplicate_slide(0) == 1
+    assert deck.slide_texts()[1] == first
+    assert len(deck.slide_texts()) == 4
     deck.move_slide(0, 3)
     assert deck.slide_texts()[3] == first
     deck.delete_slide(0)

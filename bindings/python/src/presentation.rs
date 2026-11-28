@@ -49,8 +49,9 @@ impl Presentation {
         Ok(PyBytes::new(py, &bytes))
     }
 
-    /// One text per slide: shape and table texts in document order (table
-    /// cells row-major), joined by `\n`.
+    /// One text per slide: shape texts in document order (group members
+    /// included, depth-first, as `Slide::shapes` lists them; table cells
+    /// row-major after their shape), joined by `\n`.
     fn slide_texts(&self, py: Python<'_>) -> PyResult<Vec<String>> {
         run(py, &self.handle, None, None, |deck| {
             let count = deck.slides().count();
@@ -102,16 +103,17 @@ impl Presentation {
     /// `at` (appended when absent); returns the new slide's index.
     #[pyo3(signature = (layout_index, at=None))]
     fn add_slide(&self, py: Python<'_>, layout_index: usize, at: Option<usize>) -> PyResult<usize> {
-        let layouts = run(py, &self.handle, None, None, |deck| deck.layouts())?;
-        let layout = layouts.get(layout_index).ok_or_else(|| {
-            pyo3::exceptions::PyIndexError::new_err(format!(
-                "layout index {layout_index} out of range ({} layouts)", layouts.len()
-            ))
+        let placed: Result<usize, (usize, usize)> = run(py, &self.handle, None, None, |deck| {
+            let layouts = deck.layouts()?;
+            let Some(layout) = layouts.get(layout_index) else {
+                return Ok(Err((layout_index, layouts.len())));
+            };
+            Ok::<_, ooxml_pptx::Error>(Ok(deck.add_slide(layout, at)?.info().index))
         })?;
-        run(py, &self.handle, None, None, |deck| {
-            let before = deck.slides().count();
-            deck.add_slide(layout, at)?;
-            Ok::<_, ooxml_pptx::Error>(at.unwrap_or(before))
+        placed.map_err(|(asked, count)| {
+            pyo3::exceptions::PyIndexError::new_err(format!(
+                "layout index {asked} out of range ({count} layouts)"
+            ))
         })
     }
 
@@ -125,14 +127,12 @@ impl Presentation {
         run(py, &self.handle, None, None, |deck| deck.move_slide(from_index, to))
     }
 
-    /// Duplicates the `index`-th slide at `at` (appended when absent);
-    /// returns the new slide's index.
+    /// Duplicates the `index`-th slide at `at` (right after it when
+    /// absent); returns the new slide's index.
     #[pyo3(signature = (index, at=None))]
     fn duplicate_slide(&self, py: Python<'_>, index: usize, at: Option<usize>) -> PyResult<usize> {
         run(py, &self.handle, None, None, |deck| {
-            let before = deck.slides().count();
-            deck.duplicate_slide(index, at)?;
-            Ok::<_, ooxml_pptx::Error>(at.unwrap_or(before))
+            Ok::<_, ooxml_pptx::Error>(deck.duplicate_slide(index, at)?.info().index)
         })
     }
 }
