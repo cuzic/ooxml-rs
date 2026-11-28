@@ -37,13 +37,13 @@ enum Category {
 /// `(crate, kind)` → category. One entry per surfacing kind; `__table_keys`
 /// plus the coverage test keep it complete. Judgement calls (see the U7 PR):
 /// Rule: the operation cannot proceed on a valid file -> Refused
-/// (`Unsupported*`, exhaustion, `Random`/`*Randomness`, missing optional
-/// parts the library does not create: `NoStylesPart`, `NoSettingsPart`,
-/// `NoTextBody`, `NoNotesSlide`, `NoNotesBody`, `NoSectionProperties`);
-/// the file breaks a format invariant -> MalformedFile; the caller's pick
-/// is wrong (`NotA*`, `MasterIndexOutOfRange`) or mixed caller/file image
-/// and name families (`ImageSize`, `NameInUse`, `Ambiguous*`) ->
-/// InvalidInput.
+/// (`Unsupported*`, exhaustion, `Random`/`*Randomness`, ambiguous file
+/// state (`Ambiguous*`), missing optional parts the library does not
+/// create: `NoStylesPart`, `NoSettingsPart`, `NoTextBody`, `NoNotesSlide`,
+/// `NoNotesBody`, `NoSectionProperties`); the file breaks a format
+/// invariant -> MalformedFile; the caller's pick is wrong (`NotA*`,
+/// `MasterIndexOutOfRange`) or mixed caller/file image and name families
+/// (`ImageSize`, `NameInUse`) -> InvalidInput.
 static TABLE: &[((&str, &str), Category)] = &[
     // --- core ---
     (("core", "Io"), Category::Io),
