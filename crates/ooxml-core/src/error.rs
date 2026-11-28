@@ -559,6 +559,20 @@ mod tests {
     }
 
     #[test]
+    fn samples_cover_every_variant() {
+        // See the xlsx/docx/pptx copies: samples must cover every kind arm
+        // so __surface_kinds (and the binding table check) cannot drift.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples().into_iter().map(|(e, _)| e.kind()).collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms, "a variant lacks a sample");
+    }
+
+    #[test]
     fn cell_reports_carrying_variants() {
         for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);

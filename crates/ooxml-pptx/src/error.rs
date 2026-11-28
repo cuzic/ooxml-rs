@@ -707,6 +707,26 @@ mod tests {
     }
 
     #[test]
+    fn samples_cover_every_variant() {
+        // A new variant without a sample would escape __surface_kinds and
+        // fall silently into the binding's base class (ADR-0023 m2): the
+        // deduped sample kinds (minus the Core sample, which surfaces as
+        // core) must equal the kind() arms minus the delegating Core arm.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples()
+            .into_iter()
+            .filter(|(e, _)| !matches!(e, Error::Core(_)))
+            .map(|(e, _)| e.kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms - 1, "a variant lacks a sample");
+    }
+
+    #[test]
     fn cell_reports_carrying_variants() {
         for (error, expected) in __error_samples() {
             assert_eq!(error.cell(), expected);

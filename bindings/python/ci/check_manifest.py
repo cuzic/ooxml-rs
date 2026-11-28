@@ -4,6 +4,7 @@ Usage: python -I ci/check_manifest.py ../../Cargo.toml Cargo.toml
 Checks: rust-version, edition, license, version, authors, repository.
 """
 
+import os
 import re
 import sys
 
@@ -38,6 +39,18 @@ def main(root_path: str, own_path: str) -> int:
             failed = True
     if not re.search(r'^pyo3\s*=\s*"=', open(own_path).read(), re.M):
         print("pyo3 is not exactly pinned (=x.y.z)")
+        failed = True
+    # The CI yaml mirrors the pytest pin by hand; keep them in sync.
+    here = os.path.dirname(os.path.abspath(own_path))
+    req = open(os.path.join(here, "requirements-ci.txt")).read()
+    ci = open(os.path.join(here, "..", "..", ".github", "workflows", "ci.yml")).read()
+    want = re.search(r"^pytest==(.*)$", req, re.M)
+    got = set(re.findall(r'"pytest==([^"]+)"', ci))
+    if want is None:
+        print("requirements-ci.txt has no pytest pin")
+        failed = True
+    elif got != {want.group(1)}:
+        print(f"pytest pin: requirements-ci.txt {want.group(1)} != ci.yml {sorted(got)}")
         failed = True
     return 1 if failed else 0
 

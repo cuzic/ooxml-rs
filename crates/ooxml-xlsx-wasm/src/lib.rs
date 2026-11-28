@@ -726,20 +726,15 @@ impl XlsxDocument {
     }
 
     pub fn defined_names(&mut self) -> Result<Vec<String>, JsError> {
-        use ooxml_core::QName;
+        use ooxml_xlsx::NameScope;
         let mut values = Vec::new();
-        for name in self.workbook.defined_name_nodes().map_err(js_error)? {
-            let attr = |key| {
-                name.attr(QName::new("", key))
-                    .unwrap_or_default()
-                    .to_owned()
+        for name in self.workbook.defined_names().map_err(js_error)? {
+            let scope = match name.scope {
+                NameScope::Workbook => String::new(),
+                NameScope::Sheet(id) => id.to_string(),
+                NameScope::Invalid(raw) => raw,
             };
-            values.extend([
-                attr("name"),
-                name.text().into_owned(),
-                attr("localSheetId"),
-                attr("comment"),
-            ]);
+            values.extend([name.name, name.formula, scope, name.comment.unwrap_or_default()]);
         }
         Ok(values)
     }

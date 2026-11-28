@@ -104,6 +104,20 @@ impl fmt::Display for CellRange {
     }
 }
 
+/// How workbook-scoped APIs address a sheet (ADR-0023 §2; introduced early
+/// for [`crate::Workbook::resolve_defined_name`], the rest of §2 lands in U2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SheetRef<'a> {
+    /// Exact match first, then a unique case-insensitive match: the rules of
+    /// [`crate::Workbook::worksheet_by_name`] (Excel compares sheet names
+    /// case-insensitively).
+    Name(&'a str),
+    /// 0-based position in `<sheets>` (hidden sheets, chartsheets, macro and
+    /// dialog sheets counted), as [`crate::Workbook::worksheet_by_index`] and
+    /// `sheet_names()`.
+    Index(usize),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

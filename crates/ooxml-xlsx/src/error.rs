@@ -284,6 +284,33 @@ pub enum Error {
     #[error("sheet {0:?} is not a worksheet")]
     NotAWorksheet(String),
 
+    /// No defined name folds equal to the requested one (in the requested
+    /// scope, if any).
+    #[error("no defined name {0:?}")]
+    NoSuchName(String),
+
+    /// The lookup cannot pick one name: two fold alike in the chosen scope,
+    /// or a same-folded name has an invalid scope (fail closed).
+    #[error("ambiguous defined name {name:?}: {reason}")]
+    AmbiguousName {
+        /// The requested name, as passed.
+        name: String,
+        /// One of `"invalid localSheetId"`, `"names fold alike"`.
+        reason: &'static str,
+    },
+
+    /// The name resolves but its text is not one sheet-qualified absolute
+    /// area on a worksheet.
+    #[error("defined name {name:?} is not a range: {reason}")]
+    NameNotARange {
+        /// The requested name, as passed.
+        name: String,
+        /// One of `"constant"`, `"formula"`, `"multiple areas"`,
+        /// `"relative reference"`, `"external reference"`, `"#REF!"`,
+        /// `"3D reference"`, `"not a worksheet"`.
+        reason: &'static str,
+    },
+
     /// An earlier edit failed while being applied (a bug: the plan had
     /// proved it would succeed). The workbook may hold a partial edit, so
     /// every later edit and every save is refused; re-open the file.
@@ -740,6 +767,9 @@ impl Error {
             Error::InvalidFormula { .. } => "InvalidFormula",
             Error::NoSuchSheet(..) => "NoSuchSheet",
             Error::NotAWorksheet(..) => "NotAWorksheet",
+            Error::NoSuchName(..) => "NoSuchName",
+            Error::AmbiguousName { .. } => "AmbiguousName",
+            Error::NameNotARange { .. } => "NameNotARange",
             Error::Poisoned(..) => "Poisoned",
             Error::SheetNamingUnsupported => "SheetNamingUnsupported",
             Error::DuplicateCellWrite { .. } => "DuplicateCellWrite",
@@ -853,6 +883,9 @@ impl Error {
             Error::InvalidFormula { .. } => None,
             Error::NoSuchSheet(..) => None,
             Error::NotAWorksheet(..) => None,
+            Error::NoSuchName(..) => None,
+            Error::AmbiguousName { .. } => None,
+            Error::NameNotARange { .. } => None,
             Error::Poisoned(..) => None,
             Error::SheetNamingUnsupported => None,
             Error::DuplicateCellWrite { cell, .. } => Some(cell.as_str()),
@@ -960,6 +993,7 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
         (Error::StringTooLong(0), None),
         (Error::InvalidValue { cell: String::from("B2"), message: String::from("x") }, Some("B2")),
         (Error::InvalidArgument { cell: None, message: String::from("x") }, None),
+        (Error::InvalidArgument { cell: Some(String::from("B2")), message: String::from("x") }, Some("B2")),
         (Error::SheetAdditionUnsupported, None),
         (Error::ArrayResultCell { cell: String::from("B2"), anchor: String::from("x") }, Some("B2")),
         (Error::ArrayAnchor { cell: String::from("B2") }, Some("B2")),
@@ -970,6 +1004,9 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
         (Error::InvalidFormula { text: String::from("x"), reason: String::from("x") }, None),
         (Error::NoSuchSheet(String::from("x")), None),
         (Error::NotAWorksheet(String::from("x")), None),
+        (Error::NoSuchName(String::from("x")), None),
+        (Error::AmbiguousName { name: String::from("x"), reason: "x" }, None),
+        (Error::NameNotARange { name: String::from("x"), reason: "x" }, None),
         (Error::Poisoned(String::from("x")), None),
         (Error::SheetNamingUnsupported, None),
         (Error::DuplicateCellWrite { cell: String::from("B2") }, Some("B2")),
@@ -1042,7 +1079,14 @@ pub fn __error_samples() -> Vec<(Error, Option<&'static str>)> {
 /// core error surfaces as `("core", kind)`).
 #[doc(hidden)]
 pub fn __surface_kinds() -> Vec<&'static str> {
-    __error_samples().into_iter().filter(|(e, _)| !matches!(e, Error::Core(_))).map(|(e, _)| e.kind()).collect()
+    // Order-preserving dedupe: InvalidArgument is sampled twice (None/Some).
+    let mut seen = std::collections::HashSet::new();
+    __error_samples()
+        .into_iter()
+        .filter(|(e, _)| !matches!(e, Error::Core(_)))
+        .map(|(e, _)| e.kind())
+        .filter(|kind| seen.insert(*kind))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1066,6 +1110,26 @@ mod tests {
         let (k, dbg) = (inner.kind().to_string(), format!("{inner:?}"));
         assert_eq!(Error::Core(inner).kind(), k);
         assert!(dbg.starts_with("EncryptedPackage"));
+    }
+
+    #[test]
+    fn samples_cover_every_variant() {
+        // A new variant without a sample would escape __surface_kinds and
+        // fall silently into the binding's base class (ADR-0023 m2): the
+        // deduped sample kinds (minus the Core sample, which surfaces as
+        // core) must equal the kind() arms minus the delegating Core arm.
+        let source = include_str!("error.rs");
+        let start = source.find("pub fn kind(").expect("kind fn");
+        let end = start + source[start..].find("pub fn cell(").expect("cell fn");
+        let arms = source[start..end].matches("=>").count();
+        let mut kinds: Vec<_> = __error_samples()
+            .into_iter()
+            .filter(|(e, _)| !matches!(e, Error::Core(_)))
+            .map(|(e, _)| e.kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        assert_eq!(kinds.len(), arms - 1, "a variant lacks a sample");
     }
 
     #[test]
